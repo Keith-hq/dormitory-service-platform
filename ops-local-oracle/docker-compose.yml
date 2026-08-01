@@ -1,0 +1,17 @@
+services:
+  oracle-db:
+    image: gvenzl/oracle-xe:21-full
+    container_name: dorm-oracle-db
+    ports:
+      - "1521:1521"
+      - "5500:5500"
+    environment:
+      ORACLE_DATABASE: DORMDB
+      ORACLE_PASSWORD: Dorm@123456
+      ORACLE_CHARACTERSET: AL32UTF8
+    volumes:
+      # 持久化数据，删除容器数据不丢失
+      - oracle-data:/opt/oracle/oradata
+    restart: always
+volumes:
+  oracle-data:
