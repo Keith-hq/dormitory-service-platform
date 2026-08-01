@@ -8,46 +8,6 @@
 
 ---
 
-## 快速开始
-
-```bash
-# 1. 克隆仓库
-git clone https://github.com/Keith-hq/dormitory-service-platform.git
-cd dormitory-service-platform
-
-# 2. 切换到 develop 分支
-git checkout develop
-
-# 3. 启动 Oracle 容器
-cd ops-local-oracle
-docker compose up -d
-
-# 4. 启动后端
-cd template-backend
-dotnet run
-
-# 5. 启动前端
-cd template-frontend
-npm install && npm run dev
-```
-
----
-
-## 项目结构
-
-```
-dormitory-service-platform/
-├── ops-local-oracle/          # Oracle Docker 容器一键环境
-├── template-backend/          # 后端样板（ASP.NET Core 三层架构）
-├── template-frontend/         # 前端样板（Vue3 + Vite + Pinia）
-├── template-demo-guide/       # 标准模块开发教程文档
-├── .github/workflows/         # CI/CD 自动化流水线
-├── 组员接入指南.docx          # 新组员接入指南
-└── 环境排错手册.docx          # 常见报错速查手册
-```
-
----
-
 ## 分支命名规范
 
 > **统一前缀 + 描述，小写英文，横线分隔。**
