@@ -46,4 +46,3 @@ ALTER SESSION SET CONTAINER = DORMPDB;
 
 -- 验证 DORM_OPER 用户
 SELECT username FROM dba_users WHERE username = 'DORM_OPER';
-```
