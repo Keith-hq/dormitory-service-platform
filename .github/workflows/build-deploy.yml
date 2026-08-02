@@ -110,11 +110,11 @@ jobs:
   #
   #     - name: 构建后端镜像
   #       run: |
-  #         docker build -t dorm-api:latest -f ops/docker/Dockerfile.backend .
+  #         docker build -t dorm-api:latest -f deploy/docker/Dockerfile.backend .
   #
   #     - name: 构建前端镜像
   #       run: |
-  #         docker build -t dorm-web:latest -f ops/docker/Dockerfile.frontend .
+  #         docker build -t dorm-web:latest -f deploy/docker/Dockerfile.frontend .
   #
   #     - name: 推送镜像到容器仓库（阶段二配置）
   #       run: echo "镜像构建完成，待阶段二配置云端推送"

@@ -4,7 +4,7 @@
 
 ```bash
 # 1. 进入目录
-cd ops-local-oracle
+cd deploy/oracle
 
 # 2. 创建本地配置（首次使用）
 copy .env.example .env
