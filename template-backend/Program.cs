@@ -24,12 +24,13 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
-    if (string.IsNullOrEmpty(connectionString))
+    if (string.IsNullOrWhiteSpace(connectionString))
     {
-        // 回退到 User Secrets 中的配置
-        connectionString = builder.Configuration["OracleConnection"];
+        throw new InvalidOperationException(
+            "ConnectionStrings:OracleConnection is not configured. " +
+            "Set it with .NET User Secrets or the ConnectionStrings__OracleConnection environment variable.");
     }
-    options.UseOracle(connectionString ?? "Data Source=localhost:1521/DORMPDB;User Id=DORM_OPER;Password=Dorm@2026;");
+    options.UseOracle(connectionString);
 });
 
 // ===== 4. 注册 Repository 层 =====
