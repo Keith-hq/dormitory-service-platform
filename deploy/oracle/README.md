@@ -3,8 +3,8 @@
 ## 快速启动
 
 ```bash
-# 1. 进入目录
-cd ops-local-oracle
+# 1. 在仓库根目录进入配置目录
+cd deploy/oracle
 
 # 2. 创建本地配置（首次使用）
 copy .env.example .env
