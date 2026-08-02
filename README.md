@@ -2,11 +2,18 @@
 
 高校宿舍后勤与共享生活服务平台｜数据库课程设计项目
 
-**技术栈：** Vue3 + Vite + Pinia + ASP.NET Core .NET8 C# + Oracle 26AI + EF Core + Docker Compose + Nginx
+**技术栈：** Vue3 + Vite + Pinia + ASP.NET Core .NET8 C# + Oracle XE 21 + EF Core + Docker Compose + Nginx
 
 **功能覆盖：** 宿舍资产、住宿管理、水电分摊、共享借用、访客二维码、维修 SLA 派单、退宿清算等高并发业务；内置标准化前后端样板间、Oracle 容器一键环境、CI/CD 自动部署、Apifox 统一接口契约。
 
 ---
+
+## 本地环境配置
+
+- Oracle 本地环境使用 `gvenzl/oracle-xe:21-full` 镜像。
+- 首次启动前，将 `ops-local-oracle/.env.example` 复制为同目录下的 `.env`，再填写本机 `ORACLE_PASSWORD`；`.env` 不得提交。
+- 后端连接串只保存在 .NET User Secrets 或 `ConnectionStrings__OracleConnection` 环境变量中，不写入 `appsettings.Development.json`。
+- `DORM_OPER` 和业务表由后续初始化脚本创建；当前仓库不假定该账号已经存在，也不提交任何可用密码。
 
 ## 分支命名规范
 
@@ -127,7 +134,7 @@ git push -u origin feature/模块名-功能描述
 
 | 服务 | 地址 | 账号 / 密码 |
 |---|---|---|
-| Oracle PDB | `localhost:1521/DORMPDB` | `DORM_OPER` / `Dorm@2026` |
+| Oracle PDB | `localhost:1521/DORMPDB` | 使用本机 User Secrets 中的连接串 |
 | 后端 Swagger | `http://localhost:5000/swagger` | — |
 | 前端页面 | `http://localhost:3000` | — |
-| DBeaver 连接 | Service Name: `DORMPDB` | `system` / `Dorm@123456` |
+| DBeaver 连接 | Service Name: `DORMPDB` | `system` 密码来自本机 `.env` |
