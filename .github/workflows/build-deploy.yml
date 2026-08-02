@@ -24,7 +24,7 @@ jobs:
   # Job 1：编译后端 .NET 8 项目
   # ==========================================
   build-backend:
-    name: 编译后端
+    name: build-dotnet
     runs-on: ubuntu-latest
 
     steps:
