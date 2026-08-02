@@ -2,63 +2,11 @@
 
 高校宿舍后勤与共享生活服务平台｜数据库课程设计项目
 
-**技术栈：** Vue3 + Vite + Pinia + ASP.NET Core .NET8 C# + Oracle XE 21 + EF Core + Docker Compose + Nginx
+**技术栈：** Vue3 + Vite + Pinia + ASP.NET Core .NET8 C# + Oracle 26AI + EF Core + Docker Compose + Nginx
 
 **功能覆盖：** 宿舍资产、住宿管理、水电分摊、共享借用、访客二维码、维修 SLA 派单、退宿清算等高并发业务；内置标准化前后端样板间、Oracle 容器一键环境、CI/CD 自动部署、Apifox 统一接口契约。
 
 ---
-
-## 仓库结构
-
-```text
-/
-├── backend/
-│   ├── src/
-│   │   ├── Api/             # Controllers、鉴权和响应模型
-│   │   ├── Application/     # DTO、业务 Service 和校验
-│   │   ├── Domain/          # 实体、状态和业务规则
-│   │   └── Infrastructure/  # EF Core、Repository 和外部边界
-│   └── tests/               # 后端测试入口和约定
-├── frontend/
-│   ├── src/                 # api、components、router、stores、views
-│   └── tests/               # 前端测试入口和约定
-├── database/
-│   ├── ddl/                 # 表、约束和索引
-│   ├── procedures/          # 存储过程
-│   ├── views/               # 数据库视图
-│   └── seed/                # 可重复执行的演示数据
-├── deploy/oracle/           # Oracle XE 21 Docker Compose 环境
-└── docs/                    # 项目、开发、运维和交付文档
-```
-
-样板代码只作为可运行基线；真实业务表结构、接口契约和跨模块规则以 `database/`、`docs/project/` 及已确认的团队决策为准。
-
-## 快速开始
-
-```bash
-# 1. 启动本地 Oracle
-cd deploy/oracle
-copy .env.example .env
-# 编辑 .env，填写 ORACLE_PASSWORD
-docker compose up -d
-
-# 2. 启动后端（另开终端并回到仓库根目录）
-dotnet run --project backend/src/TemplateDormApi.csproj
-
-# 3. 启动前端（另开终端并回到仓库根目录）
-cd frontend
-npm ci
-npm run dev
-```
-
-更完整的接入和联调步骤见 [`docs/operations/组员接入指南.md`](docs/operations/组员接入指南.md) 与 [`docs/guides/04-本地完整联调步骤.md`](docs/guides/04-本地完整联调步骤.md)。
-
-## 本地环境配置
-
-- Oracle 本地环境使用 `gvenzl/oracle-xe:21-full` 镜像。
-- 首次启动前，将 `deploy/oracle/.env.example` 复制为同目录下的 `.env`，再填写本机 `ORACLE_PASSWORD`；`.env` 不得提交。
-- 后端连接串只保存在 .NET User Secrets 或 `ConnectionStrings__OracleConnection` 环境变量中，不写入 `appsettings.Development.json`。
-- `DORM_OPER` 和业务表由后续初始化脚本创建；当前仓库不假定该账号已经存在，也不提交任何可用密码。
 
 ## 分支命名规范
 
@@ -179,7 +127,7 @@ git push -u origin feature/模块名-功能描述
 
 | 服务 | 地址 | 账号 / 密码 |
 |---|---|---|
-| Oracle PDB | `localhost:1521/DORMPDB` | 使用本机 User Secrets 中的连接串 |
+| Oracle PDB | `localhost:1521/DORMPDB` | `DORM_OPER` / `Dorm@2026` |
 | 后端 Swagger | `http://localhost:5000/swagger` | — |
 | 前端页面 | `http://localhost:3000` | — |
-| DBeaver 连接 | Service Name: `DORMPDB` | `system` 密码来自本机 `.env` |
+| DBeaver 连接 | Service Name: `DORMPDB` | `system` / `Dorm@123456` |
