@@ -4,7 +4,7 @@
 
 ## 环境要求
 
-- Node.js `20.19.0`，以 `.nvmrc` 为准
+- Node.js `20.19.0`，以 `.nvmrc` 为准；Vite同时支持Node.js `22.12.0`及以上版本
 - npm 10+
 - VS Code，并安装工作区推荐的 Vue Official、ESLint、Prettier 插件
 
@@ -53,13 +53,13 @@ npm run check
 cp .env.example .env.local
 ```
 
-| 变量                    | 默认值                  | 用途                                               |
-| ----------------------- | ----------------------- | -------------------------------------------------- |
-| `VITE_API_BASE_URL`     | `/api`                  | 浏览器请求的API基地址；也可填写Apifox Mock完整地址 |
-| `VITE_API_PROXY_TARGET` | `http://localhost:5000` | `/api`在本地开发时的代理目标                       |
-| `VITE_DEV_PORT`         | `3000`                  | Vite开发服务器端口                                 |
+| 变量                | 默认值                  | 用途                                               |
+| ------------------- | ----------------------- | -------------------------------------------------- |
+| `VITE_API_BASE_URL` | `/api`                  | 浏览器请求的API基地址；也可填写Apifox Mock完整地址 |
+| `API_PROXY_TARGET`  | `http://localhost:5000` | `/api`在本地开发时的代理目标                       |
+| `DEV_PORT`          | `3000`                  | Vite开发服务器端口                                 |
 
-只有以 `VITE_` 开头的变量会暴露给浏览器。不得在前端环境变量中存放密码、Token、数据库连接串等秘密。
+只有以 `VITE_` 开头的变量会暴露给浏览器；`API_PROXY_TARGET`和`DEV_PORT`只由Vite配置读取。不得在任何前端环境文件中存放密码、Token、数据库连接串等秘密。
 
 当 `VITE_API_BASE_URL` 是 `/api` 这类相对路径时，Vite启用本地代理；当它是Apifox Mock等完整URL时，浏览器会直接请求该地址。
 
@@ -111,7 +111,7 @@ Vue (3000) → /api → ASP.NET Core (5000) → Oracle (1521)
 ## 常见问题
 
 - `npm ci`提示Node版本不符合：执行 `nvm use`，确认`node --version`为20.19.x。
-- 端口3000被占用：在`.env.local`中调整`VITE_DEV_PORT`。
-- 页面提示Network Error：先确认后端5000端口已启动，再检查`VITE_API_PROXY_TARGET`。
+- 端口3000被占用：在`.env.local`中调整`DEV_PORT`。
+- 页面提示Network Error：先确认后端5000端口已启动，再检查`API_PROXY_TARGET`。
 - API返回404：核对Apifox契约、`VITE_API_BASE_URL`和接口文件中的路径。
 - VS Code不自动格式化：安装推荐插件，并确认工作区`settings.json`已生效。

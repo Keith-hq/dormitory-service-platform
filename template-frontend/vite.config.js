@@ -5,8 +5,8 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiBaseUrl = env.VITE_API_BASE_URL || '/api'
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:5000'
-  const devPort = Number(env.VITE_DEV_PORT) || 3000
+  const apiProxyTarget = env.API_PROXY_TARGET || 'http://localhost:5000'
+  const devPort = Number(env.DEV_PORT) || 3000
 
   return {
     plugins: [vue()],

@@ -10,15 +10,22 @@ export default [
   js.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
   {
-    files: ['**/*.{js,mjs,cjs,vue}'],
+    files: ['src/**/*.{js,vue}'],
     languageOptions: {
       globals: {
-        ...globals.browser,
-        ...globals.node
+        ...globals.browser
       }
     },
     rules: {
       'vue/multi-word-component-names': 'off'
+    }
+  },
+  {
+    files: ['*.config.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
     }
   },
   eslintConfigPrettier
