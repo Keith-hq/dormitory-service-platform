@@ -438,3 +438,5 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+/.idea
+template-frontend/AGENT.md

@@ -1,24 +1,32 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [vue()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiBaseUrl = env.VITE_API_BASE_URL || '/api'
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:5000'
+  const devPort = Number(env.VITE_DEV_PORT) || 3000
 
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
-  },
+  return {
+    plugins: [vue()],
 
-  server: {
-    port: 3000,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url))
       }
+    },
+
+    server: {
+      port: devPort,
+      proxy: apiBaseUrl.startsWith('/')
+        ? {
+            [apiBaseUrl]: {
+              target: apiProxyTarget,
+              changeOrigin: true
+            }
+          }
+        : undefined
     }
   }
 })
