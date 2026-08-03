@@ -73,10 +73,10 @@ jobs:
           cd template-frontend
           npm ci
 
-      - name: 编译前端项目
+      - name: 检查并编译前端项目
         run: |
           cd template-frontend
-          npm run build
+          npm run check
 
       - name: 上传前端构建产物
         uses: actions/upload-artifact@v4
