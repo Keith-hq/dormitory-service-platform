@@ -1,0 +1,51 @@
+# 数据库脚本
+
+## 当前基线
+
+当前 foundation 包含原有 20 张表，以及以下 5 个已经确认的字段：
+
+- `D_Room.Power_Status`
+- `D_Repair_Ticket.SLA_Level`
+- `D_Repair_Ticket.Deadline`
+- `D_Repair_Ticket.Assigned_To`
+- `D_Admin.Building_ID`
+
+`D_Water_Order` 之所以保留在 foundation 中，仅因为它属于原有 20 张表的技术验证基线。桶装水业务已经暂缓，当前主线业务不得依赖此表。
+
+## 执行顺序
+
+1. 启动 `deploy/oracle/` 中说明的 Oracle XE 环境。
+2. 使用 DBeaver 连接项目专用用户。
+3. 在干净的 schema 中执行 `ddl/foundation/001_create_tables.sql`。
+4. 执行 `verify/foundation_schema_checks.sql` 并保留结果。
+5. 重建干净 schema 或容器，再重复执行这两个脚本。
+
+foundation 脚本是可复现的正式来源。DBeaver 只用于执行和检查脚本。本次数据库变更不要修改 `deploy/oracle/`。
+
+基础基线完成评审后，扩展必须使用独立且有编号的脚本添加。不要通过重写 foundation 脚本来增加业务表或改变既有字段语义。
+
+## 当前扩展基线
+
+已裁决的扩展表共 23 张，定义在 `ddl/extensions/010_extension_tables.sql`：
+
+- 费用与钱包：`D_Fee_Detail`、`D_Wallet_Account`、`D_Wallet_Log`、`D_Fee_Deduction_Attempt`
+- 信用与共享物品：`D_Credit_Account`、`D_Credit_Log`、`D_Shared_Item`、`D_Item_Loan`
+- 设施与清洁：`D_Facility`、`D_Facility_Booking`、`D_Cleaning_Task`
+- 维修扩展：`D_Repair_Material`、`D_Repair_Material_Usage`、`D_Repair_Attachment`
+- 账号与治理：`D_User_Account`、`D_Notification`、`D_Visitor_Authorization`、`D_Audit_Event`
+- 宿舍治理与退宿：`D_Room_Vote`、`D_Room_Vote_Response`、`D_Checkout_Log`、`D_Notice_Display`、`D_Hygiene_Comment`
+
+扩展脚本不修改 foundation，也不创建 `D_Facility_Usage`、`D_Repair_SLA_Event`、`D_Role`、`D_Notification_Recipient` 或 `D_Fee_Adjustment`。设施使用次数直接由预约记录统计，SLA 升级事件写入审计事件，公告置顶和卫生评语分别放在扩展表中。退宿检查只保留水电和共享物品，快递业务暂缓。
+
+Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保留的评语列使用带引号的标识符 `"COMMENT"`。后端查询该列时也必须使用 `"COMMENT"`；其余表字段均使用普通未加引号标识符。
+
+## 完整执行顺序
+
+在干净的 schema 中按以下顺序执行：
+
+1. `ddl/foundation/001_create_tables.sql`
+2. `ddl/extensions/010_extension_tables.sql`
+3. `verify/foundation_schema_checks.sql`
+4. `verify/extension_schema_checks.sql`
+
+`010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
