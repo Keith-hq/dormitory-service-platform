@@ -194,9 +194,9 @@ CREATE TABLE D_Cleaning_Task (
 );
 
 -- 同一设施最多一条活动预约（已预约/使用中），并发防冲突的数据库兜底。
+-- Oracle 不支持带 WHERE 的部分索引，改用函数索引：非活动预约取 NULL，NULL 不参与唯一判定。
 CREATE UNIQUE INDEX UK_D_FACILITY_BOOK_ACTIVE
-    ON D_Facility_Booking (Facility_ID)
-    WHERE Status IN ('已预约', '使用中');
+    ON D_Facility_Booking (CASE WHEN Status IN ('已预约', '使用中') THEN Facility_ID END);
 
 -- Repair materials and attachments
 CREATE TABLE D_Repair_Material (
@@ -363,9 +363,9 @@ CREATE TABLE D_Checkout_Log (
 );
 
 -- 同一住宿分配最多一条进行中的清算，防止重复提交退宿申请。
+-- Oracle 不支持带 WHERE 的部分索引，改用函数索引：非待清算取 NULL，NULL 不参与唯一判定。
 CREATE UNIQUE INDEX UK_D_CHECKOUT_ACTIVE
-    ON D_Checkout_Log (Allocation_ID)
-    WHERE Status = '待清算';
+    ON D_Checkout_Log (CASE WHEN Status = '待清算' THEN Allocation_ID END);
 
 CREATE TABLE D_Notice_Display (
     Notice_ID NUMBER(10) CONSTRAINT PK_D_NOTICE_DISPLAY PRIMARY KEY,

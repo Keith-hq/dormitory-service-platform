@@ -141,9 +141,9 @@ CREATE TABLE D_Bed_Allocation (
 );
 
 -- 同一房间同一床位最多一条活动分配；退宿后记录不受该约束限制。
+-- Oracle 不支持带 WHERE 的部分索引，改用函数索引：非活动分配取 NULL，NULL 不参与唯一判定。
 CREATE UNIQUE INDEX UK_D_BED_ALLOC_ACTIVE
-    ON D_Bed_Allocation (Room_ID, Bed_No)
-    WHERE CheckOut_Date IS NULL;
+    ON D_Bed_Allocation (Room_ID, CASE WHEN CheckOut_Date IS NULL THEN Bed_No END);
 
 CREATE TABLE D_Repair_Ticket (
     Ticket_ID NUMBER(10) CONSTRAINT PK_D_REPAIR_TICKET PRIMARY KEY,
