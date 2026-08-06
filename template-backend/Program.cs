@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Quartz;
 using TemplateDormApi.Data;
+using TemplateDormApi.Jobs;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Services;
 
@@ -38,8 +40,24 @@ builder.Services.AddScoped<BuildingRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
+builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
 
-// ===== 6. CORS 配置（允许前端跨域）=====
+// ===== 6. 注册 Quartz 定时任务 =====
+builder.Services.AddQuartz(q =>
+{
+    // 注册水电分摊 Job
+    var jobKey = new JobKey("FeeSharingJob");
+    q.AddJob<FeeSharingJob>(opts => opts.WithIdentity(jobKey));
+
+    // 每月1日凌晨0点触发
+    q.AddTrigger(opts => opts
+        .ForJob(jobKey)
+        .WithIdentity("FeeSharingTrigger")
+        .WithCronSchedule("0 0 0 1 * ?"));  // 秒 分 时 日 月 周
+});
+builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+
+// ===== 7. CORS 配置（允许前端跨域）=====
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
