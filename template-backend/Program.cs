@@ -1,4 +1,8 @@
+using DormitoryPlatform.API.Middleware;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using TemplateDormApi.Data;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Services;
@@ -24,13 +28,12 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
-    if (string.IsNullOrWhiteSpace(connectionString))
+    if (string.IsNullOrEmpty(connectionString))
     {
-        throw new InvalidOperationException(
-            "ConnectionStrings:OracleConnection is not configured. " +
-            "Set it with .NET User Secrets or the ConnectionStrings__OracleConnection environment variable.");
+        // 回退到 User Secrets 中的配置
+        connectionString = builder.Configuration["OracleConnection"];
     }
-    options.UseOracle(connectionString);
+    options.UseOracle(connectionString ?? "Data Source=localhost:1521/DORMPDB;User Id=DORM_OPER;Password=Dorm@2026;");
 });
 
 // ===== 4. 注册 Repository 层 =====
@@ -51,10 +54,6 @@ builder.Services.AddCors(options =>
 });
 
 // ===== JWT 认证配置 =====
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new Exception("JWT Key 未配置");
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
@@ -76,19 +75,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
-app.UseMiddleware<ExceptionMiddleware>();
 
 // ===== 中间件管道 =====
+app.UseMiddleware<ExceptionMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors("DevCors");
-app.MapControllers();
-
+//认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseCors("DevCors");
+app.MapControllers();
 
 app.Run();
