@@ -54,6 +54,10 @@ builder.Services.AddCors(options =>
 });
 
 // ===== JWT 认证配置 =====
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new Exception("JWT Key 未配置");
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
