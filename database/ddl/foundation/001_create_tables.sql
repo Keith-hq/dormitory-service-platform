@@ -90,11 +90,15 @@ CREATE TABLE D_Asset (
 
 CREATE TABLE D_Utility_Fee (
     Fee_ID NUMBER(10) CONSTRAINT PK_D_UTILITY_FEE PRIMARY KEY,
-    Room_ID NUMBER(10),
+    Room_ID NUMBER(10) NOT NULL,
     Year_Month VARCHAR2(10) NOT NULL,
     Water_Fee NUMBER(8, 2),
     Power_Fee NUMBER(8, 2),
     Is_Paid VARCHAR2(10) DEFAULT '否',
+    Publish_Status VARCHAR2(10) DEFAULT '未发布' NOT NULL,
+    CONSTRAINT UK_D_UTILITY_FEE_ROOM_MONTH UNIQUE (Room_ID, Year_Month),
+    CONSTRAINT CK_D_UTILITY_FEE_PUB
+        CHECK (Publish_Status IN ('未发布', '已发布')),
     CONSTRAINT FK_D_UTILITY_FEE_ROOM
         FOREIGN KEY (Room_ID) REFERENCES D_Room (Room_ID)
 );
@@ -125,13 +129,21 @@ CREATE TABLE D_Bed_Allocation (
     Allocation_ID NUMBER(10) CONSTRAINT PK_D_BED_ALLOCATION PRIMARY KEY,
     Student_ID VARCHAR2(20),
     Room_ID NUMBER(10),
+    Bed_No NUMBER(2) NOT NULL,
     CheckIn_Date DATE NOT NULL,
     CheckOut_Date DATE,
+    CONSTRAINT CK_D_BED_ALLOC_BED
+        CHECK (Bed_No >= 1),
     CONSTRAINT FK_D_BED_ALLOCATION_STUDENT
         FOREIGN KEY (Student_ID) REFERENCES D_Student (Student_ID),
     CONSTRAINT FK_D_BED_ALLOCATION_ROOM
         FOREIGN KEY (Room_ID) REFERENCES D_Room (Room_ID)
 );
+
+-- 同一房间同一床位最多一条活动分配；退宿后记录不受该约束限制。
+-- Oracle 不支持带 WHERE 的部分索引，改用函数索引：非活动分配取 NULL，NULL 不参与唯一判定。
+CREATE UNIQUE INDEX UK_D_BED_ALLOC_ACTIVE
+    ON D_Bed_Allocation (Room_ID, CASE WHEN CheckOut_Date IS NULL THEN Bed_No END);
 
 CREATE TABLE D_Repair_Ticket (
     Ticket_ID NUMBER(10) CONSTRAINT PK_D_REPAIR_TICKET PRIMARY KEY,
