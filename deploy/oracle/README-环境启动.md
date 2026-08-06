@@ -1,16 +1,22 @@
+# Oracle XE 21 容器环境启动说明
+
 ## 快速启动
 
 ```bash
 # 1. 进入目录
-cd ops-local-oracle
+cd deploy/oracle
 
-# 2. 启动容器（首次启动需 3~8 分钟初始化）
+# 2. 创建本地配置（首次使用）
+copy .env.example .env
+# 编辑 .env，填写 ORACLE_PASSWORD
+
+# 3. 启动容器（首次启动需 3~8 分钟初始化）
 docker compose up -d
 
-# 3. 查看初始化进度
+# 4. 查看初始化进度
 docker logs -f dorm-oracle-db
 
-# 4. 看到以下日志表示就绪：
+# 5. 看到以下日志表示就绪：
 # Pluggable database DORMPDB opened read write
 ```
 
@@ -22,8 +28,8 @@ docker logs -f dorm-oracle-db
 | **端口** | `1521` |
 | **SID** | `XE`（CDB 实例名） |
 | **Service Name** | `DORMPDB`（PDB 服务名，推荐使用） |
-| **SYSTEM 管理员** | `system` / `Dorm@123456` |
-| **DORM_OPER 业务账号** | `DORM_OPER` / `Dorm@2026` |
+| **SYSTEM 管理员** | `system` / 本地 `.env` 中的 `ORACLE_PASSWORD` |
+| **DORM_OPER 业务账号** | 计划中的应用账号；密码和权限以初始化脚本为准 |
 
 ## 常用命令
 
@@ -44,5 +50,5 @@ sqlplus / as sysdba
 -- 切换到 DORMPDB
 ALTER SESSION SET CONTAINER = DORMPDB;
 
--- 验证 DORM_OPER 用户
+-- 如已执行初始化脚本，可验证 DORM_OPER 用户
 SELECT username FROM dba_users WHERE username = 'DORM_OPER';

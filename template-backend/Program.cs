@@ -24,12 +24,13 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
-    if (string.IsNullOrEmpty(connectionString))
+    if (string.IsNullOrWhiteSpace(connectionString))
     {
-        // 回退到 User Secrets 中的配置
-        connectionString = builder.Configuration["OracleConnection"];
+        throw new InvalidOperationException(
+            "ConnectionStrings:OracleConnection is not configured. " +
+            "Set it with .NET User Secrets or the ConnectionStrings__OracleConnection environment variable.");
     }
-    options.UseOracle(connectionString ?? "Data Source=localhost:1521/DORMPDB;User Id=DORM_OPER;Password=Dorm@2026;");
+    options.UseOracle(connectionString);
 });
 
 // ===== 4. 注册 Repository 层 =====
@@ -49,7 +50,33 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ===== JWT 认证配置 =====
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
+var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new Exception("JWT Key 未配置");
+var key = Encoding.UTF8.GetBytes(jwtKey);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(key)
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
+app.UseMiddleware<ExceptionMiddleware>();
 
 // ===== 中间件管道 =====
 if (app.Environment.IsDevelopment())
@@ -60,5 +87,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("DevCors");
 app.MapControllers();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.Run();

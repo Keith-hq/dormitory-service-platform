@@ -42,11 +42,25 @@
         </div>
         <div class="form-group">
           <label>楼层数量</label>
+<<<<<<< HEAD
           <input v-model.number="form.floorCount" type="number" class="form-input" min="1" max="50" />
         </div>
         <div class="modal-actions">
           <button class="btn" @click="closeModal">取消</button>
           <button class="btn btn-primary" @click="submit" :disabled="submitting">
+=======
+          <input
+            v-model.number="form.floorCount"
+            type="number"
+            class="form-input"
+            min="1"
+            max="50"
+          />
+        </div>
+        <div class="modal-actions">
+          <button class="btn" @click="closeModal">取消</button>
+          <button class="btn btn-primary" :disabled="submitting" @click="submit">
+>>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
             {{ submitting ? '提交中...' : '确定' }}
           </button>
         </div>
@@ -63,11 +77,19 @@ import SearchForm from '@/components/SearchForm.vue'
 
 // ===== 表格配置 =====
 const columns = [
+<<<<<<< HEAD
   { prop: 'buildingId',   label: 'ID',     width: '80px' },
   { prop: 'buildingName', label: '楼栋名称', width: '180px' },
   { prop: 'buildingType', label: '类型',     width: '120px' },
   { prop: 'floorCount',   label: '楼层数',   width: '100px' },
   { prop: 'createTime',   label: '创建时间', width: '180px' }
+=======
+  { prop: 'buildingId', label: 'ID', width: '80px' },
+  { prop: 'buildingName', label: '楼栋名称', width: '180px' },
+  { prop: 'buildingType', label: '类型', width: '120px' },
+  { prop: 'floorCount', label: '楼层数', width: '100px' },
+  { prop: 'createTime', label: '创建时间', width: '180px' }
+>>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
 ]
 
 // ===== 数据状态 =====
@@ -203,7 +225,12 @@ h2 {
   margin-bottom: 20px;
   font-size: 22px;
 }
+<<<<<<< HEAD
 .form-select, .form-input {
+=======
+.form-select,
+.form-input {
+>>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
   padding: 6px 10px;
   border: 1px solid #d9d9d9;
   border-radius: 4px;
@@ -225,7 +252,11 @@ h2 {
 .modal-overlay {
   position: fixed;
   inset: 0;
+<<<<<<< HEAD
   background: rgba(0,0,0,0.35);
+=======
+  background: rgba(0, 0, 0, 0.35);
+>>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
   display: flex;
   align-items: center;
   justify-content: center;
@@ -236,7 +267,11 @@ h2 {
   border-radius: 8px;
   padding: 24px;
   width: 420px;
+<<<<<<< HEAD
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+=======
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+>>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
 }
 .modal h3 {
   margin: 0 0 16px;

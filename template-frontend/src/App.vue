@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 <script setup>
 </script>
+=======
+<script setup></script>
+>>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
 
 <template>
   <div id="app-container">
@@ -29,7 +33,11 @@
   margin: 0;
 }
 .app-header a {
+<<<<<<< HEAD
   color: rgba(255,255,255,0.75);
+=======
+  color: rgba(255, 255, 255, 0.75);
+>>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
   text-decoration: none;
   font-size: 14px;
 }

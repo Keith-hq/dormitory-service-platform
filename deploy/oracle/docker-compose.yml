@@ -7,7 +7,7 @@ services:
       - "5500:5500"
     environment:
       ORACLE_DATABASE: DORMDB
-      ORACLE_PASSWORD: Dorm@123456
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:?Set ORACLE_PASSWORD in deploy/oracle/.env}
       ORACLE_CHARACTERSET: AL32UTF8
     volumes:
       # 持久化数据，删除容器数据不丢失
