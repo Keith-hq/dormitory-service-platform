@@ -1,26 +1,3 @@
-<<<<<<< HEAD
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { fileURLToPath, URL } from 'node:url'
-
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [vue()],
-
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
-  },
-
-  server: {
-    port: 3000,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
-      }
-=======
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
@@ -50,7 +27,6 @@ export default defineConfig(({ mode }) => {
             }
           }
         : undefined
->>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
     }
   }
 })

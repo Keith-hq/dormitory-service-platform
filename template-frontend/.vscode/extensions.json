@@ -1,7 +1,3 @@
 {
-<<<<<<< HEAD
-  "recommendations": ["Vue.volar"]
-=======
   "recommendations": ["Vue.volar", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
->>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
 }

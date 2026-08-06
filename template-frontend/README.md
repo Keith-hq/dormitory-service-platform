@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-# Vue 3 + Vite
-
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
-
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
-=======
 # 宿舍服务管理平台前端
 
 高校宿舍后勤与共享生活服务平台的 Vue 3 前端样板。业务模块应在此工程规范上开发，统一复用路由、状态管理、请求层和通用组件。
@@ -122,4 +115,3 @@ Vue (3000) → /api → ASP.NET Core (5000) → Oracle (1521)
 - 页面提示Network Error：先确认后端5000端口已启动，再检查`API_PROXY_TARGET`。
 - API返回404：核对Apifox契约、`VITE_API_BASE_URL`和接口文件中的路径。
 - VS Code不自动格式化：安装推荐插件，并确认工作区`settings.json`已生效。
->>>>>>> b275658530f4ec665d7608e04a9c6a80140ce075
