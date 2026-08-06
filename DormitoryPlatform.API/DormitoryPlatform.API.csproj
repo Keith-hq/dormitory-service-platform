@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+	<RootNamespace>DormitoryPlatform.API</RootNamespace>
+	<AssemblyName>DormitoryPlatform.API</AssemblyName>
+	<UserSecretsId>dcb023f3-b733-45d8-a80d-6ca186869330</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.29" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.20" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.22.0" />
+    <PackageReference Include="Oracle.EntityFrameworkCore" Version="8.23.50" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Middleware\" />
+  </ItemGroup>
+
+</Project>
