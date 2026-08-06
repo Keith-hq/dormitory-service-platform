@@ -30,10 +30,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
     if (string.IsNullOrEmpty(connectionString))
     {
-        // 回退到 User Secrets 中的配置
-        connectionString = builder.Configuration["OracleConnection"];
+        throw new Exception("OracleConnection 未配置，请在 User Secrets 中设置。");
     }
-    options.UseOracle(connectionString ?? "Data Source=localhost:1521/DORMPDB;User Id=DORM_OPER;Password=Dorm@2026;");
+    options.UseOracle(connectionString);
 });
 
 // ===== 4. 注册 Repository 层 =====
@@ -54,7 +53,7 @@ builder.Services.AddCors(options =>
 });
 
 // ===== JWT 认证配置 =====
-var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new Exception("JWT Key 未配置");
+var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new Exception("JWT Key 未配置，请在 User Secrets 中设置。");
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

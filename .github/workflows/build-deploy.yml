@@ -71,7 +71,7 @@ jobs:
       - name: 安装 npm 依赖
         run: |
           cd template-frontend
-          npm install
+          npm ci
 
       - name: 检查并编译前端项目
         run: |
