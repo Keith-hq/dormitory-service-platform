@@ -41,7 +41,7 @@ jobs:
         run: dotnet restore template-backend/TemplateDormApi.csproj
 
       - name: 编译后端项目
-        run: dotnet build template-backend/TemplateDormApi.csproj --configuration Release
+        run: dotnet build template-backend/TemplateDormApi.csproj --configuration Release --no-restore
 
       - name: 发布后端（输出 dll）
         run: dotnet publish template-backend/TemplateDormApi.csproj --configuration Release --output publish/backend
