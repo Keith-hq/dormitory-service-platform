@@ -17,6 +17,8 @@ CREATE TABLE D_Fee_Detail (
     Create_Time DATE DEFAULT SYSDATE NOT NULL,
     CONSTRAINT CK_D_FEE_DETAIL_TYPE
         CHECK (Bill_Type IN ('月度', '退宿')),
+    CONSTRAINT UK_D_FEE_DETAIL
+        UNIQUE (Fee_ID, Student_ID, Bill_Type),
     CONSTRAINT CK_D_FEE_DETAIL_AMOUNT
         CHECK (Water_Share >= 0 AND Power_Share >= 0),
     CONSTRAINT CK_D_FEE_DETAIL_DAYS
@@ -191,6 +193,11 @@ CREATE TABLE D_Cleaning_Task (
         FOREIGN KEY (Facility_ID) REFERENCES D_Facility (Facility_ID)
 );
 
+-- 同一设施最多一条活动预约（已预约/使用中），并发防冲突的数据库兜底。
+CREATE UNIQUE INDEX UK_D_FACILITY_BOOK_ACTIVE
+    ON D_Facility_Booking (Facility_ID)
+    WHERE Status IN ('已预约', '使用中');
+
 -- Repair materials and attachments
 CREATE TABLE D_Repair_Material (
     Material_ID NUMBER(10) CONSTRAINT PK_D_REPAIR_MATERIAL PRIMARY KEY,
@@ -338,21 +345,27 @@ CREATE TABLE D_Checkout_Log (
     Allocation_ID NUMBER(10) NOT NULL,
     Request_Time DATE DEFAULT SYSDATE NOT NULL,
     Result_Time DATE,
-    Fee_Check VARCHAR2(10) NOT NULL,
-    Item_Check VARCHAR2(10) NOT NULL,
+    Fee_Check VARCHAR2(10),
+    Item_Check VARCHAR2(10),
     Status VARCHAR2(10) NOT NULL,
     Reject_Reason VARCHAR2(500),
+    -- Fee_Check / Item_Check 为 NULL 表示尚未执行对应检查。
     CONSTRAINT CK_D_CHECKOUT_WATER
-        CHECK (Fee_Check IN ('通过', '未通过')),
+        CHECK (Fee_Check IS NULL OR Fee_Check IN ('通过', '未通过')),
     CONSTRAINT CK_D_CHECKOUT_ITEM
-        CHECK (Item_Check IN ('通过', '未通过')),
+        CHECK (Item_Check IS NULL OR Item_Check IN ('通过', '未通过')),
     CONSTRAINT CK_D_CHECKOUT_STATUS
-        CHECK (Status IN ('通过', '拒绝')),
+        CHECK (Status IN ('待清算', '已通过', '已拒绝', '已取消')),
     CONSTRAINT CK_D_CHECKOUT_RESULT_TIME
         CHECK (Result_Time IS NULL OR Result_Time >= Request_Time),
     CONSTRAINT FK_D_CHECKOUT_ALLOC
         FOREIGN KEY (Allocation_ID) REFERENCES D_Bed_Allocation (Allocation_ID)
 );
+
+-- 同一住宿分配最多一条进行中的清算，防止重复提交退宿申请。
+CREATE UNIQUE INDEX UK_D_CHECKOUT_ACTIVE
+    ON D_Checkout_Log (Allocation_ID)
+    WHERE Status = '待清算';
 
 CREATE TABLE D_Notice_Display (
     Notice_ID NUMBER(10) CONSTRAINT PK_D_NOTICE_DISPLAY PRIMARY KEY,
