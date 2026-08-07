@@ -1,16 +1,21 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using TemplateDormApi.Models;
+using TemplateDormApi.DTO;
+using TemplateDormApi.Services;
 
 namespace TemplateDormApi.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/visitor-authorizations")]
     public class VisitorController : ControllerBase
     {
-        [HttpPost("test")]
-        public IActionResult Test()
+        [HttpPost]
+        public ApiResponse<VisitorAuthorization> Post([FromBody] VisitorApplyRequest request)
         {
-            return Ok("访客二维码模块骨架已跑通！");
+            var service = new VisitorService();
+            var result = service.CreateRecord(request);
+
+            return ApiResponse.Ok(result, "访客授权申请成功");
         }
     }
 }
