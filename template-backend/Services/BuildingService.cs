@@ -22,7 +22,9 @@ public class BuildingService : IBuildingService
         return new PagedResult<Building>
         {
             Items = items,
-            Total = total
+            Total = total,
+            Page = page,
+            PageSize = pageSize
         };
     }
 
