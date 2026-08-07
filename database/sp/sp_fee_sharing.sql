@@ -4,12 +4,18 @@
 
 -- ============================================================
 -- 创建主键序列——替代 MAX+1，避免并发撞 PK
+-- 迁移注意：若 D_Fee_Detail 已有数据，起点自动取 MAX(Detail_ID)+1
 -- ============================================================
+DECLARE
+    v_StartVal NUMBER;
 BEGIN
-    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_FEE_DETAIL START WITH 1 INCREMENT BY 1';
+    SELECT NVL(MAX(Detail_ID), 0) + 1 INTO v_StartVal FROM D_Fee_Detail;
+    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_FEE_DETAIL START WITH ' || v_StartVal || ' INCREMENT BY 1';
 EXCEPTION
     WHEN OTHERS THEN
-        IF SQLCODE = -955 THEN NULL; END IF;  -- 序列已存在则跳过
+        IF SQLCODE = -955 THEN NULL;   -- 序列已存在，跳过
+        ELSE RAISE;                     -- 其他异常（权限不足等）必须暴露
+        END IF;
 END;
 /
 
@@ -147,23 +153,29 @@ BEGIN
         SELECT * FROM D_Utility_Fee
         WHERE Room_ID = v_RoomID AND Year_Month = v_YearMonth
     ) LOOP
-        INSERT INTO D_Fee_Detail (
-            Detail_ID, Fee_ID, Student_ID, Room_ID,
-            Water_Share, Power_Share, Stay_Days, Total_Days,
-            Bill_Type, Is_Paid, Create_Time
-        ) VALUES (
-            SEQ_FEE_DETAIL.NEXTVAL,
-            fee_rec.Fee_ID,
-            p_Student_ID,
-            v_RoomID,
-            ROUND(fee_rec.Water_Fee * v_MyDays / v_TotalDays, 2),
-            ROUND(fee_rec.Power_Fee * v_MyDays / v_TotalDays, 2),
-            v_MyDays,
-            v_TotalDays,
-            '退宿',
-            '否',
-            SYSDATE
-        );
+        -- 捕获 UK 冲突：同一退宿流程重复执行时跳过（与月度 SP 一致的幂等策略）
+        BEGIN
+            INSERT INTO D_Fee_Detail (
+                Detail_ID, Fee_ID, Student_ID, Room_ID,
+                Water_Share, Power_Share, Stay_Days, Total_Days,
+                Bill_Type, Is_Paid, Create_Time
+            ) VALUES (
+                SEQ_FEE_DETAIL.NEXTVAL,
+                fee_rec.Fee_ID,
+                p_Student_ID,
+                v_RoomID,
+                ROUND(fee_rec.Water_Fee * v_MyDays / v_TotalDays, 2),
+                ROUND(fee_rec.Power_Fee * v_MyDays / v_TotalDays, 2),
+                v_MyDays,
+                v_TotalDays,
+                '退宿',
+                '否',
+                SYSDATE
+            );
+        EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN
+                NULL;  -- 已存在退宿分摊，静默跳过
+        END;
     END LOOP;
 
     COMMIT;
