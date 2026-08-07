@@ -19,7 +19,7 @@
 --
 -- 受影响接口（通知中心 5 个接口）：
 --   GET  /api/notifications               （通知列表）
---   POST /api/notifications/{id}/read     （标记已读）
+--   PUT  /api/notifications/{id}/read     （标记已读）
 --   POST /api/notifications/read-batch    （批量已读）
 --   GET  /api/notifications/unread-count  （未读数）
 --   POST /api/internal/notifications      （SVC-NOTIFY-01，内部投递）
