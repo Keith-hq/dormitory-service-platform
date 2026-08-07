@@ -25,4 +25,8 @@ public class Room
 
     /// <summary>房间状态（空闲 / 已满 / 维修中）</summary>
     public string Status { get; set; } = "空闲";
+
+    /// <summary>供电状态（正常 / 断电）</summary>
+    [Column("Power_Status")]
+    public string PowerStatus { get; set; } = "正常";
 }
