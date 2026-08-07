@@ -95,6 +95,27 @@ docker compose up -d
 
 看到 `Pluggable database DORMPDB opened read write` 后，再启动样板后端和前端：
 
+> 🔐 **启动后端前必须配置 User Secrets**
+>
+> 本项目使用 .NET User Secrets 管理敏感信息（数据库连接串、JWT Key），**请勿**将凭据写入 `appsettings.json`。
+>
+> 在 Visual Studio 中右键点击 `template-backend` 项目 → “管理用户机密”，将以下内容粘贴到 `secrets.json` 中（根据实际环境修改 `Data Source` 和 `Password`）：
+>
+> ```json
+> {
+>   "ConnectionStrings": {
+>     "OracleConnection": "User Id=DORM_OPER;Password=你的密码;Data Source=localhost:1521/DORMPDB;"
+>   },
+>   "Jwt": {
+>     "Key": "至少32位的随机字符串（如：YourSuperLongSecretKeyAtLeast32CharactersLong!）",
+>     "Issuer": "DormitoryPlatform",
+>     "Audience": "DormitoryClient"
+>   }
+> }
+> ```
+>
+> 保存后，再执行 `dotnet run` 启动后端。若未配置，项目启动时会抛出异常提示。
+
 ```bash
 cd template-backend
 dotnet restore

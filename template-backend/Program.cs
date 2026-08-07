@@ -1,5 +1,9 @@
+using DormitoryPlatform.API.Middleware;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Quartz;
+using System.Text;
 using TemplateDormApi.Data;
 using TemplateDormApi.Jobs;
 using TemplateDormApi.Repository;
@@ -26,11 +30,9 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
-    if (string.IsNullOrWhiteSpace(connectionString))
+    if (string.IsNullOrEmpty(connectionString))
     {
-        throw new InvalidOperationException(
-            "ConnectionStrings:OracleConnection is not configured. " +
-            "Set it with .NET User Secrets or the ConnectionStrings__OracleConnection environment variable.");
+        throw new Exception("OracleConnection 未配置，请在 User Secrets 中设置。");
     }
     options.UseOracle(connectionString);
 });
@@ -68,14 +70,40 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ===== JWT 认证配置 =====
+var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new Exception("JWT Key 未配置，请在 User Secrets 中设置。");
+var key = Encoding.UTF8.GetBytes(jwtKey);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(key)
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
 // ===== 中间件管道 =====
+app.UseMiddleware<ExceptionMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+//认证与授权
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseCors("DevCors");
 app.MapControllers();
