@@ -3,19 +3,21 @@ using TemplateDormApi.Models;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Services;
 
-namespace TemplateDormApi.Controllers
-{
-    [ApiController]
-    [Route("api/visitor-authorizations")]
-    public class VisitorController : ControllerBase
-    {
-        [HttpPost]
-        public ApiResponse<VisitorAuthorization> Post([FromBody] VisitorApplyRequest request)
-        {
-            var service = new VisitorService();
-            var result = service.CreateRecord(request);
+namespace TemplateDormApi.Controllers;
 
-            return ApiResponse.Ok(result, "访客授权申请成功");
-        }
-    }
+[ApiController]
+[Route("api")]
+public class VisitorController : ControllerBase
+{
+    private readonly VisitorService _service = new();
+
+    // POST /api/visitor-authorizations
+    [HttpPost("visitor-authorizations")]
+    public ApiResponse<VisitorAuthorization> Post([FromBody] VisitorApplyRequest req)
+        => ApiResponse.Ok(_service.Apply(req));
+
+    // GET /api/students/{studentId}/visitor-authorizations
+    [HttpGet("students/{studentId}/visitor-authorizations")]
+    public ApiResponse<List<VisitorAuthorization>> Get(string studentId)
+        => ApiResponse.Ok(_service.GetList(studentId));
 }
