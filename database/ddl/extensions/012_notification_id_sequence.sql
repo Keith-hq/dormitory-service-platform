@@ -3,6 +3,10 @@
 -- 全量重建时执行顺序为 foundation/001 -> extensions/010 -> extensions/011 -> extensions/012。
 -- 本脚本不得修改或重建任何基线表。
 --
+-- 执行方式（DBeaver，JDBC 连接）：
+--   本脚本是三个独立的 PL/SQL 匿名块，以 END; 结束，不带 SQL*Plus 的 "/"。
+--   将光标放到块内（或选中单个块）按 Ctrl+Enter 逐块执行；不要用 Alt+X 脚本模式。
+--
 -- 目的：
 --   为 D_Notification.Notification_ID 提供数据库端主键生成机制，并为按收件人查询通知建立索引。
 --
@@ -32,7 +36,6 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
-/
 
 DECLARE
     v_exists NUMBER;
@@ -43,20 +46,18 @@ BEGIN
      WHERE TRIGGER_NAME = 'TRG_D_NOTIFICATION_ID_BI';
 
     IF v_exists = 0 THEN
-        EXECUTE IMMEDIATE q'[
-            CREATE TRIGGER TRG_D_NOTIFICATION_ID_BI
-            BEFORE INSERT ON D_Notification
-            FOR EACH ROW
-            WHEN (NEW.Notification_ID IS NULL)
-            BEGIN
-                SELECT SEQ_D_NOTIFICATION_ID.NEXTVAL
-                  INTO :NEW.Notification_ID
-                  FROM dual;
-            END;
-        ]';
+        EXECUTE IMMEDIATE
+            'CREATE TRIGGER TRG_D_NOTIFICATION_ID_BI ' ||
+            'BEFORE INSERT ON D_Notification ' ||
+            'FOR EACH ROW ' ||
+            'WHEN (NEW.Notification_ID IS NULL) ' ||
+            'BEGIN ' ||
+            '    SELECT SEQ_D_NOTIFICATION_ID.NEXTVAL ' ||
+            '      INTO :NEW.Notification_ID ' ||
+            '      FROM dual; ' ||
+            'END;';
     END IF;
 END;
-/
 
 DECLARE
     v_exists NUMBER;
@@ -72,4 +73,3 @@ BEGIN
             'ON D_Notification(Recipient_Account_ID)';
     END IF;
 END;
-/
