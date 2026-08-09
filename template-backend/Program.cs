@@ -151,7 +151,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-
+builder.Services.AddScoped<VisitorService>();
+builder.Services.AddScoped<VoteService>();
 var app = builder.Build();
 
 // ===== 中间件管道 =====
