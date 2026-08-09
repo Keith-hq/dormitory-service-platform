@@ -64,6 +64,8 @@ builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
+builder.Services.AddScoped<IBillingService, BillingService>();
+builder.Services.AddScoped<IFacilityBookingService, FacilityBookingService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
@@ -76,7 +78,40 @@ builder.Services.AddQuartz(q =>
     q.AddTrigger(opts => opts
         .ForJob(jobKey)
         .WithIdentity("FeeSharingTrigger")
-        .WithCronSchedule("0 0 0 1 * ?"));  // 秒 分 时 日 月 周
+        .WithCronSchedule("0 0 0 1 * ?"));
+
+    // --- 难点② 自动扣款：每月1/2/3日凌晨 ---
+    var deductJobKey = new JobKey("AutoDeductJob");
+    q.AddJob<AutoDeductJob>(opts => opts.WithIdentity(deductJobKey));
+    q.AddTrigger(opts => opts.ForJob(deductJobKey).WithIdentity("DeductDay1")
+        .UsingJobData("attemptNo", 1).WithCronSchedule("0 5 0 1 * ?"));
+    q.AddTrigger(opts => opts.ForJob(deductJobKey).WithIdentity("DeductDay2")
+        .UsingJobData("attemptNo", 2).WithCronSchedule("0 5 0 2 * ?"));
+    q.AddTrigger(opts => opts.ForJob(deductJobKey).WithIdentity("DeductDay3")
+        .UsingJobData("attemptNo", 3).WithCronSchedule("0 5 0 3 * ?"));
+
+    // 断电判定：每月3日凌晨
+    var powerCutKey = new JobKey("PowerCutJob");
+    q.AddJob<PowerCutJob>(opts => opts.WithIdentity(powerCutKey));
+    q.AddTrigger(opts => opts.ForJob(powerCutKey).WithIdentity("PowerCutTrigger")
+        .WithCronSchedule("0 10 0 3 * ?"));
+
+    // 恢复供电巡检：每分钟
+    var restoreKey = new JobKey("RestorePowerJob");
+    q.AddJob<RestorePowerJob>(opts => opts.WithIdentity(restoreKey));
+    q.AddTrigger(opts => opts.ForJob(restoreKey).WithIdentity("RestorePowerTrigger")
+        .WithCronSchedule("0 * * * * ?"));
+
+    // --- 难点③ 设施预约巡检：每15秒 ---
+    var expireKey = new JobKey("ExpireBookingJob");
+    q.AddJob<ExpireBookingJob>(opts => opts.WithIdentity(expireKey));
+    q.AddTrigger(opts => opts.ForJob(expireKey).WithIdentity("ExpireTrigger")
+        .WithCronSchedule("0/15 * * * * ?"));
+
+    var autoKey = new JobKey("AutoCompleteJob");
+    q.AddJob<AutoCompleteJob>(opts => opts.WithIdentity(autoKey));
+    q.AddTrigger(opts => opts.ForJob(autoKey).WithIdentity("AutoCompleteTrigger")
+        .WithCronSchedule("0/15 * * * * ?"));
 });
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
