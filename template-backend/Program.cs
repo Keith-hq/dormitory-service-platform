@@ -12,6 +12,10 @@ using TemplateDormApi.Repository;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
+// 业务时区：Windows 用 "China Standard Time"，Linux（云端部署）用 "Asia/Shanghai"
+static TimeZoneInfo GetBusinessTimeZone()
+    => TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "China Standard Time" : "Asia/Shanghai");
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ===== 1. 注册 Controller（三层架构入口）=====
@@ -85,6 +89,14 @@ builder.Services.AddQuartz(q =>
         .WithIdentity("FeeSharingTrigger")
         .WithCronSchedule("0 0 0 1 * ?"));
 
+    // --- 信用分月度重置：每月1日 00:10 北京时间错峰触发 ---
+    var creditResetJobKey = new JobKey("CreditResetJob");
+    q.AddJob<CreditResetJob>(opts => opts.WithIdentity(creditResetJobKey));
+    q.AddTrigger(opts => opts
+        .ForJob(creditResetJobKey)
+        .WithIdentity("CreditResetTrigger")
+        .WithCronSchedule("0 10 0 1 * ?", s => s.InTimeZone(GetBusinessTimeZone())));
+
     // --- 难点② 自动扣款：每月1/2/3日凌晨 ---
     var deductJobKey = new JobKey("AutoDeductJob");
     q.AddJob<AutoDeductJob>(opts => opts.WithIdentity(deductJobKey));
@@ -132,6 +144,7 @@ builder.Services.AddQuartz(q =>
     q.AddTrigger(opts => opts.ForJob(autoKey).WithIdentity("AutoCompleteTrigger")
         .WithCronSchedule("0/15 * * * * ?", x => x.InTimeZone(tz)));
 });
+
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
 // ===== 7. CORS 配置（允许前端跨域）=====
