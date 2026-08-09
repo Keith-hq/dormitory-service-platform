@@ -384,3 +384,139 @@ CREATE TABLE D_Hygiene_Comment (
     CONSTRAINT FK_D_HYGIENE_COMMENT_RECORD
         FOREIGN KEY (Record_ID) REFERENCES D_Hygiene_Record (Record_ID)
 );
+
+-- =====================================================================
+-- 主键序列与触发器：D_Facility / D_Notice / D_Notice_Display
+-- 基线 DDL 中这三个表缺少主键序列，EF Core 插入时主键为 NULL 会报 ORA-01400。
+-- 执行方式（DBeaver，JDBC 连接）：选中单个 PL/SQL 匿名块按 Ctrl+Enter 逐块执行。
+-- 重复执行：已存在的 sequence / trigger 会被跳过，不影响已运行环境。
+-- =====================================================================
+
+-- ===== D_Facility =====
+DECLARE
+    v_exists NUMBER;
+    v_start_with NUMBER;
+BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_SEQUENCES
+     WHERE SEQUENCE_NAME = 'SEQ_D_FACILITY_ID';
+
+    IF v_exists = 0 THEN
+        SELECT NVL(MAX(Facility_ID), 0) + 1
+          INTO v_start_with
+          FROM D_Facility;
+
+        EXECUTE IMMEDIATE
+            'CREATE SEQUENCE SEQ_D_FACILITY_ID START WITH ' || v_start_with ||
+            ' INCREMENT BY 1 NOCACHE';
+    END IF;
+END;
+
+DECLARE
+    v_exists NUMBER;
+BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_TRIGGERS
+     WHERE TRIGGER_NAME = 'TRG_D_FACILITY_ID_BI';
+
+    IF v_exists = 0 THEN
+        EXECUTE IMMEDIATE
+            'CREATE TRIGGER TRG_D_FACILITY_ID_BI ' ||
+            'BEFORE INSERT ON D_Facility ' ||
+            'FOR EACH ROW ' ||
+            'WHEN (NEW.Facility_ID IS NULL) ' ||
+            'BEGIN ' ||
+            '    SELECT SEQ_D_FACILITY_ID.NEXTVAL ' ||
+            '      INTO :NEW.Facility_ID ' ||
+            '      FROM dual; ' ||
+            'END;';
+    END IF;
+END;
+
+-- ===== D_Notice =====
+DECLARE
+    v_exists NUMBER;
+    v_start_with NUMBER;
+BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_SEQUENCES
+     WHERE SEQUENCE_NAME = 'SEQ_D_NOTICE_ID';
+
+    IF v_exists = 0 THEN
+        SELECT NVL(MAX(Notice_ID), 0) + 1
+          INTO v_start_with
+          FROM D_Notice;
+
+        EXECUTE IMMEDIATE
+            'CREATE SEQUENCE SEQ_D_NOTICE_ID START WITH ' || v_start_with ||
+            ' INCREMENT BY 1 NOCACHE';
+    END IF;
+END;
+
+DECLARE
+    v_exists NUMBER;
+BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_TRIGGERS
+     WHERE TRIGGER_NAME = 'TRG_D_NOTICE_ID_BI';
+
+    IF v_exists = 0 THEN
+        EXECUTE IMMEDIATE
+            'CREATE TRIGGER TRG_D_NOTICE_ID_BI ' ||
+            'BEFORE INSERT ON D_Notice ' ||
+            'FOR EACH ROW ' ||
+            'WHEN (NEW.Notice_ID IS NULL) ' ||
+            'BEGIN ' ||
+            '    SELECT SEQ_D_NOTICE_ID.NEXTVAL ' ||
+            '      INTO :NEW.Notice_ID ' ||
+            '      FROM dual; ' ||
+            'END;';
+    END IF;
+END;
+
+-- ===== D_Notice_Display =====
+DECLARE
+    v_exists NUMBER;
+    v_start_with NUMBER;
+BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_SEQUENCES
+     WHERE SEQUENCE_NAME = 'SEQ_D_NOTICE_DISPLAY_ID';
+
+    IF v_exists = 0 THEN
+        SELECT NVL(MAX(Notice_ID), 0) + 1
+          INTO v_start_with
+          FROM D_Notice_Display;
+
+        EXECUTE IMMEDIATE
+            'CREATE SEQUENCE SEQ_D_NOTICE_DISPLAY_ID START WITH ' || v_start_with ||
+            ' INCREMENT BY 1 NOCACHE';
+    END IF;
+END;
+
+DECLARE
+    v_exists NUMBER;
+BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_TRIGGERS
+     WHERE TRIGGER_NAME = 'TRG_D_NOTICE_DISPLAY_ID_BI';
+
+    IF v_exists = 0 THEN
+        EXECUTE IMMEDIATE
+            'CREATE TRIGGER TRG_D_NOTICE_DISPLAY_ID_BI ' ||
+            'BEFORE INSERT ON D_Notice_Display ' ||
+            'FOR EACH ROW ' ||
+            'WHEN (NEW.Notice_ID IS NULL) ' ||
+            'BEGIN ' ||
+            '    SELECT SEQ_D_NOTICE_DISPLAY_ID.NEXTVAL ' ||
+            '      INTO :NEW.Notice_ID ' ||
+            '      FROM dual; ' ||
+            'END;';
+    END IF;
+END;
