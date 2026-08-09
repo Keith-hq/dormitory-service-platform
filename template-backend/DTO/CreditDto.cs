@@ -1,0 +1,77 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace TemplateDormApi.DTO;
+
+/// <summary>
+/// 内部服务加减信用分请求。
+/// </summary>
+public class CreditDeductDto : IValidatableObject
+{
+    [Required(ErrorMessage = "学生学号不能为空")]
+    [StringLength(20, ErrorMessage = "学生学号不能超过 20 个字符")]
+    public string StudentId { get; set; } = string.Empty;
+
+    [Range(-100, 100, ErrorMessage = "scoreChange 必须在 -100 到 100 之间")]
+    public int ScoreChange { get; set; }
+
+    [Required(ErrorMessage = "变更原因不能为空")]
+    [StringLength(200, ErrorMessage = "变更原因不能超过 200 个字符")]
+    public string Reason { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Event_Key 不能为空")]
+    [StringLength(100, ErrorMessage = "Event_Key 不能超过 100 个字符")]
+    public string EventKey { get; set; } = string.Empty;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (ScoreChange == 0)
+        {
+            yield return new ValidationResult("scoreChange 不能为 0", new[] { nameof(ScoreChange) });
+        }
+
+        if (string.IsNullOrWhiteSpace(StudentId))
+        {
+            yield return new ValidationResult("学生学号不能仅包含空白字符", new[] { nameof(StudentId) });
+        }
+
+        if (string.IsNullOrWhiteSpace(Reason))
+        {
+            yield return new ValidationResult("变更原因不能仅包含空白字符", new[] { nameof(Reason) });
+        }
+
+        if (string.IsNullOrWhiteSpace(EventKey))
+        {
+            yield return new ValidationResult("Event_Key 不能仅包含空白字符", new[] { nameof(EventKey) });
+        }
+    }
+}
+
+public class CreditStatusDto
+{
+    public string StudentId { get; set; } = string.Empty;
+    public int CurrentScore { get; set; }
+    public bool IsFrozen { get; set; }
+}
+
+public class CreditResultDto : CreditStatusDto
+{
+}
+
+public class CreditLogItemDto
+{
+    public string Reason { get; set; } = string.Empty;
+    public int ScoreChange { get; set; }
+    public DateTime CreateTime { get; set; }
+}
+
+public class CreditViewDto : CreditStatusDto
+{
+    public List<CreditLogItemDto> Items { get; set; } = new();
+}
+
+public class ResetResultDto
+{
+    public int Processed { get; set; }
+    public int Skipped { get; set; }
+    public int Failed { get; set; }
+}
