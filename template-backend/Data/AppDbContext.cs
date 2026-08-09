@@ -11,6 +11,8 @@ public class AppDbContext : DbContext
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<FeeDetail> FeeDetails => Set<FeeDetail>();
+    public DbSet<WalletAccount> WalletAccounts => Set<WalletAccount>();
+    public DbSet<WalletLog> WalletLogs => Set<WalletLog>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
     public DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
