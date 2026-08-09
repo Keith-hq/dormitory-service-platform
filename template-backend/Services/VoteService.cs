@@ -9,9 +9,12 @@ public class VoteService
     {
         return new RoomVote
         {
-            VoteId = DateTime.Now.Ticks % 1000000,
-            RoomId = req.RoomId,
-            Title = req.Title,
+            VoteId = 0, 
+            InitiatorStudentId = req.InitiatorStudentId,
+            Topic = req.Topic,
+            CreateTime = DateTime.Now,
+            Deadline = DateTime.Now.AddDays(req.DurationDays),
+            EligibleCount = req.EligibleCount,
             Status = "进行中"
         };
     }
