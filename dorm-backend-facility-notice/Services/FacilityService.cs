@@ -19,13 +19,14 @@ public class FacilityService : IFacilityService
         _repository = repository;
     }
 
-    public async Task<PagedResult<Facility>> GetPagedAsync(int page, int pageSize, string? status = null)
+    public async Task<PagedResult<Facility>> GetPagedAsync(
+        int page, int pageSize, int? buildingId = null, string? facilityType = null, string? status = null)
     {
         // 状态不合法直接抛业务异常 → ExceptionMiddleware 统一返回 400
         if (!string.IsNullOrWhiteSpace(status) && !ValidStatuses.Contains(status))
             throw new ArgumentException($"状态不合法，只能是：{string.Join(" / ", ValidStatuses)}");
 
-        var (items, total) = await _repository.GetPagedFilteredAsync(page, pageSize, status);
+        var (items, total) = await _repository.GetPagedFilteredAsync(page, pageSize, buildingId, facilityType, status);
         return new PagedResult<Facility>
         {
             Items = items,

@@ -8,7 +8,8 @@ namespace DormBackendFacilityNotice.Services;
 /// </summary>
 public interface IFacilityService
 {
-    Task<PagedResult<Facility>> GetPagedAsync(int page, int pageSize, string? status = null);
+    Task<PagedResult<Facility>> GetPagedAsync(int page, int pageSize, int? buildingId = null,
+        string? facilityType = null, string? status = null);
     Task<Facility?> GetByIdAsync(int id);
     Task<Facility> CreateAsync(FacilityCreateDto dto);
 }

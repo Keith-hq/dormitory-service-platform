@@ -18,14 +18,16 @@ public class FacilityController : ControllerBase
         _service = service;
     }
 
-    /// <summary>分页查询公共设施（可筛选状态）</summary>
+    /// <summary>分页查询公共设施（可按楼栋/类型/状态筛选，对齐契约 GET /facilities）</summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetPaged(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
+        [FromQuery] int? buildingId = null,
+        [FromQuery] string? facilityType = null,
         [FromQuery] string? status = null)
     {
-        var result = await _service.GetPagedAsync(page, pageSize, status);
+        var result = await _service.GetPagedAsync(page, pageSize, buildingId, facilityType, status);
         return Ok(ApiResponse.Ok(result));
     }
 

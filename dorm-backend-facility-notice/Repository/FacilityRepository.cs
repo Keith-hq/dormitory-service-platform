@@ -11,11 +11,17 @@ public class FacilityRepository : BaseRepository<Facility>
 {
     public FacilityRepository(AppDbContext context) : base(context) { }
 
-    /// <summary>按状态筛选分页查询（照抄 BuildingRepository.GetPagedFilteredAsync 写法）</summary>
+    /// <summary>按楼栋/类型/状态筛选分页查询（参数对齐契约 GET /facilities）</summary>
     public async Task<(List<Facility> Items, int Total)> GetPagedFilteredAsync(
-        int page, int pageSize, string? status = null)
+        int page, int pageSize, int? buildingId = null, string? facilityType = null, string? status = null)
     {
         var query = _dbSet.AsQueryable();
+
+        if (buildingId.HasValue)
+            query = query.Where(f => f.BuildingId == buildingId.Value);
+
+        if (!string.IsNullOrWhiteSpace(facilityType))
+            query = query.Where(f => f.FacilityType == facilityType);
 
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(f => f.Status == status);
