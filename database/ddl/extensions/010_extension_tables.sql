@@ -1,8 +1,8 @@
--- Extension tables for the frozen foundation schema.
--- Run after ddl/foundation/001_create_tables.sql.
--- This script must not alter or recreate any foundation table.
+-- 扩展表（基于已冻结的基础表 schema）。
+-- 在 ddl/foundation/001_create_tables.sql 之后执行。
+-- 本脚本不得修改或重建任何基础表。
 
--- Fee allocation and wallet
+-- 费用分摊与钱包
 CREATE TABLE D_Fee_Detail (
     Detail_ID NUMBER(10) CONSTRAINT PK_D_FEE_DETAIL PRIMARY KEY,
     Fee_ID NUMBER(10) NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE D_Fee_Deduction_Attempt (
         FOREIGN KEY (Detail_ID) REFERENCES D_Fee_Detail (Detail_ID)
 );
 
--- Credit and shared items
+-- 信用与共享物品
 CREATE TABLE D_Credit_Account (
     Student_ID VARCHAR2(20) CONSTRAINT PK_D_CREDIT_ACCOUNT PRIMARY KEY,
     Current_Score NUMBER(3) DEFAULT 100 NOT NULL,
@@ -139,7 +139,7 @@ CREATE TABLE D_Item_Loan (
         FOREIGN KEY (Student_ID) REFERENCES D_Student (Student_ID)
 );
 
--- Facilities and cleaning tasks
+-- 设施与清洁任务
 CREATE TABLE D_Facility (
     Facility_ID NUMBER(10) CONSTRAINT PK_D_FACILITY PRIMARY KEY,
     Building_ID NUMBER(10) NOT NULL,
@@ -198,7 +198,7 @@ CREATE TABLE D_Cleaning_Task (
 CREATE UNIQUE INDEX UK_D_FACILITY_BOOK_ACTIVE
     ON D_Facility_Booking (CASE WHEN Status IN ('已预约', '使用中') THEN Facility_ID END);
 
--- Repair materials and attachments
+-- 报修材料与附件
 CREATE TABLE D_Repair_Material (
     Material_ID NUMBER(10) CONSTRAINT PK_D_REPAIR_MATERIAL PRIMARY KEY,
     Material_Name VARCHAR2(50) NOT NULL,
@@ -238,7 +238,7 @@ CREATE TABLE D_Repair_Attachment (
         FOREIGN KEY (Ticket_ID) REFERENCES D_Repair_Ticket (Ticket_ID)
 );
 
--- Accounts, notifications, visitor authorization and audit events
+-- 账户、通知、访客授权与审计事件
 CREATE TABLE D_User_Account (
     Account_ID NUMBER(10) CONSTRAINT PK_D_USER_ACCOUNT PRIMARY KEY,
     Login_Name VARCHAR2(50) NOT NULL,
@@ -306,7 +306,7 @@ CREATE TABLE D_Audit_Event (
         FOREIGN KEY (Actor_Account_ID) REFERENCES D_User_Account (Account_ID)
 );
 
--- Room governance and checkout
+-- 宿舍治理与退宿
 CREATE TABLE D_Room_Vote (
     Vote_ID NUMBER(10) CONSTRAINT PK_D_ROOM_VOTE PRIMARY KEY,
     Room_ID NUMBER(10) NOT NULL,
@@ -379,7 +379,7 @@ CREATE TABLE D_Notice_Display (
 
 CREATE TABLE D_Hygiene_Comment (
     Record_ID NUMBER(10) CONSTRAINT PK_D_HYGIENE_COMMENT PRIMARY KEY,
-    -- COMMENT is an Oracle keyword; retain the approved logical name as a quoted identifier.
+    -- COMMENT 是 Oracle 关键字，保留已批准的逻辑名作为带引号标识符。
     "COMMENT" VARCHAR2(500),
     CONSTRAINT FK_D_HYGIENE_COMMENT_RECORD
         FOREIGN KEY (Record_ID) REFERENCES D_Hygiene_Record (Record_ID)
