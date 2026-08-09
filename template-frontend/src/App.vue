@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { clearSession } from '@/store/session'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
@@ -10,7 +11,7 @@ const userStore = useUserStore()
 const showAppShell = computed(() => route.meta.layout !== 'auth')
 
 const logout = async () => {
-  userStore.logout()
+  await clearSession()
   await router.replace({ name: 'Login' })
 }
 </script>

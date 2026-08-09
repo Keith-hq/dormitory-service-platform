@@ -18,6 +18,9 @@
       :data="list"
       :total="total"
       :loading="loading"
+      :page="currentPage"
+      row-key="buildingId"
+      caption="楼栋列表"
       @create="openCreateModal"
       @edit="openEditModal"
       @delete="handleDelete"
@@ -99,11 +102,21 @@ const form = reactive({
 const fetchData = async () => {
   loading.value = true
   try {
-    const data = await buildingApi.getList({
-      page: currentPage.value,
-      pageSize: pageSize.value,
-      buildingType: filterType.value || undefined
-    })
+    const requestList = () =>
+      buildingApi.getList({
+        page: currentPage.value,
+        pageSize: pageSize.value,
+        buildingType: filterType.value || undefined
+      })
+
+    let data = await requestList()
+    const lastPage = Math.max(1, Math.ceil((Number(data?.total) || 0) / pageSize.value))
+
+    if (currentPage.value > lastPage) {
+      currentPage.value = lastPage
+      data = await requestList()
+    }
+
     // 统一返回格式 { items, total }
     list.value = data?.items || []
     total.value = data?.total || 0
