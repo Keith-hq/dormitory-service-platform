@@ -39,7 +39,7 @@ public class BillingService : IBillingService
 
     public async Task<decimal> GetBalance(string studentId)
     {
-        var conn = _context.Database.GetDbConnection();
+        using var conn = _context.Database.GetDbConnection();
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT Balance FROM D_Wallet_Account WHERE Student_ID = :id";
@@ -48,7 +48,7 @@ public class BillingService : IBillingService
         param.Value = studentId;
         cmd.Parameters.Add(param);
         var result = await cmd.ExecuteScalarAsync();
-        return result is decimal d ? d : 0;
+        return result is DBNull or null ? 0 : Convert.ToDecimal(result);
     }
 
     public async Task<List<WalletLog>> GetWalletLogs(string studentId, string yearMonth)
@@ -65,7 +65,7 @@ public class BillingService : IBillingService
 
     public async Task<string> GetPowerStatus(int roomId)
     {
-        var conn = _context.Database.GetDbConnection();
+        using var conn = _context.Database.GetDbConnection();
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT Power_Status FROM D_Room WHERE Room_ID = :id";
@@ -74,6 +74,6 @@ public class BillingService : IBillingService
         param.Value = roomId;
         cmd.Parameters.Add(param);
         var result = await cmd.ExecuteScalarAsync();
-        return result?.ToString() ?? "正常";
+        return result is DBNull or null ? "正常" : result.ToString()!;
     }
 }
