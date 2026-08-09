@@ -41,7 +41,8 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_ROOM");
             entity.HasKey(e => e.RoomId);
-            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
+            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID")
+                  .ValueGeneratedOnAdd();
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
             entity.Property(e => e.RoomNumber).HasColumnName("ROOM_NUMBER").HasMaxLength(20).IsRequired();
             entity.Property(e => e.Capacity).HasColumnName("CAPACITY");

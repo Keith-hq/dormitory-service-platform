@@ -20,7 +20,7 @@ public class BuildingController : ControllerBase
         _service = service;
     }
 
-    /// <summary>分页查询楼栋列表</summary>
+    /// <summary>DORM-01 楼栋列表 — 分页查询</summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetPaged(
         [FromQuery] int page = 1,

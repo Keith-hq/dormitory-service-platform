@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Quartz;
 using TemplateDormApi.Services;
 
@@ -9,20 +10,27 @@ namespace TemplateDormApi.Jobs;
 public class AutoDeductJob : IJob
 {
     private readonly IBillingService _service;
+    private readonly ILogger<AutoDeductJob> _logger;
 
-    public AutoDeductJob(IBillingService service)
+    public AutoDeductJob(IBillingService service, ILogger<AutoDeductJob> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     public async Task Execute(IJobExecutionContext context)
     {
-        // attemptNo 从 JobDataMap 读取，调度时注入 1/2/3
-        var dataMap = context.MergedJobDataMap;
-        int attemptNo = dataMap.GetInt("attemptNo");
-        var yearMonth = DateTime.Now.ToString("yyyy-MM");
-
-        await _service.AutoDeduct(attemptNo, yearMonth);
+        try
+        {
+            var dataMap = context.MergedJobDataMap;
+            int attemptNo = dataMap.GetInt("attemptNo");
+            var yearMonth = DateTime.Now.ToString("yyyy-MM");
+            await _service.AutoDeduct(attemptNo, yearMonth);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AutoDeductJob 执行失败（SP 可能尚未部署）");
+        }
     }
 }
 
@@ -32,16 +40,25 @@ public class AutoDeductJob : IJob
 public class PowerCutJob : IJob
 {
     private readonly IBillingService _service;
+    private readonly ILogger<PowerCutJob> _logger;
 
-    public PowerCutJob(IBillingService service)
+    public PowerCutJob(IBillingService service, ILogger<PowerCutJob> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     public async Task Execute(IJobExecutionContext context)
     {
-        var yearMonth = DateTime.Now.ToString("yyyy-MM");
-        await _service.CheckPowerCut(yearMonth);
+        try
+        {
+            var yearMonth = DateTime.Now.ToString("yyyy-MM");
+            await _service.CheckPowerCut(yearMonth);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PowerCutJob 执行失败（SP 可能尚未部署）");
+        }
     }
 }
 
@@ -51,14 +68,23 @@ public class PowerCutJob : IJob
 public class RestorePowerJob : IJob
 {
     private readonly IBillingService _service;
+    private readonly ILogger<RestorePowerJob> _logger;
 
-    public RestorePowerJob(IBillingService service)
+    public RestorePowerJob(IBillingService service, ILogger<RestorePowerJob> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     public async Task Execute(IJobExecutionContext context)
     {
-        await _service.RestorePower();
+        try
+        {
+            await _service.RestorePower();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "RestorePowerJob 执行失败（SP 可能尚未部署）");
+        }
     }
 }
