@@ -1,7 +1,9 @@
 using DormitoryPlatform.API.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Quartz;
 using System.Text;
@@ -147,6 +149,13 @@ builder.Services.AddQuartz(q =>
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
+// ===== 文件存储服务 =====
+var storageRoot = builder.Configuration["Storage:RootPath"] ?? Path.Combine(AppContext.BaseDirectory, "uploads");
+Directory.CreateDirectory(storageRoot);
+var storageMaxBytes = builder.Configuration.GetValue<long?>("Storage:MaxSizeBytes") ?? 5L * 1024 * 1024;
+builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = storageMaxBytes);
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+
 // ===== 7. CORS 配置（允许前端跨域）=====
 builder.Services.AddCors(options =>
 {
@@ -204,6 +213,13 @@ if (app.Environment.IsDevelopment())
 //认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(storageRoot),
+    RequestPath = "/uploads",
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers["X-Content-Type-Options"] = "nosniff"
+});
 
 app.UseCors("DevCors");
 app.MapControllers();
