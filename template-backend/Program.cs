@@ -56,11 +56,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<BuildingRepository>();
 builder.Services.AddScoped<UserAccountRepository>();
 builder.Services.AddScoped<NotificationRepository>();
+builder.Services.AddScoped<CreditRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>

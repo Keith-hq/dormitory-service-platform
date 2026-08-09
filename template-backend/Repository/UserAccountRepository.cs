@@ -24,6 +24,26 @@ public class UserAccountRepository
             .SingleOrDefaultAsync();
     }
 
+    public Task<int?> GetActiveByStudentIdAsync(string studentId, CancellationToken cancellationToken = default)
+    {
+        return _context.UserAccounts
+            .AsNoTracking()
+            .Where(account => account.StudentId == studentId && account.AccountStatus == "正常")
+            .Select(account => (int?)account.AccountId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public Task<string?> GetStudentIdByAccountIdAsync(
+        int accountId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.UserAccounts
+            .AsNoTracking()
+            .Where(account => account.AccountId == accountId)
+            .Select(account => account.StudentId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     public Task<int?> GetByAdminIdAsync(string adminId)
     {
         return _context.UserAccounts
