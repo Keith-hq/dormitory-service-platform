@@ -1,0 +1,6 @@
+@DormBackendFacilityNotice_HostAddress = http://localhost:5000
+
+GET {{DormBackendFacilityNotice_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
