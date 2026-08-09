@@ -9,7 +9,9 @@ public class VoteService
     {
         return new RoomVote
         {
-            VoteId = 0, 
+            
+            VoteId = 0,
+            RoomId = req.RoomId,
             InitiatorStudentId = req.InitiatorStudentId,
             Topic = req.Topic,
             CreateTime = DateTime.Now,

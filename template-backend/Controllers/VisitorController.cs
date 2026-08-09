@@ -9,8 +9,12 @@ namespace TemplateDormApi.Controllers;
 [Route("api")]
 public class VisitorController : ControllerBase
 {
-    private readonly VisitorService _service = new();
+    private readonly VisitorService _service;
 
+    public VisitorController(VisitorService service)
+    {
+        _service = service;
+    }
     // POST /api/visitor-authorizations
     [HttpPost("visitor-authorizations")]
     public ApiResponse<VisitorAuthorization> Post([FromBody] VisitorApplyRequest req)

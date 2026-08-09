@@ -22,6 +22,9 @@ public class RoomVote
     [Column("Deadline")]
     public DateTime Deadline { get; set; }
 
+    [Column("Room_ID")]
+    public long RoomId { get; set; }
+
     [Column("Eligible_Count")]
     public int EligibleCount { get; set; }
 

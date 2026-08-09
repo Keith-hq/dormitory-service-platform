@@ -11,7 +11,7 @@ public class VisitorService
         var now = DateTime.Now;
         return new VisitorAuthorization
         {
-            AuthorizationId = long.Parse(now.ToString("MMddHHmmss")),
+            AuthorizationId = 0,
             StudentId = req.StudentId,
             RoomId = req.RoomId,
             VisitorName = req.VisitorName,
