@@ -31,19 +31,28 @@ namespace DormitoryPlatform.API.Middleware
         {
             context.Response.ContentType = "application/json";
             int statusCode;
+            int code;
             string message;
-            if (exception is ArgumentException || exception is InvalidOperationException) // 可扩展自定义业务异常
+            if (exception is TemplateDormApi.Exceptions.BusinessException businessException)
+            {
+                statusCode = businessException.HttpStatus;
+                code = businessException.Code;
+                message = businessException.Message;
+            }
+            else if (exception is ArgumentException || exception is InvalidOperationException) // 可扩展自定义业务异常
             {
                 statusCode = (int)HttpStatusCode.BadRequest;
+                code = statusCode;
                 message = exception.Message;  // 业务异常,可以改为返回具体信息
             }
             else
             {
                 statusCode = (int)HttpStatusCode.InternalServerError;
+                code = statusCode;
                 message = "服务器内部错误，请稍后重试。";  // 通用错误
             }
             context.Response.StatusCode = statusCode;
-            var response = new { code = statusCode, message = message, data = (object?)null };
+            var response = new { code, message, data = (object?)null };
             return context.Response.WriteAsync(JsonSerializer.Serialize(response));
         }
     }
