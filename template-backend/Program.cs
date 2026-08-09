@@ -56,24 +56,61 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<BuildingRepository>();
 builder.Services.AddScoped<UserAccountRepository>();
 builder.Services.AddScoped<NotificationRepository>();
+builder.Services.AddScoped<CreditRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
+builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
 {
-    // 注册水电分摊 Job
-    var jobKey = new JobKey("FeeSharingJob");
-    q.AddJob<FeeSharingJob>(opts => opts.WithIdentity(jobKey));
-
-    // 每月1日凌晨0点触发
+    // --- 难点① 水电分摊：每月1日凌晨 ---
+    var feeJobKey = new JobKey("FeeSharingJob");
+    q.AddJob<FeeSharingJob>(opts => opts.WithIdentity(feeJobKey));
     q.AddTrigger(opts => opts
-        .ForJob(jobKey)
+        .ForJob(feeJobKey)
         .WithIdentity("FeeSharingTrigger")
-        .WithCronSchedule("0 0 0 1 * ?"));  // 秒 分 时 日 月 周
+        .WithCronSchedule("0 0 0 1 * ?"));
+
+    // --- 难点② 自动扣款：每月1/2/3日凌晨 ---
+    var deductJobKey = new JobKey("AutoDeductJob");
+    q.AddJob<AutoDeductJob>(opts => opts.WithIdentity(deductJobKey));
+    // 1日
+    q.AddTrigger(opts => opts
+        .ForJob(deductJobKey).WithIdentity("DeductDay1")
+        .UsingJobData("attemptNo", 1)
+        .WithCronSchedule("0 5 0 1 * ?"));
+    // 2日
+    q.AddTrigger(opts => opts
+        .ForJob(deductJobKey).WithIdentity("DeductDay2")
+        .UsingJobData("attemptNo", 2)
+        .WithCronSchedule("0 5 0 2 * ?"));
+    // 3日
+    q.AddTrigger(opts => opts
+        .ForJob(deductJobKey).WithIdentity("DeductDay3")
+        .UsingJobData("attemptNo", 3)
+        .WithCronSchedule("0 5 0 3 * ?"));
+
+    // --- 断电判定：每月3日凌晨（扣款之后）---
+    var powerCutJobKey = new JobKey("PowerCutJob");
+    q.AddJob<PowerCutJob>(opts => opts.WithIdentity(powerCutJobKey));
+    q.AddTrigger(opts => opts
+        .ForJob(powerCutJobKey)
+        .WithIdentity("PowerCutTrigger")
+        .WithCronSchedule("0 10 0 3 * ?"));
+
+    // --- 恢复供电巡检：每分钟 ---
+    var restoreJobKey = new JobKey("RestorePowerJob");
+    q.AddJob<RestorePowerJob>(opts => opts.WithIdentity(restoreJobKey));
+    q.AddTrigger(opts => opts
+        .ForJob(restoreJobKey)
+        .WithIdentity("RestorePowerTrigger")
+        .WithCronSchedule("0 * * * * ?"));
 });
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 

@@ -11,8 +11,12 @@ public class AppDbContext : DbContext
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<FeeDetail> FeeDetails => Set<FeeDetail>();
+    public DbSet<WalletAccount> WalletAccounts => Set<WalletAccount>();
+    public DbSet<WalletLog> WalletLogs => Set<WalletLog>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+    public DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
+    public DbSet<CreditLog> CreditLogs => Set<CreditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -112,6 +116,71 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.RecipientAccountId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("FK_D_NOTIFICATION_ACCOUNT");
+        });
+
+        // ===== CreditAccount 信用分账户实体映射 =====
+        modelBuilder.Entity<CreditAccount>(entity =>
+        {
+            entity.ToTable("D_CREDIT_ACCOUNT");
+            entity.HasKey(e => e.StudentId);
+            entity.Property(e => e.StudentId)
+                .HasColumnName("STUDENT_ID")
+                .HasMaxLength(20);
+            entity.Property(e => e.CurrentScore)
+                .HasColumnName("CURRENT_SCORE")
+                .HasDefaultValue(100)
+                .IsRequired();
+            entity.Property(e => e.UpdatedTime)
+                .HasColumnName("UPDATED_TIME")
+                .HasDefaultValueSql("SYSDATE")
+                .ValueGeneratedOnAdd()
+                .IsRequired();
+        });
+
+        // ===== CreditLog 信用分流水实体映射 =====
+        modelBuilder.Entity<CreditLog>(entity =>
+        {
+            entity.ToTable("D_CREDIT_LOG");
+            entity.HasKey(e => e.LogId);
+            entity.Property(e => e.LogId)
+                .HasColumnName("LOG_ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.StudentId)
+                .HasColumnName("STUDENT_ID")
+                .HasMaxLength(20)
+                .IsRequired();
+            entity.Property(e => e.ScoreChange)
+                .HasColumnName("SCORE_CHANGE")
+                .IsRequired();
+            entity.Property(e => e.Reason)
+                .HasColumnName("REASON")
+                .HasMaxLength(200)
+                .IsRequired();
+            entity.Property(e => e.EventKey)
+                .HasColumnName("EVENT_KEY")
+                .HasMaxLength(100)
+                .IsRequired();
+            entity.Property(e => e.CreateTime)
+                .HasColumnName("CREATE_TIME")
+                .HasDefaultValueSql("SYSDATE")
+                .ValueGeneratedOnAdd()
+                .IsRequired();
+
+            entity.HasOne<CreditAccount>()
+                .WithMany()
+                .HasForeignKey(e => e.StudentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_CREDIT_LOG_ACCOUNT");
+        });
+
+        // 仅供 SELECT FOR UPDATE 锁定父行，不参与增删改。
+        modelBuilder.Entity<CreditStudentLock>(entity =>
+        {
+            entity.ToTable("D_STUDENT");
+            entity.HasKey(e => e.StudentId);
+            entity.Property(e => e.StudentId)
+                .HasColumnName("STUDENT_ID")
+                .HasMaxLength(20);
         });
     }
 }
