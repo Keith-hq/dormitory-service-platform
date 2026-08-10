@@ -82,9 +82,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { buildingApi } from '@/api/building'
-import CrudTable from '@/components/CrudTable.vue'
-import SearchForm from '@/components/SearchForm.vue'
-import StatusTag from '@/components/StatusTag.vue'
+import { CrudTable, SearchForm, StatusTag } from '@/components'
 
 // ===== 表格配置 =====
 const columns = [
