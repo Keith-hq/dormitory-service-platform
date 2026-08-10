@@ -142,6 +142,7 @@ const fetchData = async () => {
     list.value = data?.items || []
     total.value = data?.total || 0
   } catch (e) {
+    if (e.code === 401 || e.status === 401) return
     console.error('获取楼栋列表失败:', e)
     alert('获取数据失败，请确认后端已启动')
   } finally {
