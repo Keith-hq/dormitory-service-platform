@@ -55,6 +55,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // ===== 4. 注册 Repository 层 =====
 builder.Services.AddScoped<BuildingRepository>();
+builder.Services.AddScoped<RoomRepository>();
 builder.Services.AddScoped<UserAccountRepository>();
 builder.Services.AddScoped<NotificationRepository>();
 builder.Services.AddScoped<CreditRepository>();
@@ -63,6 +64,7 @@ builder.Services.AddScoped<NoticeRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
