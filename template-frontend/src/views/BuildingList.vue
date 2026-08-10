@@ -106,7 +106,7 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const filterType = ref('')
-const mockEnabled = import.meta.env.VITE_USE_MOCK === 'true'
+const mockEnabled = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true'
 
 // ===== 弹窗状态 =====
 const showModal = ref(false)

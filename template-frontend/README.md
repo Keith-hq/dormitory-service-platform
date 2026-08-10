@@ -57,7 +57,7 @@ cp .env.example .env.local
 | ------------------- | ----------------------- | ------------------------------------------------------ |
 | `VITE_API_BASE_URL` | `/api`                  | 浏览器请求的 API 基地址；也可填写 Apifox Mock 完整地址 |
 | `VITE_APP_BASE`     | `/`                     | 前端部署基路径；子路径部署时填写 `/目录名/`            |
-| `VITE_USE_MOCK`     | `false`                 | `true` 时 Mock 登录与楼栋 CRUD，页面调用方式保持不变   |
+| `VITE_USE_MOCK`     | `false`                 | 开发服务器中设为 `true` 时启用登录与楼栋 CRUD Mock     |
 | `API_PROXY_TARGET`  | `http://localhost:5000` | `/api` 在本地开发时的代理目标                          |
 | `DEV_PORT`          | `3000`                  | Vite 开发服务器端口                                    |
 
@@ -80,6 +80,8 @@ VITE_USE_MOCK=true
 | `student001` | `123456` | `student` |
 
 登录页始终调用 `POST /api/auth/login`，楼栋页始终调用 `buildingApi`。Mock 位于请求适配层，当前接管登录与楼栋分页/详情/新增/编辑/删除接口；关闭 `VITE_USE_MOCK` 后请求直接进入真实后端。Mock 数据仅保存在当前页面会话，刷新后恢复初始数据。
+
+Mock 仅在 `npm run dev` 启动的开发环境生效。所有 `vite build` 生产构建都会强制关闭并剔除 Mock，即使本地 `.env.local` 仍保留 `VITE_USE_MOCK=true`。
 
 临时登录契约：
 
