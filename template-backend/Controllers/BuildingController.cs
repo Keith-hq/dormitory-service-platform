@@ -44,9 +44,6 @@ public class BuildingController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] BuildingCreateDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ApiResponse.Error(400, "参数校验失败"));
-
         var building = await _service.CreateAsync(dto);
         return Ok(ApiResponse.Ok(building, "新增成功"));
     }

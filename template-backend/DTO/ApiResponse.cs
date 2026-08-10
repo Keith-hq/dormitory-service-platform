@@ -17,7 +17,4 @@ public static class ApiResponse
 
     public static ApiResponse<object> Error(int code, string message)
         => new() { Code = code, Message = message };
-
-    public static ApiResponse<object> Created<T>(T data)
-        => new() { Code = 201, Message = "创建成功", Data = data };
 }

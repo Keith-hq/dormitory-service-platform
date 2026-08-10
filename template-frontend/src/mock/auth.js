@@ -11,7 +11,7 @@ const MOCK_ACCOUNT = {
 const MOCK_LOGIN_PATH = '/auth/login'
 const MOCK_DELAY = 350
 
-const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration))
+const wait = (duration) => new Promise((resolve) => globalThis.setTimeout(resolve, duration))
 
 const parseRequestData = (data) => {
   if (!data) return {}
