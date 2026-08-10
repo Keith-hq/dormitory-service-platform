@@ -47,6 +47,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.RoomNumber).HasColumnName("ROOM_NUMBER").HasMaxLength(20).IsRequired();
             entity.Property(e => e.Capacity).HasColumnName("CAPACITY");
             entity.Property(e => e.Occupancy).HasColumnName("OCCUPANCY");
+            entity.Property(e => e.Floor).HasColumnName("FLOOR");
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PowerStatus).HasColumnName("POWER_STATUS").HasMaxLength(10).IsRequired();
 
             entity.HasOne<Building>()

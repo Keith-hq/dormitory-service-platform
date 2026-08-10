@@ -1,7 +1,9 @@
 using DormitoryPlatform.API.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Quartz;
 using System.Text;
@@ -11,6 +13,10 @@ using TemplateDormApi.Jobs;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
+
+// 业务时区：Windows 用 "China Standard Time"，Linux（云端部署）用 "Asia/Shanghai"
+static TimeZoneInfo GetBusinessTimeZone()
+    => TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "China Standard Time" : "Asia/Shanghai");
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -85,6 +91,14 @@ builder.Services.AddQuartz(q =>
         .WithIdentity("FeeSharingTrigger")
         .WithCronSchedule("0 0 0 1 * ?"));
 
+    // --- 信用分月度重置：每月1日 00:10 北京时间错峰触发 ---
+    var creditResetJobKey = new JobKey("CreditResetJob");
+    q.AddJob<CreditResetJob>(opts => opts.WithIdentity(creditResetJobKey));
+    q.AddTrigger(opts => opts
+        .ForJob(creditResetJobKey)
+        .WithIdentity("CreditResetTrigger")
+        .WithCronSchedule("0 10 0 1 * ?", s => s.InTimeZone(GetBusinessTimeZone())));
+
     // --- 难点② 自动扣款：每月1/2/3日凌晨 ---
     var deductJobKey = new JobKey("AutoDeductJob");
     q.AddJob<AutoDeductJob>(opts => opts.WithIdentity(deductJobKey));
@@ -132,7 +146,15 @@ builder.Services.AddQuartz(q =>
     q.AddTrigger(opts => opts.ForJob(autoKey).WithIdentity("AutoCompleteTrigger")
         .WithCronSchedule("0/15 * * * * ?", x => x.InTimeZone(tz)));
 });
+
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+
+// ===== 文件存储服务 =====
+var storageRoot = builder.Configuration["Storage:RootPath"] ?? Path.Combine(AppContext.BaseDirectory, "uploads");
+Directory.CreateDirectory(storageRoot);
+var storageMaxBytes = builder.Configuration.GetValue<long?>("Storage:MaxSizeBytes") ?? 5L * 1024 * 1024;
+builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = storageMaxBytes);
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 
 // ===== 7. CORS 配置（允许前端跨域）=====
 builder.Services.AddCors(options =>
@@ -191,6 +213,13 @@ if (app.Environment.IsDevelopment())
 //认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(storageRoot),
+    RequestPath = "/uploads",
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers["X-Content-Type-Options"] = "nosniff"
+});
 
 app.UseCors("DevCors");
 app.MapControllers();
