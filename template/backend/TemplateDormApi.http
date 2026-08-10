@@ -1,0 +1,6 @@
+@TemplateDormApi_HostAddress = http://localhost:5084
+
+GET {{TemplateDormApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

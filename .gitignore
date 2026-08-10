@@ -439,5 +439,5 @@ FodyWeavers.xsd
 *.msm
 *.msp
 /.idea
-template-frontend/AGENT.md
+frontend/AGENT.md
 uploads/
