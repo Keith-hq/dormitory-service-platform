@@ -22,15 +22,8 @@ public class BuildingCreateDto
 /// </summary>
 public class BuildingUpdateDto
 {
-    [MinLength(1, ErrorMessage = "楼栋名称不能为空")]
-    [RegularExpression(@".*\S.*", ErrorMessage = "楼栋名称不能为空")]
     public string? BuildingName { get; set; }
-
-    [MinLength(1, ErrorMessage = "楼栋类型不能为空")]
-    [RegularExpression(@".*\S.*", ErrorMessage = "楼栋类型不能为空")]
     public string? BuildingType { get; set; }
-
-    [Range(1, 50, ErrorMessage = "楼层数必须在 1~50 之间")]
     public int? FloorCount { get; set; }
 }
 

@@ -23,12 +23,12 @@
 2. 创建分组：**样板间 - 楼栋资产**
 3. 右键分组 → 新建接口
 
-### 2.2 录入接口（以 GET /api/building 为例）
+### 2.2 录入接口（以 GET /api/buildings 为例）
 
 | 配置项 | 值 |
 |---|---|
 | **请求方法** | GET |
-| **接口路径** | `/api/building` |
+| **接口路径** | `/api/buildings` |
 | **接口名称** | 分页查询楼栋列表 |
 | **Query 参数** | `page: 1`、`pageSize: 10` |
 
@@ -67,7 +67,7 @@
 ### 3.1 查询楼栋列表
 
 ```
-GET /api/building?page=1&pageSize=10
+GET /api/buildings?page=1&pageSize=10
 ```
 
 响应：
@@ -86,13 +86,13 @@ GET /api/building?page=1&pageSize=10
 ### 3.2 查询楼栋详情
 
 ```
-GET /api/building/{id}
+GET /api/buildings/{id}
 ```
 
 ### 3.3 新增楼栋
 
 ```
-POST /api/building
+POST /api/buildings
 Content-Type: application/json
 
 {
@@ -120,7 +120,7 @@ Content-Type: application/json
 ### 3.4 编辑楼栋
 
 ```
-PUT /api/building/{id}
+PUT /api/buildings/{id}
 Content-Type: application/json
 
 {
@@ -134,7 +134,7 @@ Content-Type: application/json
 ### 3.5 删除楼栋
 
 ```
-DELETE /api/building/{id}
+DELETE /api/buildings/{id}
 ```
 
 响应：

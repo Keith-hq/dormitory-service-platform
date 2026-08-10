@@ -1,5 +1,5 @@
 const MOCK_DELAY = 240
-const BUILDING_PATH_PATTERN = /^\/building(?:\/(\d+))?\/?$/
+const BUILDING_PATH_PATTERN = /^\/buildings(?:\/(\d+))?\/?$/
 
 const initialBuildings = [
   { buildingId: 1, buildingName: '1号楼', buildingType: '男生宿舍', floorCount: 6 },
