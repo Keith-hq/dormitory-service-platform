@@ -10,7 +10,7 @@ public class RoomCreateDto
     /// <summary>房间号 — 契约 roomNo</summary>
     [Required] public string RoomNo { get; set; } = string.Empty;
 
-    /// <summary>楼层 — 契约 floor (必填；DDL 暂无 Floor 列，已登记矛盾清单)</summary>
+    /// <summary>楼层 — 契约 floor (必填；迁移 016 已加列 D_Room.Floor)</summary>
     [Required] public int Floor { get; set; }
 
     [Range(1, 10)] public int Capacity { get; set; } = 4;
@@ -24,7 +24,7 @@ public class RoomUpdateDto
 
     public int? Capacity { get; set; }
 
-    /// <summary>房间状态 — 契约 status (正常/停用；DDL 暂无 Status 列，已登记矛盾清单)</summary>
+    /// <summary>房间状态 — 契约 status (正常/停用；迁移 016 已加列 D_Room.Status)</summary>
     [RegularExpression("^(正常|停用)$", ErrorMessage = "状态只能为 正常 或 停用")]
     public string? Status { get; set; }
 }

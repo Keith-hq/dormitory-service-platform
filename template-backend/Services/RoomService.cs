@@ -23,9 +23,10 @@ public class RoomService : IRoomService
         {
             BuildingId = dto.BuildingId,
             RoomNumber = dto.RoomNo,
+            Floor = dto.Floor,
             Capacity = dto.Capacity,
             Occupancy = 0,
-            Status = "空闲",
+            Status = "正常",
             PowerStatus = "正常"
         });
     }
