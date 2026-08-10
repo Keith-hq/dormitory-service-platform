@@ -22,6 +22,10 @@ public class Room
     /// <summary>当前入住人数（DDL 列 Occupancy，可空）</summary>
     public int? Occupancy { get; set; }
 
+    /// <summary>房间状态 — 非数据库字段，仅内存使用（DDL 暂无 Status 列，已登记矛盾清单）</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string Status { get; set; } = "空闲";
+
     /// <summary>供电状态（正常 / 断电）</summary>
     public string PowerStatus { get; set; } = "正常";
 }
