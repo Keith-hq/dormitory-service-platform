@@ -22,7 +22,7 @@ public class RoomService : IRoomService
         return await _repo.AddAsync(new Room
         {
             BuildingId = dto.BuildingId,
-            RoomNumber = dto.RoomNumber,
+            RoomNumber = dto.RoomNo,
             Capacity = dto.Capacity,
             Occupancy = 0,
             Status = "空闲",
@@ -34,10 +34,9 @@ public class RoomService : IRoomService
     {
         var room = await _repo.GetByIdAsync(id);
         if (room == null) return null;
-        if (dto.RoomNumber != null) room.RoomNumber = dto.RoomNumber;
+        if (dto.RoomNo != null) room.RoomNumber = dto.RoomNo;
         if (dto.Capacity.HasValue) room.Capacity = dto.Capacity.Value;
         if (dto.Status != null) room.Status = dto.Status;
-        if (dto.PowerStatus != null) room.PowerStatus = dto.PowerStatus;
         return await _repo.UpdateAsync(room);
     }
 
