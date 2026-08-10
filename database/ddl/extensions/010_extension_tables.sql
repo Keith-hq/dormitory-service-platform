@@ -388,8 +388,7 @@ CREATE TABLE D_Hygiene_Comment (
 -- =====================================================================
 -- 主键序列与触发器：D_Facility / D_Notice / D_Notice_Display
 -- 基线 DDL 中这三个表缺少主键序列，EF Core 插入时主键为 NULL 会报 ORA-01400。
--- 执行方式（DBeaver，JDBC 连接）：选中单个 PL/SQL 匿名块按 Ctrl+Enter 逐块执行。
--- 重复执行：已存在的 sequence / trigger 会被跳过，不影响已运行环境。
+-- 以下匿名块均为幂等写法：已存在的 sequence / trigger 会被跳过，可重复执行。
 -- =====================================================================
 
 -- ===== D_Facility =====
@@ -479,6 +478,8 @@ BEGIN
 END;
 
 -- ===== D_Notice_Display =====
+-- 主键列名为 NOTICE_ID（与 D_Notice 共享同一主键域），序列按表主键语义命名，
+-- 避免与 D_Notice 的 SEQ_D_NOTICE_ID 混淆（S3）。
 DECLARE
     v_exists NUMBER;
     v_start_with NUMBER;
@@ -486,7 +487,7 @@ BEGIN
     SELECT COUNT(*)
       INTO v_exists
       FROM USER_SEQUENCES
-     WHERE SEQUENCE_NAME = 'SEQ_D_NOTICE_DISPLAY_ID';
+     WHERE SEQUENCE_NAME = 'SEQ_D_NOTICE_DISPLAY_PK';
 
     IF v_exists = 0 THEN
         SELECT NVL(MAX(Notice_ID), 0) + 1
@@ -494,7 +495,7 @@ BEGIN
           FROM D_Notice_Display;
 
         EXECUTE IMMEDIATE
-            'CREATE SEQUENCE SEQ_D_NOTICE_DISPLAY_ID START WITH ' || v_start_with ||
+            'CREATE SEQUENCE SEQ_D_NOTICE_DISPLAY_PK START WITH ' || v_start_with ||
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
@@ -505,16 +506,16 @@ BEGIN
     SELECT COUNT(*)
       INTO v_exists
       FROM USER_TRIGGERS
-     WHERE TRIGGER_NAME = 'TRG_D_NOTICE_DISPLAY_ID_BI';
+     WHERE TRIGGER_NAME = 'TRG_D_NOTICE_DISPLAY_PK_BI';
 
     IF v_exists = 0 THEN
         EXECUTE IMMEDIATE
-            'CREATE TRIGGER TRG_D_NOTICE_DISPLAY_ID_BI ' ||
+            'CREATE TRIGGER TRG_D_NOTICE_DISPLAY_PK_BI ' ||
             'BEFORE INSERT ON D_Notice_Display ' ||
             'FOR EACH ROW ' ||
             'WHEN (NEW.Notice_ID IS NULL) ' ||
             'BEGIN ' ||
-            '    SELECT SEQ_D_NOTICE_DISPLAY_ID.NEXTVAL ' ||
+            '    SELECT SEQ_D_NOTICE_DISPLAY_PK.NEXTVAL ' ||
             '      INTO :NEW.Notice_ID ' ||
             '      FROM dual; ' ||
             'END;';

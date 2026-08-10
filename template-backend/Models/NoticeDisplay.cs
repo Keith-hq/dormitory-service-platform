@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace DormBackendFacilityNotice.Models;
+namespace TemplateDormApi.Models;
 
 /// <summary>
 /// 公告置顶实体 —— 对应 D_Notice_Display（与 D_Notice 1:1）

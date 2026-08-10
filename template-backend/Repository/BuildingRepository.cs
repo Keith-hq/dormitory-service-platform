@@ -22,7 +22,7 @@ public class BuildingRepository : BaseRepository<Building>
 
         var total = await query.CountAsync();
         var items = await query
-            .OrderByDescending(b => b.CreateTime)
+            .OrderByDescending(b => b.BuildingId)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

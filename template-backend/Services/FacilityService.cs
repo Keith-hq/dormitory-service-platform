@@ -1,8 +1,10 @@
-using DormBackendFacilityNotice.DTO;
-using DormBackendFacilityNotice.Models;
-using DormBackendFacilityNotice.Repository;
+using Microsoft.AspNetCore.Http;
+using TemplateDormApi.DTO;
+using TemplateDormApi.Exceptions;
+using TemplateDormApi.Models;
+using TemplateDormApi.Repository;
 
-namespace DormBackendFacilityNotice.Services;
+namespace TemplateDormApi.Services;
 
 /// <summary>
 /// 公共设施业务逻辑实现
@@ -13,10 +15,12 @@ public class FacilityService : IFacilityService
     private static readonly string[] ValidStatuses = { "正常", "维修", "停用" };
 
     private readonly FacilityRepository _repository;
+    private readonly BuildingRepository _buildingRepository;
 
-    public FacilityService(FacilityRepository repository)
+    public FacilityService(FacilityRepository repository, BuildingRepository buildingRepository)
     {
         _repository = repository;
+        _buildingRepository = buildingRepository;
     }
 
     public async Task<PagedResult<Facility>> GetPagedAsync(
@@ -30,7 +34,9 @@ public class FacilityService : IFacilityService
         return new PagedResult<Facility>
         {
             Items = items,
-            Total = total
+            Total = total,
+            Page = page,
+            PageSize = pageSize
         };
     }
 
@@ -42,6 +48,10 @@ public class FacilityService : IFacilityService
         if (!ValidStatuses.Contains(dto.Status))
             throw new ArgumentException($"状态不合法，只能是：{string.Join(" / ", ValidStatuses)}");
 
+        // S6：预检楼栋存在，避免错误 Building_ID 落到 Oracle 外键异常转 500
+        if (await _buildingRepository.GetByIdAsync(dto.BuildingId) == null)
+            throw new BusinessException(404, "楼栋不存在", StatusCodes.Status404NotFound);
+
         var facility = new Facility
         {
             BuildingId = dto.BuildingId,
@@ -51,4 +61,26 @@ public class FacilityService : IFacilityService
         };
         return await _repository.AddAsync(facility);
     }
+
+    public async Task<Facility?> UpdateAsync(int id, FacilityUpdateDto dto)
+    {
+        var facility = await _repository.GetByIdAsync(id);
+        if (facility == null) return null;
+
+        if (!string.IsNullOrWhiteSpace(dto.FacilityCode))
+            facility.FacilityCode = dto.FacilityCode;
+        if (!string.IsNullOrWhiteSpace(dto.FacilityType))
+            facility.FacilityType = dto.FacilityType;
+        if (!string.IsNullOrWhiteSpace(dto.Status))
+        {
+            if (!ValidStatuses.Contains(dto.Status))
+                throw new ArgumentException($"状态不合法，只能是：{string.Join(" / ", ValidStatuses)}");
+            facility.Status = dto.Status;
+        }
+
+        return await _repository.UpdateAsync(facility);
+    }
+
+    public async Task<bool> DeleteAsync(int id)
+        => await _repository.DeleteAsync(id);
 }

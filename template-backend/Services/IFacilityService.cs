@@ -1,7 +1,7 @@
-using DormBackendFacilityNotice.DTO;
-using DormBackendFacilityNotice.Models;
+using TemplateDormApi.DTO;
+using TemplateDormApi.Models;
 
-namespace DormBackendFacilityNotice.Services;
+namespace TemplateDormApi.Services;
 
 /// <summary>
 /// 公共设施业务逻辑接口
@@ -12,4 +12,6 @@ public interface IFacilityService
         string? facilityType = null, string? status = null);
     Task<Facility?> GetByIdAsync(int id);
     Task<Facility> CreateAsync(FacilityCreateDto dto);
+    Task<Facility?> UpdateAsync(int id, FacilityUpdateDto dto);
+    Task<bool> DeleteAsync(int id);
 }

@@ -1,16 +1,16 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace DormBackendFacilityNotice.Models;
+namespace TemplateDormApi.Models;
 
 /// <summary>
-/// 公告实体
+/// 公告实体（映射 D_Notice）
 /// </summary>
 public class Notice
 {
     [Key]
     public int NoticeId { get; set; }
 
-    /// <summary>发布人（宿管工号）</summary>
+    /// <summary>发布人（宿管工号，FK → D_Admin）</summary>
     public string AdminId { get; set; } = string.Empty;
 
     /// <summary>公告标题</summary>

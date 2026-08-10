@@ -37,8 +37,7 @@ public class BuildingService : IBuildingService
         {
             BuildingName = dto.BuildingName,
             BuildingType = dto.BuildingType,
-            FloorCount = dto.FloorCount,
-            CreateTime = DateTime.Now
+            FloorCount = dto.FloorCount
         };
         return await _repository.AddAsync(building);
     }

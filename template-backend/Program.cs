@@ -9,6 +9,7 @@ using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Jobs;
 using TemplateDormApi.Repository;
+using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -57,6 +58,8 @@ builder.Services.AddScoped<BuildingRepository>();
 builder.Services.AddScoped<UserAccountRepository>();
 builder.Services.AddScoped<NotificationRepository>();
 builder.Services.AddScoped<CreditRepository>();
+builder.Services.AddScoped<FacilityRepository>();
+builder.Services.AddScoped<NoticeRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
@@ -64,6 +67,8 @@ builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<IFacilityService, FacilityService>();
+builder.Services.AddScoped<INoticeService, NoticeService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
@@ -150,7 +155,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // 宿管端写操作策略（B6/S2）：要求已登录且 role claim 属于宿管/超级管理员
+    options.AddPolicy(AuthPolicies.DormAdmin, policy =>
+        policy.RequireAuthenticatedUser().RequireRole("admin", "super_admin"));
+});
 
 var app = builder.Build();
 

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace DormBackendFacilityNotice.DTO;
+namespace TemplateDormApi.DTO;
 
 /// <summary>
 /// 公共设施新增 DTO（对齐契约 POST /facilities）
@@ -11,9 +11,11 @@ public class FacilityCreateDto
     public int BuildingId { get; set; }
 
     [Required(ErrorMessage = "设施编号不能为空")]
+    [StringLength(30, ErrorMessage = "设施编号最长 30 个字符")]
     public string FacilityCode { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "设施类型不能为空")]
+    [StringLength(30, ErrorMessage = "设施类型最长 30 个字符")]
     public string FacilityType { get; set; } = string.Empty;
 
     [RegularExpression("^(正常|维修|停用)$", ErrorMessage = "状态只能是：正常 / 维修 / 停用")]
@@ -25,7 +27,12 @@ public class FacilityCreateDto
 /// </summary>
 public class FacilityUpdateDto
 {
+    [StringLength(30, ErrorMessage = "设施编号最长 30 个字符")]
     public string? FacilityCode { get; set; }
+
+    [StringLength(30, ErrorMessage = "设施类型最长 30 个字符")]
     public string? FacilityType { get; set; }
+
+    [RegularExpression("^(正常|维修|停用)$", ErrorMessage = "状态只能是：正常 / 维修 / 停用")]
     public string? Status { get; set; }
 }
