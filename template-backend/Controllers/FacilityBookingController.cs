@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Exceptions;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
@@ -28,14 +29,14 @@ public class FacilityBookingController : ControllerBase
     private async Task<string> ResolveStudentId()
     {
         var accountId = CurrentUser.GetAccountId(User)
-            ?? throw new UnauthorizedAccessException("未登录或 Token 无效");
+            ?? throw new BusinessException(401, "未登录或 Token 无效");
 
         var studentId = await _context.UserAccounts
             .Where(a => a.AccountId == accountId)
             .Select(a => a.StudentId)
             .FirstOrDefaultAsync();
 
-        return studentId ?? throw new UnauthorizedAccessException("当前账户未关联学生身份");
+        return studentId ?? throw new BusinessException(401, "当前账户未关联学生身份");
     }
 
     /// <summary>STU-20：预约设施</summary>
