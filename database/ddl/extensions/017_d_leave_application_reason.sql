@@ -1,0 +1,28 @@
+-- 扩展表迁移 017：D_Leave_Application 增加 Reason（驳回原因）列。
+-- 在已有环境上执行于 ddl/extensions/016_d_room_floor_status.sql 之后；
+-- 全量重建时执行顺序为 foundation/001 -> extensions/010 -> extensions/011
+--   -> extensions/012 -> extensions/013 -> extensions/014 -> extensions/015
+--   -> extensions/016 -> extensions/017。
+-- 本脚本只 ALTER 基线表 D_Leave_Application 加列，不重建、不改写既有列。
+--
+-- 为什么走编号迁移脚本（C-023，2026-08-10 裁决）？
+--   Apifox 契约（api-contract-8.10.yaml，已锁定路径与名称）中 COUN-03
+--   驳回报备 requestBody 的 reason 为必填（example: 日期冲突），而
+--   foundation D_Leave_Application 无 Reason / 驳回原因列。必填数据无处
+--   存储，实现方只能丢弃必填数据或建假列。裁决：加列走迁移，契约不动。
+--
+-- 语义说明：
+--   Reason 可空：仅辅导员驳回（COUN-03）时写入，审批通过/待批不填。
+--   VARCHAR2(200) 与契约 reason 字符串语义对齐（字符长度，无中文问题）。
+--
+-- 执行方式（DBeaver，JDBC 连接）：
+--   单条 ALTER 语句，选中执行（Ctrl+Enter）即可，不带 "/"。
+--
+-- 重复执行说明：
+--   ALTER TABLE ADD COLUMN 非幂等，重复执行报 ORA-01430（column already
+--   exists）；已执行环境跳过本脚本即可。
+--
+-- 验证：重跑 database/verify/extension_schema_checks.sql，确认新增的第 15
+--   部分输出 D_Leave_Application 的 REASON 列 1 行。
+ALTER TABLE D_Leave_Application
+    ADD (Reason VARCHAR2(200));
