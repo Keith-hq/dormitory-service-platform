@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TemplateDormApi.Controllers;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Exceptions;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
@@ -24,11 +25,42 @@ public class InternalFileControllerTests
 
         var actionResult = await controller.Upload(
             new FakeFormFile(new byte[] { 1 }, "photo.png", "image/png"),
+            module: null,
             CancellationToken.None);
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
         var response = Assert.IsType<ApiResponse<FileUploadResultDto>>(okResult.Value);
         Assert.Same(expected, response.Data);
+    }
+
+    [Fact]
+    public async Task Upload_AcceptsValidModule()
+    {
+        var service = new FakeFileStorageService();
+        var controller = CreateController(service);
+
+        var actionResult = await controller.Upload(
+            new FakeFormFile(new byte[] { 1 }, "photo.png", "image/png"),
+            module: "repair",
+            CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(actionResult);
+        Assert.NotNull(service.SavedRef);
+    }
+
+    [Fact]
+    public async Task Upload_RejectsInvalidModule()
+    {
+        var service = new FakeFileStorageService();
+        var controller = CreateController(service);
+
+        var exception = await Assert.ThrowsAsync<BusinessException>(() => controller.Upload(
+            new FakeFormFile(new byte[] { 1 }, "photo.png", "image/png"),
+            module: "hack",
+            CancellationToken.None));
+
+        Assert.Equal(400, exception.Code);
+        Assert.Null(service.SavedRef); // 非法 module 不得进入保存
     }
 
     [Fact]
@@ -120,11 +152,15 @@ public class InternalFileControllerTests
         public FileUrlDto UrlResult { get; set; } = new();
         public FileDeleteResultDto DeleteResult { get; set; } = new();
         public string? BaseUrl { get; private set; }
+        public string? SavedRef { get; private set; }
 
         public Task<FileUploadResultDto> SaveAsync(
             IFormFile file,
             CancellationToken cancellationToken)
-            => Task.FromResult(UploadResult);
+        {
+            SavedRef = file.FileName;
+            return Task.FromResult(UploadResult);
+        }
 
         public Task<FileUrlDto> GetUrlAsync(
             string storageRef,

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Exceptions;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
@@ -13,6 +14,16 @@ namespace TemplateDormApi.Controllers;
 [ServiceKeyAuth]
 public class InternalFileController : ControllerBase
 {
+    /// <summary>
+    /// 契约 SVC-FILE-01 的业务模块标识白名单（module，可选）。
+    /// </summary>
+    private static readonly HashSet<string> AllowedModules = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "repair",
+        "appeal",
+        "visitor"
+    };
+
     private readonly IFileStorageService _fileStorage;
     private readonly IConfiguration _configuration;
     private readonly ILogger<InternalFileController> _logger;
@@ -34,13 +45,20 @@ public class InternalFileController : ControllerBase
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> Upload(
         [FromForm] IFormFile file,
+        [FromForm] string? module,
         CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(module) && !AllowedModules.Contains(module))
+        {
+            throw new BusinessException(400, "module 非法");
+        }
+
         var result = await _fileStorage.SaveAsync(file, cancellationToken);
         _logger.LogInformation(
-            "内部文件上传：StorageRef={StorageRef}，Size={Size}",
+            "内部文件上传：StorageRef={StorageRef}，Size={Size}，Module={Module}",
             result.StorageRef,
-            file.Length);
+            file.Length,
+            module);
         return Ok(ApiResponse.Ok(result));
     }
 
