@@ -5,10 +5,12 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiBaseUrl = env.VITE_API_BASE_URL || '/api'
+  const appBase = env.VITE_APP_BASE || '/'
   const apiProxyTarget = env.API_PROXY_TARGET || 'http://localhost:5000'
   const devPort = Number(env.DEV_PORT) || 3000
 
   return {
+    base: appBase,
     plugins: [vue()],
 
     resolve: {
@@ -27,6 +29,13 @@ export default defineConfig(({ mode }) => {
             }
           }
         : undefined
+    },
+
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      emptyOutDir: true,
+      sourcemap: false
     }
   }
 })

@@ -82,9 +82,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { buildingApi } from '@/api/building'
-import CrudTable from '@/components/CrudTable.vue'
-import SearchForm from '@/components/SearchForm.vue'
-import StatusTag from '@/components/StatusTag.vue'
+import { CrudTable, SearchForm, StatusTag } from '@/components'
 
 // ===== 表格配置 =====
 const columns = [
@@ -108,7 +106,7 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const filterType = ref('')
-const mockEnabled = import.meta.env.VITE_USE_MOCK === 'true'
+const mockEnabled = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true'
 
 // ===== 弹窗状态 =====
 const showModal = ref(false)
@@ -144,6 +142,7 @@ const fetchData = async () => {
     list.value = data?.items || []
     total.value = data?.total || 0
   } catch (e) {
+    if (e.code === 401 || e.status === 401) return
     console.error('获取楼栋列表失败:', e)
     alert('获取数据失败，请确认后端已启动')
   } finally {

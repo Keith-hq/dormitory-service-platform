@@ -8,7 +8,8 @@ import { useUserStore } from '@/store/user'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
-const mockEnabled = import.meta.env.VITE_USE_MOCK === 'true'
+const mockEnabled = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true'
+const mockCredentials = import.meta.env.DEV ? { loginName: 'student001', password: '123456' } : null
 
 const loginName = ref('')
 const password = ref('')
@@ -105,8 +106,8 @@ const submitLogin = async () => {
 
       <aside v-if="mockEnabled" class="mock-tip">
         <strong>Mock 测试账号</strong>
-        <span>登录名：student001</span>
-        <span>密码：123456</span>
+        <span>登录名：{{ mockCredentials.loginName }}</span>
+        <span>密码：{{ mockCredentials.password }}</span>
       </aside>
     </section>
   </main>

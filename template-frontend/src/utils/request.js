@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { attachMockAdapter } from '@/mock'
+import router from '@/router'
 import { clearSession } from '@/store/session'
 import { useUserStore } from '@/store/user'
 
@@ -28,13 +29,19 @@ const redirectToLogin = async (requestToken) => {
 
   await clearSession()
 
-  if (window.location.pathname === '/login') return
+  const currentRoute = router.currentRoute.value
+  if (currentRoute.name === 'Login') return
   if (loginRedirectPending) return
 
   loginRedirectPending = true
-  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`
-  window.location.assign(loginUrl)
+  try {
+    await router.replace({
+      name: 'Login',
+      query: { redirect: currentRoute.fullPath }
+    })
+  } finally {
+    loginRedirectPending = false
+  }
 }
 
 // 请求拦截器：携带 JWT Token
