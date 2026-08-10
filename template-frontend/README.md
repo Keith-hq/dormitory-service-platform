@@ -56,7 +56,7 @@ cp .env.example .env.local
 | 变量                | 默认值                  | 用途                                                   |
 | ------------------- | ----------------------- | ------------------------------------------------------ |
 | `VITE_API_BASE_URL` | `/api`                  | 浏览器请求的 API 基地址；也可填写 Apifox Mock 完整地址 |
-| `VITE_USE_MOCK`     | `false`                 | `true` 时仅 Mock 登录接口，页面调用方式保持不变        |
+| `VITE_USE_MOCK`     | `false`                 | `true` 时 Mock 登录与楼栋 CRUD，页面调用方式保持不变   |
 | `API_PROXY_TARGET`  | `http://localhost:5000` | `/api` 在本地开发时的代理目标                          |
 | `DEV_PORT`          | `3000`                  | Vite 开发服务器端口                                    |
 
@@ -64,9 +64,9 @@ cp .env.example .env.local
 
 当 `VITE_API_BASE_URL` 是 `/api` 这类相对路径时，Vite启用本地代理；当它是Apifox Mock等完整URL时，浏览器会直接请求该地址。
 
-### 本地 Mock 登录
+### 本地 Mock 样板
 
-后端登录接口未就绪时，在不提交的 `.env.local` 中开启：
+后端接口未就绪时，在不提交的 `.env.local` 中开启：
 
 ```bash
 VITE_USE_MOCK=true
@@ -78,7 +78,7 @@ VITE_USE_MOCK=true
 | ------------ | -------- | --------- |
 | `student001` | `123456` | `student` |
 
-登录页始终调用 `POST /api/auth/login`。Mock 位于请求适配层，关闭 `VITE_USE_MOCK` 后页面会直接调用真实后端，无需修改登录页。
+登录页始终调用 `POST /api/auth/login`，楼栋页始终调用 `buildingApi`。Mock 位于请求适配层，当前接管登录与楼栋分页/详情/新增/编辑/删除接口；关闭 `VITE_USE_MOCK` 后请求直接进入真实后端。Mock 数据仅保存在当前页面会话，刷新后恢复初始数据。
 
 临时登录契约：
 
@@ -116,9 +116,10 @@ src/
 - 页面通过 `src/api/` 调用接口，不直接创建 Axios 实例。
 - 所有接口复用 `src/utils/request.js`，响应会被解构为后端返回的 `data`。
 - 登录状态由 Pinia 管理，Token 与最小用户信息持久化；退出或收到 `401` 时统一清理。
+- 通知状态由 `useNoticeStore` 管理，统一调用列表、未读数和已读接口；会话结束时同步清理。
 - 受保护路由使用 `meta.requiresAuth`；角色字段仅预留，本阶段不做角色级权限。
 - 接口字段与角色值以锁定的 Apifox 契约为准。
-- 通用列表优先复用 `CrudTable`、`SearchForm` 等组件。
+- 通用列表优先复用 `CrudTable`、`SearchForm`、`StatusTag` 等组件；`CrudTable` 由页面传入 `page` 与稳定 `rowKey`，`SearchForm` 支持回车查询与加载禁用，`StatusTag` 由业务页映射语义色调。
 - 只有真正跨页面共享的数据才进入 Pinia。
 - 不提交 `node_modules`、`dist`、`.env.local` 或任何敏感信息。
 

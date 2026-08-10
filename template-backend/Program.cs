@@ -161,7 +161,8 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthPolicies.DormAdmin, policy =>
         policy.RequireAuthenticatedUser().RequireRole("admin", "super_admin"));
 });
-
+builder.Services.AddScoped<VisitorService>();
+builder.Services.AddScoped<VoteService>();
 var app = builder.Build();
 
 // ===== 中间件管道 =====

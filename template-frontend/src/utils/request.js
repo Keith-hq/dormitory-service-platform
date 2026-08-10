@@ -1,5 +1,6 @@
 import axios from 'axios'
-import { attachAuthMock } from '@/mock/auth'
+import { attachMockAdapter } from '@/mock'
+import { clearSession } from '@/store/session'
 import { useUserStore } from '@/store/user'
 
 const request = axios.create({
@@ -19,13 +20,13 @@ export class ApiError extends Error {
   }
 }
 
-const redirectToLogin = (requestToken) => {
+const redirectToLogin = async (requestToken) => {
   const userStore = useUserStore()
 
   // 忽略旧请求迟到的 401，避免清除用户刚建立的新会话。
   if (requestToken !== userStore.token) return
 
-  userStore.logout()
+  await clearSession()
 
   if (window.location.pathname === '/login') return
   if (loginRedirectPending) return
@@ -44,14 +45,14 @@ request.interceptors.request.use(
     if (userStore.token) {
       config.headers.Authorization = `Bearer ${userStore.token}`
     }
-    return attachAuthMock(config)
+    return attachMockAdapter(config)
   },
   (error) => Promise.reject(error)
 )
 
 // 响应拦截器：统一错误处理
 request.interceptors.response.use(
-  (response) => {
+  async (response) => {
     const payload = response.data
     if (!payload || typeof payload !== 'object' || !('code' in payload)) {
       return Promise.reject(
@@ -70,7 +71,7 @@ request.interceptors.response.use(
     }
 
     if (normalizedCode === 401) {
-      redirectToLogin(response.config[AUTH_TOKEN_SNAPSHOT])
+      await redirectToLogin(response.config[AUTH_TOKEN_SNAPSHOT])
     }
 
     return Promise.reject(
@@ -80,14 +81,14 @@ request.interceptors.response.use(
       })
     )
   },
-  (error) => {
+  async (error) => {
     if (error instanceof ApiError) {
       return Promise.reject(error)
     }
 
     const status = error.response?.status
     if (status === 401) {
-      redirectToLogin(error.config?.[AUTH_TOKEN_SNAPSHOT])
+      await redirectToLogin(error.config?.[AUTH_TOKEN_SNAPSHOT])
     }
 
     let message = error.response?.data?.message || error.message || '请求失败'
