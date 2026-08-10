@@ -48,10 +48,7 @@ public class BillingService : IBillingService
         param.Value = studentId;
         cmd.Parameters.Add(param);
         var result = await cmd.ExecuteScalarAsync();
-        if (result is DBNull or null) return 0;
-        return result is Oracle.ManagedDataAccess.Types.OracleDecimal od
-            ? od.Value
-            : Convert.ToDecimal(result);
+        return result is DBNull or null ? 0 : Convert.ToDecimal(result);
     }
 
     public async Task<List<WalletLog>> GetWalletLogs(string studentId, string yearMonth)

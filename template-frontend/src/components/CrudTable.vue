@@ -2,48 +2,83 @@
   <div class="crud-table">
     <!-- 操作按钮区 -->
     <div class="toolbar">
-      <button class="btn btn-primary" @click="$emit('create')">+ 新增</button>
+      <button
+        v-if="showCreate"
+        type="button"
+        class="btn btn-primary"
+        :disabled="loading"
+        @click="$emit('create')"
+      >
+        {{ createText }}
+      </button>
       <slot name="toolbar"></slot>
     </div>
 
     <!-- 数据表格 -->
     <table v-if="data.length > 0" class="table">
+      <caption class="sr-only">
+        {{
+          caption
+        }}
+      </caption>
       <thead>
         <tr>
           <th v-for="col in columns" :key="col.prop" :style="{ width: col.width }">
             {{ col.label }}
           </th>
-          <th style="width: 160px">操作</th>
+          <th v-if="showActions" style="width: 160px">操作</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(row, idx) in data" :key="idx">
+        <tr v-for="(row, index) in data" :key="getRowKey(row, index)">
           <td v-for="col in columns" :key="col.prop">
             <slot :name="'cell-' + col.prop" :row="row" :value="row[col.prop]">
               {{ row[col.prop] }}
             </slot>
           </td>
-          <td class="actions">
-            <button class="btn btn-sm btn-edit" @click="$emit('edit', row)">编辑</button>
-            <button class="btn btn-sm btn-danger" @click="$emit('delete', row)">删除</button>
+          <td v-if="showActions" class="actions">
+            <slot name="actions" :row="row">
+              <button
+                type="button"
+                class="btn btn-sm btn-edit"
+                :disabled="loading"
+                @click="$emit('edit', row)"
+              >
+                编辑
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-danger"
+                :disabled="loading"
+                @click="$emit('delete', row)"
+              >
+                删除
+              </button>
+            </slot>
           </td>
         </tr>
       </tbody>
     </table>
-    <div v-else-if="!loading" class="empty">暂无数据</div>
-    <div v-if="loading" class="loading">加载中...</div>
+    <div v-else-if="!loading" class="empty">{{ emptyText }}</div>
+    <div v-if="loading" class="loading" role="status" aria-live="polite">加载中...</div>
 
     <!-- 分页 -->
     <div v-if="total > 0" class="pagination">
       <span>共 {{ total }} 条</span>
-      <button class="btn btn-sm" :disabled="currentPage <= 1" @click="goPage(currentPage - 1)">
+      <button
+        type="button"
+        class="btn btn-sm"
+        :disabled="loading || page <= 1"
+        @click="goPage(page - 1)"
+      >
         上一页
       </button>
-      <span>{{ currentPage }} / {{ Math.ceil(total / pageSize) }}</span>
+      <span>{{ page }} / {{ totalPages }}</span>
       <button
+        type="button"
         class="btn btn-sm"
-        :disabled="currentPage >= Math.ceil(total / pageSize)"
-        @click="goPage(currentPage + 1)"
+        :disabled="loading || page >= totalPages"
+        @click="goPage(page + 1)"
       >
         下一页
       </button>
@@ -52,23 +87,36 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   columns: { type: Array, required: true },
   data: { type: Array, default: () => [] },
   total: { type: Number, default: 0 },
   loading: { type: Boolean, default: false },
-  pageSize: { type: Number, default: 10 }
+  page: { type: Number, default: 1 },
+  pageSize: { type: Number, default: 10 },
+  rowKey: { type: [String, Function], default: 'id' },
+  caption: { type: String, default: '数据列表' },
+  emptyText: { type: String, default: '暂无数据' },
+  createText: { type: String, default: '+ 新增' },
+  showCreate: { type: Boolean, default: true },
+  showActions: { type: Boolean, default: true }
 })
 
 const emit = defineEmits(['create', 'edit', 'delete', 'page-change'])
 
-const currentPage = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
+
+const getRowKey = (row, index) => {
+  const key = typeof props.rowKey === 'function' ? props.rowKey(row) : row?.[props.rowKey]
+  return key ?? index
+}
 
 const goPage = (page) => {
-  currentPage.value = page
-  emit('page-change', { page, pageSize: props.pageSize })
+  const targetPage = Math.min(Math.max(1, page), totalPages.value)
+  if (targetPage === props.page || props.loading) return
+  emit('page-change', { page: targetPage, pageSize: props.pageSize })
 }
 </script>
 
@@ -109,6 +157,10 @@ const goPage = (page) => {
   background: #fff;
   font-size: 14px;
 }
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .btn-primary {
   background: #1890ff;
   color: #fff;
@@ -140,5 +192,16 @@ const goPage = (page) => {
   padding: 48px 0;
   color: #999;
   font-size: 14px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>
