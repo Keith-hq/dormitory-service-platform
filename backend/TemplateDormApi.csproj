@@ -15,4 +15,12 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
+  <!-- tests/ 为独立测试工程，排除在主项目默认通配之外 -->
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+    <EmbeddedResource Remove="tests/**" />
+    <None Remove="tests/**" />
+    <Content Remove="tests/**" />
+  </ItemGroup>
+
 </Project>
