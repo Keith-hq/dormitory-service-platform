@@ -119,7 +119,7 @@ src/
 - 通知状态由 `useNoticeStore` 管理，统一调用列表、未读数和已读接口；会话结束时同步清理。
 - 受保护路由使用 `meta.requiresAuth`；角色字段仅预留，本阶段不做角色级权限。
 - 接口字段与角色值以锁定的 Apifox 契约为准。
-- 通用列表优先复用 `CrudTable`、`SearchForm` 等组件；`CrudTable` 由页面传入 `page` 与稳定 `rowKey`，`SearchForm` 支持回车查询与加载禁用。
+- 通用列表优先复用 `CrudTable`、`SearchForm`、`StatusTag` 等组件；`CrudTable` 由页面传入 `page` 与稳定 `rowKey`，`SearchForm` 支持回车查询与加载禁用，`StatusTag` 由业务页映射语义色调。
 - 只有真正跨页面共享的数据才进入 Pinia。
 - 不提交 `node_modules`、`dist`、`.env.local` 或任何敏感信息。
 

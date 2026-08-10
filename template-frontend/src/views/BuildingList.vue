@@ -30,7 +30,11 @@
       @edit="openEditModal"
       @delete="handleDelete"
       @page-change="onPageChange"
-    />
+    >
+      <template #cell-buildingType="{ value }">
+        <StatusTag :label="value" :tone="buildingTypeTones[value] || 'neutral'" />
+      </template>
+    </CrudTable>
 
     <!-- 新增/编辑弹窗 -->
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
@@ -74,6 +78,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { buildingApi } from '@/api/building'
 import CrudTable from '@/components/CrudTable.vue'
 import SearchForm from '@/components/SearchForm.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 // ===== 表格配置 =====
 const columns = [
@@ -83,6 +88,12 @@ const columns = [
   { prop: 'floorCount', label: '楼层数', width: '100px' },
   { prop: 'createTime', label: '创建时间', width: '180px' }
 ]
+
+const buildingTypeTones = {
+  男生宿舍: 'info',
+  女生宿舍: 'rose',
+  混合宿舍: 'warning'
+}
 
 // ===== 数据状态 =====
 const list = ref([])
