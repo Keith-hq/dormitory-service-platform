@@ -13,7 +13,9 @@
 --
 -- 语义说明：
 --   Reason 可空：仅辅导员驳回（COUN-03）时写入，审批通过/待批不填。
---   VARCHAR2(200) 与契约 reason 字符串语义对齐（字符长度，无中文问题）。
+--   VARCHAR2(200 CHAR) 显式字符长度：本实例 NLS_LENGTH_SEMANTICS=BYTE（C-018），
+--   若写 VARCHAR2(200) 实际只有 200 字节（中文约 66 字符），与契约 reason
+--   字符串语义不符；同 013 迁移（通知中心 Title/Content）先例。
 --
 -- 执行方式（DBeaver，JDBC 连接）：
 --   单条 ALTER 语句，选中执行（Ctrl+Enter）即可，不带 "/"。
@@ -23,6 +25,7 @@
 --   exists）；已执行环境跳过本脚本即可。
 --
 -- 验证：重跑 database/verify/extension_schema_checks.sql，确认新增的第 15
---   部分输出 D_Leave_Application 的 REASON 列 1 行。
+--   部分输出 D_Leave_Application 的 REASON 列 1 行，且 CHAR_USED='C'、
+--   CHAR_LENGTH=200。
 ALTER TABLE D_Leave_Application
-    ADD (Reason VARCHAR2(200));
+    ADD (Reason VARCHAR2(200 CHAR));
