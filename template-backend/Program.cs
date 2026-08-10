@@ -70,6 +70,7 @@ builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IFacilityService, FacilityService>();
 builder.Services.AddScoped<INoticeService, NoticeService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
+builder.Services.AddScoped<IFacilityBookingService, FacilityBookingService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
@@ -116,6 +117,18 @@ builder.Services.AddQuartz(q =>
         .ForJob(restoreJobKey)
         .WithIdentity("RestorePowerTrigger")
         .WithCronSchedule("0 * * * * ?"));
+
+    // --- 难点③ 设施预约巡检：每15秒（北京时间）---
+    var tz = TimeZoneInfo.FindSystemTimeZoneById("China Standard Time");
+    var expireKey = new JobKey("ExpireBookingJob");
+    q.AddJob<ExpireBookingJob>(opts => opts.WithIdentity(expireKey));
+    q.AddTrigger(opts => opts.ForJob(expireKey).WithIdentity("ExpireTrigger")
+        .WithCronSchedule("0/15 * * * * ?", x => x.InTimeZone(tz)));
+
+    var autoKey = new JobKey("AutoCompleteJob");
+    q.AddJob<AutoCompleteJob>(opts => opts.WithIdentity(autoKey));
+    q.AddTrigger(opts => opts.ForJob(autoKey).WithIdentity("AutoCompleteTrigger")
+        .WithCronSchedule("0/15 * * * * ?", x => x.InTimeZone(tz)));
 });
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
