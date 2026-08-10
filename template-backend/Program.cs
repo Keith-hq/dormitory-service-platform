@@ -67,6 +67,14 @@ builder.Services.AddScoped<NotificationRepository>();
 builder.Services.AddScoped<CreditRepository>();
 builder.Services.AddScoped<FacilityRepository>();
 builder.Services.AddScoped<NoticeRepository>();
+builder.Services.AddScoped<StudentProfileRepository>();
+builder.Services.AddScoped<RepairRepository>();
+builder.Services.AddScoped<LateEntryRepository>();
+builder.Services.AddScoped<HygieneRepository>();
+builder.Services.AddScoped<StudentReportRepository>();
+builder.Services.AddScoped<AccessRepository>();
+builder.Services.AddScoped<VisitorRegistryRepository>();
+builder.Services.AddScoped<ViolationRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
@@ -79,6 +87,14 @@ builder.Services.AddScoped<IFacilityService, FacilityService>();
 builder.Services.AddScoped<INoticeService, NoticeService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
 builder.Services.AddScoped<IFacilityBookingService, FacilityBookingService>();
+builder.Services.AddScoped<IStudentProfileService, StudentProfileService>();
+builder.Services.AddScoped<IRepairService, RepairService>();
+builder.Services.AddScoped<ILateEntryService, LateEntryService>();
+builder.Services.AddScoped<IHygieneService, HygieneService>();
+builder.Services.AddScoped<IStudentReportService, StudentReportService>();
+builder.Services.AddScoped<IAccessService, AccessService>();
+builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
+builder.Services.AddScoped<IViolationService, ViolationService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
