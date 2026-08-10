@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { attachAuthMock } from '@/mock/auth'
+import { attachMockAdapter } from '@/mock'
 import { clearSession } from '@/store/session'
 import { useUserStore } from '@/store/user'
 
@@ -45,7 +45,7 @@ request.interceptors.request.use(
     if (userStore.token) {
       config.headers.Authorization = `Bearer ${userStore.token}`
     }
-    return attachAuthMock(config)
+    return attachMockAdapter(config)
   },
   (error) => Promise.reject(error)
 )

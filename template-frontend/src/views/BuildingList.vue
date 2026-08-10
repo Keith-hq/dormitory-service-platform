@@ -1,15 +1,26 @@
 <template>
   <div class="building-page">
-    <h2>楼栋管理</h2>
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">标准样板间</p>
+        <h2>楼栋管理</h2>
+      </div>
+      <StatusTag v-if="mockEnabled" label="Mock 数据" tone="warning" />
+    </div>
 
     <!-- 搜索栏 -->
-    <SearchForm @search="fetchData" @reset="onReset">
-      <select v-model="filterType" class="form-select">
-        <option value="">全部类型</option>
-        <option value="男生宿舍">男生宿舍</option>
-        <option value="女生宿舍">女生宿舍</option>
-        <option value="混合宿舍">混合宿舍</option>
-      </select>
+    <SearchForm :loading="loading" @search="fetchData" @reset="onReset">
+      <template #default="{ disabled }">
+        <label class="filter-field">
+          <span>楼栋类型</span>
+          <select v-model="filterType" class="form-select" :disabled="disabled">
+            <option value="">全部类型</option>
+            <option value="男生宿舍">男生宿舍</option>
+            <option value="女生宿舍">女生宿舍</option>
+            <option value="混合宿舍">混合宿舍</option>
+          </select>
+        </label>
+      </template>
     </SearchForm>
 
     <!-- 数据表格 -->
@@ -25,7 +36,11 @@
       @edit="openEditModal"
       @delete="handleDelete"
       @page-change="onPageChange"
-    />
+    >
+      <template #cell-buildingType="{ value }">
+        <StatusTag :label="value" :tone="buildingTypeTones[value] || 'neutral'" />
+      </template>
+    </CrudTable>
 
     <!-- 新增/编辑弹窗 -->
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
@@ -69,6 +84,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { buildingApi } from '@/api/building'
 import CrudTable from '@/components/CrudTable.vue'
 import SearchForm from '@/components/SearchForm.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 // ===== 表格配置 =====
 const columns = [
@@ -79,6 +95,12 @@ const columns = [
   { prop: 'createTime', label: '创建时间', width: '180px' }
 ]
 
+const buildingTypeTones = {
+  男生宿舍: 'info',
+  女生宿舍: 'rose',
+  混合宿舍: 'warning'
+}
+
 // ===== 数据状态 =====
 const list = ref([])
 const total = ref(0)
@@ -86,6 +108,7 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const filterType = ref('')
+const mockEnabled = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ===== 弹窗状态 =====
 const showModal = ref(false)
@@ -219,8 +242,23 @@ onMounted(() => {
   padding: 24px;
 }
 h2 {
-  margin-bottom: 20px;
+  margin: 0;
   font-size: 22px;
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.eyebrow {
+  margin: 0 0 4px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .form-select,
 .form-input {
@@ -228,6 +266,21 @@ h2 {
   border: 1px solid #d9d9d9;
   border-radius: 4px;
   font-size: 14px;
+}
+.filter-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 600;
+}
+.filter-field .form-select {
+  min-width: 150px;
+}
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 .form-input {
   width: 100%;

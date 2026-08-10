@@ -11,7 +11,7 @@ const MOCK_ACCOUNT = {
 const MOCK_LOGIN_PATH = '/auth/login'
 const MOCK_DELAY = 350
 
-const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration))
+const wait = (duration) => new Promise((resolve) => globalThis.setTimeout(resolve, duration))
 
 const parseRequestData = (data) => {
   if (!data) return {}
@@ -66,10 +66,4 @@ const mockLoginAdapter = async (config) => {
   }
 }
 
-export const attachAuthMock = (config) => {
-  if (import.meta.env.VITE_USE_MOCK === 'true' && isLoginRequest(config)) {
-    config.adapter = mockLoginAdapter
-  }
-
-  return config
-}
+export const resolveAuthMockAdapter = (config) => (isLoginRequest(config) ? mockLoginAdapter : null)
