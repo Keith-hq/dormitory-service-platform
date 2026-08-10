@@ -66,10 +66,4 @@ const mockLoginAdapter = async (config) => {
   }
 }
 
-export const attachAuthMock = (config) => {
-  if (import.meta.env.VITE_USE_MOCK === 'true' && isLoginRequest(config)) {
-    config.adapter = mockLoginAdapter
-  }
-
-  return config
-}
+export const resolveAuthMockAdapter = (config) => (isLoginRequest(config) ? mockLoginAdapter : null)

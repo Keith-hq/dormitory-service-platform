@@ -1,6 +1,12 @@
 <template>
   <div class="building-page">
-    <h2>楼栋管理</h2>
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">标准样板间</p>
+        <h2>楼栋管理</h2>
+      </div>
+      <StatusTag v-if="mockEnabled" label="Mock 数据" tone="warning" />
+    </div>
 
     <!-- 搜索栏 -->
     <SearchForm :loading="loading" @search="fetchData" @reset="onReset">
@@ -102,6 +108,7 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const filterType = ref('')
+const mockEnabled = import.meta.env.VITE_USE_MOCK === 'true'
 
 // ===== 弹窗状态 =====
 const showModal = ref(false)
@@ -235,8 +242,23 @@ onMounted(() => {
   padding: 24px;
 }
 h2 {
-  margin-bottom: 20px;
+  margin: 0;
   font-size: 22px;
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.eyebrow {
+  margin: 0 0 4px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .form-select,
 .form-input {

@@ -56,7 +56,7 @@ cp .env.example .env.local
 | 变量                | 默认值                  | 用途                                                   |
 | ------------------- | ----------------------- | ------------------------------------------------------ |
 | `VITE_API_BASE_URL` | `/api`                  | 浏览器请求的 API 基地址；也可填写 Apifox Mock 完整地址 |
-| `VITE_USE_MOCK`     | `false`                 | `true` 时仅 Mock 登录接口，页面调用方式保持不变        |
+| `VITE_USE_MOCK`     | `false`                 | `true` 时 Mock 登录与楼栋 CRUD，页面调用方式保持不变   |
 | `API_PROXY_TARGET`  | `http://localhost:5000` | `/api` 在本地开发时的代理目标                          |
 | `DEV_PORT`          | `3000`                  | Vite 开发服务器端口                                    |
 
@@ -64,9 +64,9 @@ cp .env.example .env.local
 
 当 `VITE_API_BASE_URL` 是 `/api` 这类相对路径时，Vite启用本地代理；当它是Apifox Mock等完整URL时，浏览器会直接请求该地址。
 
-### 本地 Mock 登录
+### 本地 Mock 样板
 
-后端登录接口未就绪时，在不提交的 `.env.local` 中开启：
+后端接口未就绪时，在不提交的 `.env.local` 中开启：
 
 ```bash
 VITE_USE_MOCK=true
@@ -78,7 +78,7 @@ VITE_USE_MOCK=true
 | ------------ | -------- | --------- |
 | `student001` | `123456` | `student` |
 
-登录页始终调用 `POST /api/auth/login`。Mock 位于请求适配层，关闭 `VITE_USE_MOCK` 后页面会直接调用真实后端，无需修改登录页。
+登录页始终调用 `POST /api/auth/login`，楼栋页始终调用 `buildingApi`。Mock 位于请求适配层，当前接管登录与楼栋分页/详情/新增/编辑/删除接口；关闭 `VITE_USE_MOCK` 后请求直接进入真实后端。Mock 数据仅保存在当前页面会话，刷新后恢复初始数据。
 
 临时登录契约：
 
