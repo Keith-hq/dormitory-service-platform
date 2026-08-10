@@ -123,10 +123,8 @@ const createBuilding = (config) => {
   buildings = [building, ...buildings]
 
   return createResponse(config, {
-    code: 201,
-    message: '创建成功',
-    data: { ...building },
-    status: 201
+    message: '新增成功',
+    data: { ...building }
   })
 }
 

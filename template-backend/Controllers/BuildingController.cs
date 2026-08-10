@@ -48,7 +48,7 @@ public class BuildingController : ControllerBase
             return BadRequest(ApiResponse.Error(400, "参数校验失败"));
 
         var building = await _service.CreateAsync(dto);
-        return Ok(ApiResponse.Created(building));
+        return Ok(ApiResponse.Ok(building, "新增成功"));
     }
 
     /// <summary>编辑楼栋信息</summary>
