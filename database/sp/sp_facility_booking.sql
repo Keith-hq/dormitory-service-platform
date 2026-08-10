@@ -96,9 +96,6 @@ BEGIN
     v_Rows := SQL%ROWCOUNT;
 
     IF v_Rows = 0 THEN
-        -- 判断是预约不存在还是状态不对还是身份不匹配
-        SELECT Status INTO p_Result_Code FROM D_Facility_Booking WHERE Booking_ID = p_Booking_ID;
-        -- 能查到说明不是预约不存在，状态不对或身份不对
         p_Result_Code := 1;
         RETURN;
     END IF;

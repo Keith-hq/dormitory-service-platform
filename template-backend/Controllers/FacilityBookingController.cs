@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
@@ -14,10 +16,26 @@ namespace TemplateDormApi.Controllers;
 public class FacilityBookingController : ControllerBase
 {
     private readonly IFacilityBookingService _service;
+    private readonly AppDbContext _context;
 
-    public FacilityBookingController(IFacilityBookingService service)
+    public FacilityBookingController(IFacilityBookingService service, AppDbContext context)
     {
         _service = service;
+        _context = context;
+    }
+
+    /// <summary>从 JWT 解析当前学生的 Student_ID</summary>
+    private async Task<string> ResolveStudentId()
+    {
+        var accountId = CurrentUser.GetAccountId(User)
+            ?? throw new UnauthorizedAccessException("未登录或 Token 无效");
+
+        var studentId = await _context.UserAccounts
+            .Where(a => a.AccountId == accountId)
+            .Select(a => a.StudentId)
+            .FirstOrDefaultAsync();
+
+        return studentId ?? throw new UnauthorizedAccessException("当前账户未关联学生身份");
     }
 
     /// <summary>STU-20：预约设施</summary>
@@ -25,24 +43,22 @@ public class FacilityBookingController : ControllerBase
     [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> Book([FromBody] BookRequest req)
     {
-        var accountId = CurrentUser.GetAccountId(User);
-        if (accountId == null) return Unauthorized();
+        var studentId = await ResolveStudentId();
 
-        // 当前 JWT 使用 Account_ID，存储过程使用 Student_ID
-        // 在 UserAccount ↔ Student 映射未实现前，通过请求体传入 studentId
-        var (rc, bookingId) = await _service.BookFacility(req.FacilityId, req.StudentId);
+        var (rc, bookingId) = await _service.BookFacility(req.FacilityId, studentId);
 
         var msgs = new[] { "预约成功", "设施不存在或不可用", "信用分不足（低于60）", "已有活跃预约", "设施已被占用" };
         return rc == 0
             ? Ok(ApiResponse.Ok(new { bookingId }, msgs[0]))
-            : Ok(ApiResponse.Error(400 + rc, msgs[rc]));
+            : Ok(ApiResponse.Error(400, msgs[rc]));
     }
 
     /// <summary>STU-21：开始使用</summary>
     [HttpPost("facility-bookings/{bookingId}/start")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<object>>> Start(int bookingId, [FromQuery] string studentId)
+    public async Task<ActionResult<ApiResponse<object>>> Start(int bookingId)
     {
+        var studentId = await ResolveStudentId();
         var rc = await _service.StartUse(bookingId, studentId);
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, "已开始使用"))
@@ -52,8 +68,9 @@ public class FacilityBookingController : ControllerBase
     /// <summary>STU-22：结束使用</summary>
     [HttpPost("facility-bookings/{bookingId}/finish")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<object>>> Finish(int bookingId, [FromQuery] string studentId)
+    public async Task<ActionResult<ApiResponse<object>>> Finish(int bookingId)
     {
+        var studentId = await ResolveStudentId();
         var rc = await _service.FinishUse(bookingId, studentId);
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, "已结束使用"))
@@ -82,5 +99,4 @@ public class FacilityBookingController : ControllerBase
 public class BookRequest
 {
     public int FacilityId { get; set; }
-    public string StudentId { get; set; } = string.Empty;
 }

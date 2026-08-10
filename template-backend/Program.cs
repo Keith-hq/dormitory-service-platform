@@ -66,7 +66,6 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
 builder.Services.AddScoped<IFacilityBookingService, FacilityBookingService>();
-builder.Services.AddScoped<IFacilityBookingService, FacilityBookingService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
