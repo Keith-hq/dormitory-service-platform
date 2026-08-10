@@ -17,51 +17,52 @@ public class AppDbContext : DbContext
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
     public DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
     public DbSet<CreditLog> CreditLogs => Set<CreditLog>();
+    public DbSet<Facility> Facilities => Set<Facility>();
+    public DbSet<Notice> Notices => Set<Notice>();
+    public DbSet<NoticeDisplay> NoticeDisplays => Set<NoticeDisplay>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // ===== Building 楼栋实体映射 =====
+        // ===== Building 楼栋实体映射（D_Building，C-002 按 D_ 表映射）=====
         modelBuilder.Entity<Building>(entity =>
         {
-            entity.ToTable("BUILDINGS");
+            entity.ToTable("D_BUILDING");
             entity.HasKey(e => e.BuildingId);
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
-            entity.Property(e => e.BuildingName).HasColumnName("BUILDING_NAME").HasMaxLength(100);
-            entity.Property(e => e.BuildingType).HasColumnName("BUILDING_TYPE").HasMaxLength(50);
-            entity.Property(e => e.FloorCount).HasColumnName("FLOOR_COUNT");
-            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME");
+            entity.Property(e => e.BuildingName).HasColumnName("BUILDING_NAME").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.BuildingType).HasColumnName("BUILDING_TYPE").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.FloorCount).HasColumnName("TOTAL_FLOORS");
         });
 
-        // ===== Room 房间实体映射 =====
+        // ===== Room 房间实体映射（D_Room）=====
         modelBuilder.Entity<Room>(entity =>
         {
-            entity.ToTable("ROOMS");
+            entity.ToTable("D_ROOM");
             entity.HasKey(e => e.RoomId);
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
-            entity.Property(e => e.RoomNumber).HasColumnName("ROOM_NUMBER").HasMaxLength(20);
+            entity.Property(e => e.RoomNumber).HasColumnName("ROOM_NUMBER").HasMaxLength(20).IsRequired();
             entity.Property(e => e.Capacity).HasColumnName("CAPACITY");
-            entity.Property(e => e.Occupied).HasColumnName("OCCUPIED");
-            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20);
+            entity.Property(e => e.Occupancy).HasColumnName("OCCUPANCY");
+            entity.Property(e => e.PowerStatus).HasColumnName("POWER_STATUS").HasMaxLength(10).IsRequired();
 
             entity.HasOne<Building>()
                   .WithMany()
                   .HasForeignKey(e => e.BuildingId);
         });
 
-        // ===== Asset 资产实体映射 =====
+        // ===== Asset 资产实体映射（D_Asset）=====
         modelBuilder.Entity<Asset>(entity =>
         {
-            entity.ToTable("ASSETS");
+            entity.ToTable("D_ASSET");
             entity.HasKey(e => e.AssetId);
             entity.Property(e => e.AssetId).HasColumnName("ASSET_ID");
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
-            entity.Property(e => e.AssetName).HasColumnName("ASSET_NAME").HasMaxLength(100);
-            entity.Property(e => e.AssetType).HasColumnName("ASSET_TYPE").HasMaxLength(50);
-            entity.Property(e => e.IsDamaged).HasColumnName("IS_DAMAGED");
-            entity.Property(e => e.PurchaseDate).HasColumnName("PURCHASE_DATE");
+            entity.Property(e => e.AssetName).HasColumnName("ASSET_NAME").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Quantity).HasColumnName("QUANTITY");
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired();
 
             entity.HasOne<Room>()
                   .WithMany()
@@ -181,6 +182,66 @@ public class AppDbContext : DbContext
             entity.Property(e => e.StudentId)
                 .HasColumnName("STUDENT_ID")
                 .HasMaxLength(20);
+        });
+
+        // ===== Facility 公共设施实体映射（D_FACILITY，主键由序列+触发器生成）=====
+        modelBuilder.Entity<Facility>(entity =>
+        {
+            entity.ToTable("D_FACILITY");
+            entity.HasKey(e => e.FacilityId);
+            entity.Property(e => e.FacilityId)
+                .HasColumnName("FACILITY_ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.BuildingId)
+                .HasColumnName("BUILDING_ID")
+                .IsRequired();
+            entity.Property(e => e.FacilityCode)
+                .HasColumnName("FACILITY_CODE")
+                .HasMaxLength(30)
+                .IsRequired();
+            entity.Property(e => e.FacilityType)
+                .HasColumnName("FACILITY_TYPE")
+                .HasMaxLength(30)
+                .IsRequired();
+            entity.Property(e => e.Status)
+                .HasColumnName("STATUS")
+                .HasMaxLength(10)
+                .IsRequired();
+
+            entity.HasOne<Building>()
+                .WithMany()
+                .HasForeignKey(e => e.BuildingId)
+                .HasConstraintName("FK_D_FACILITY_BUILDING");
+        });
+
+        // ===== Notice 公告实体映射（D_NOTICE，主键由序列+触发器生成）=====
+        modelBuilder.Entity<Notice>(entity =>
+        {
+            entity.ToTable("D_NOTICE");
+            entity.HasKey(e => e.NoticeId);
+            entity.Property(e => e.NoticeId)
+                .HasColumnName("NOTICE_ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.AdminId).HasColumnName("ADMIN_ID").HasMaxLength(20);
+            entity.Property(e => e.Title).HasColumnName("TITLE").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Content).HasColumnName("CONTENT").HasMaxLength(1000).IsRequired();
+            entity.Property(e => e.PublishTime).HasColumnName("PUBLISH_TIME").IsRequired();
+
+            entity.HasOne(n => n.Display)
+                .WithOne(d => d.Notice)
+                .HasForeignKey<NoticeDisplay>(d => d.NoticeId);
+        });
+
+        // ===== NoticeDisplay 公告置顶（1:1，对应 D_NOTICE_DISPLAY，共享主键 Notice_ID）=====
+        // NoticeId 不设 ValueGeneratedOnAdd：置顶行必须引用父公告的 Notice_ID，
+        // EF 会在 1:1 共享主键关系中自动把 Notice 生成的主键传播过来。
+        modelBuilder.Entity<NoticeDisplay>(entity =>
+        {
+            entity.ToTable("D_NOTICE_DISPLAY");
+            entity.HasKey(e => e.NoticeId);
+            entity.Property(e => e.NoticeId).HasColumnName("NOTICE_ID");
+            entity.Property(e => e.IsPinned).HasColumnName("IS_PINNED").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
         });
     }
 }
