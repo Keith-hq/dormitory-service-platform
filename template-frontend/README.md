@@ -56,6 +56,7 @@ cp .env.example .env.local
 | 变量                | 默认值                  | 用途                                                   |
 | ------------------- | ----------------------- | ------------------------------------------------------ |
 | `VITE_API_BASE_URL` | `/api`                  | 浏览器请求的 API 基地址；也可填写 Apifox Mock 完整地址 |
+| `VITE_APP_BASE`     | `/`                     | 前端部署基路径；子路径部署时填写 `/目录名/`            |
 | `VITE_USE_MOCK`     | `false`                 | `true` 时 Mock 登录与楼栋 CRUD，页面调用方式保持不变   |
 | `API_PROXY_TARGET`  | `http://localhost:5000` | `/api` 在本地开发时的代理目标                          |
 | `DEV_PORT`          | `3000`                  | Vite 开发服务器端口                                    |
@@ -103,7 +104,7 @@ VITE_USE_MOCK=true
 src/
   api/          按业务模块封装接口
   assets/       图片等静态资源
-  components/   跨页面复用的通用组件
+  components/   跨页面复用的通用组件及统一导出入口
   mock/         由环境变量启用的本地接口适配器
   router/       路由表、守卫和权限元数据
   store/        Pinia全局状态
@@ -119,7 +120,7 @@ src/
 - 通知状态由 `useNoticeStore` 管理，统一调用列表、未读数和已读接口；会话结束时同步清理。
 - 受保护路由使用 `meta.requiresAuth`；角色字段仅预留，本阶段不做角色级权限。
 - 接口字段与角色值以锁定的 Apifox 契约为准。
-- 通用列表优先复用 `CrudTable`、`SearchForm`、`StatusTag` 等组件；`CrudTable` 由页面传入 `page` 与稳定 `rowKey`，`SearchForm` 支持回车查询与加载禁用，`StatusTag` 由业务页映射语义色调。
+- 通用列表优先从 `@/components` 统一入口导入 `CrudTable`、`SearchForm`、`StatusTag`；`CrudTable` 由页面传入 `page` 与稳定 `rowKey`，`SearchForm` 支持回车查询与加载禁用，`StatusTag` 由业务页映射语义色调。
 - 只有真正跨页面共享的数据才进入 Pinia。
 - 不提交 `node_modules`、`dist`、`.env.local` 或任何敏感信息。
 
@@ -130,6 +131,16 @@ src/
 3. 在 `src/router/index.js` 注册懒加载路由。
 4. 按需复用 `src/components/` 中的通用组件。
 5. 使用Apifox或真实后端验证请求、错误、空数据和加载状态。
+
+通用组件统一从公开入口导入，不依赖组件内部文件路径：
+
+```js
+import { CrudTable, SearchForm, StatusTag } from '@/components'
+```
+
+## 构建与发布
+
+生产包统一通过 `npm ci && npm run check` 生成，构建产物为 `dist/`，不得提交到 Git。环境变量、产物验收、子路径部署和回滚要求见[《前端构建与发布规范》](../template-demo-guide/05-前端构建与发布规范.md)。
 
 ## 联调检查
 
