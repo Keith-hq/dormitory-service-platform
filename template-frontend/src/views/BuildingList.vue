@@ -3,13 +3,18 @@
     <h2>楼栋管理</h2>
 
     <!-- 搜索栏 -->
-    <SearchForm @search="fetchData" @reset="onReset">
-      <select v-model="filterType" class="form-select">
-        <option value="">全部类型</option>
-        <option value="男生宿舍">男生宿舍</option>
-        <option value="女生宿舍">女生宿舍</option>
-        <option value="混合宿舍">混合宿舍</option>
-      </select>
+    <SearchForm :loading="loading" @search="fetchData" @reset="onReset">
+      <template #default="{ disabled }">
+        <label class="filter-field">
+          <span>楼栋类型</span>
+          <select v-model="filterType" class="form-select" :disabled="disabled">
+            <option value="">全部类型</option>
+            <option value="男生宿舍">男生宿舍</option>
+            <option value="女生宿舍">女生宿舍</option>
+            <option value="混合宿舍">混合宿舍</option>
+          </select>
+        </label>
+      </template>
     </SearchForm>
 
     <!-- 数据表格 -->
@@ -228,6 +233,21 @@ h2 {
   border: 1px solid #d9d9d9;
   border-radius: 4px;
   font-size: 14px;
+}
+.filter-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 600;
+}
+.filter-field .form-select {
+  min-width: 150px;
+}
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 .form-input {
   width: 100%;
