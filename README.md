@@ -4,9 +4,9 @@
 
 **技术栈：** Vue3 + Vite + Pinia + ASP.NET Core .NET8 C# + Oracle + EF Core + Docker Compose + Nginx
 
-**功能覆盖：** 宿舍资产、住宿管理、水电分摊、共享借用、访客二维码、维修 SLA 派单、退宿清算等高并发业务；内置标准化前后端样板间、Oracle 容器一键环境、CI/CD 自动部署、Apifox 统一接口契约。
+**功能覆盖：** 宿舍资产、住宿管理、水电分摊、共享借用、访客二维码、维修 SLA 派单、退宿清算等高并发业务；内置标准化前后端项目、Oracle 容器一键环境、CI/CD 自动部署、Apifox 统一接口契约。
 
-当前仓库先维护可复用的前后端样板、Oracle 本地环境、项目文档和 CI；`backend/`、`frontend/`、`database/` 是后续业务实现的根目录约定，当前保持为空。
+后端、前端业务代码与数据库脚本分别维护在 `backend/`、`frontend/`、`database/`；最初 M1 模板快照留档在 `template/` 仅作历史参考；开发流程规范统一维护在 `docs/development/`。
 
 ---
 
@@ -14,25 +14,21 @@
 
 | 路径 | 内容与职责 |
 |---|---|
-| `.github/workflows/build-deploy.yml` | CI 工作流：编译后端样板、构建前端样板并上传构建产物 |
-| `backend/` | 后端业务实现目录，当前为空，后续按项目规范放置实际业务代码 |
-| `database/` | 数据库脚本目录，当前为空，后续放置 DDL、存储过程、视图和初始化数据 |
+| `.github/workflows/build-deploy.yml` | CI 工作流：编译后端项目、构建前端项目并上传构建产物 |
+| `backend/` | 后端 ASP.NET Core .NET 8 项目（TemplateDormApi），含业务代码与测试（`backend/tests/`） |
+| `frontend/` | 前端 Vue 3 + Vite + Pinia 项目，业务页面与通用组件 |
+| `database/` | 数据库脚本目录：DDL、迁移、存储过程和结构校验 |
 | `deploy/` | 部署与本地运行环境文件，目前包含 Oracle XE 容器配置 |
-| `docs/` | 项目总纲、任务看板、运维说明和课程交付材料 |
-| `frontend/` | 前端业务实现目录，当前为空，后续放置实际业务页面和测试 |
-| `template-backend/` | ASP.NET Core .NET 8 后端样板，可复制后作为业务模块起点 |
-| `template-frontend/` | Vue 3 + Vite + Pinia 前端样板，可复制后作为业务页面起点 |
-| `template-demo-guide/` | 4 份样板开发、接口联调和本地联调教程 |
+| `docs/` | 项目总纲、任务看板、开发规范、运维说明和课程交付材料 |
+| `template/` | 最初 M1 模板快照留档（`template/backend/`、`template/frontend/`），仅作历史参考，不参与开发与 CI |
 | `.gitignore` | 忽略本地环境文件、依赖、构建产物和敏感配置 |
 | `README.md` | 仓库结构、使用入口、分支和提交约定 |
 
-空目录不会被 Git 单独记录，因此远程仓库可能不显示 `backend/`、`frontend/`、`database/` 的目录项；目录职责以本说明为准。业务代码落地前，不要把模板内容直接恢复到这三个目录。
+## 项目代码
 
-## 模板内容
+### `backend/`
 
-### `template-backend/`
-
-后端样板按以下职责组织：
+后端项目按以下职责组织：
 
 - `Controllers/`：HTTP 接口入口。
 - `Services/`：业务服务和业务规则。
@@ -44,9 +40,9 @@
 
 调用方向遵循 `Controller -> Service -> Repository -> Database`。连接字符串只使用 .NET User Secrets 或本机环境变量，不提交密码。
 
-### `template-frontend/`
+### `frontend/`
 
-前端样板包含：
+前端项目包含：
 
 - `src/api/`：接口调用封装。
 - `src/components/`：通用展示和交互组件。
@@ -56,20 +52,27 @@
 - `src/utils/request.js`：统一 HTTP 请求处理。
 - `package.json`、`package-lock.json`：依赖和锁定版本。
 
-### `template-demo-guide/`
+### `docs/development/`（开发规范）
 
-- `01-后端样板开发流程.md`
-- `02-前端样板开发流程.md`
+- `00-项目规范总则.md`（仓库目录结构、工程红线、契约权威与变更流程、完成定义）
+- `01-后端开发规范.md`
+- `02-前端开发规范.md`
 - `03-Apifox接口联调规范.md`
 - `04-本地完整联调步骤.md`
+- `05-前端构建与发布规范.md`
 
-教程统一以根目录的 `template-backend/`、`template-frontend/` 和 `deploy/oracle/` 为示例路径。
+规范统一以根目录的 `backend/`、`frontend/` 和 `deploy/oracle/` 为示例路径。
+
+### `template/`（留档）
+
+最初 M1 模板快照（`template/backend/`、`template/frontend/`），与业务代码无关联，仅作历史参考；需要起步参考时可对照，但开发一律在 `backend/`、`frontend/` 中进行。
 
 ## 文档目录
 
 | 路径 | 内容 |
 |---|---|
-| `docs/project/` | `数据库课程设计项目总纲.md`、`任务看板.md` |
+| `docs/project/` | `数据库课程设计项目总纲.md`、`任务看板.md`、难点代码文档 |
+| `docs/development/` | 项目规范总则（00）、后端/前端开发规范、Apifox 接口联调规范、本地联调步骤、前端构建与发布规范 |
 | `docs/operations/` | `环境排错手册.md`、`组员接入指南.md` |
 | `docs/deliverables/` | 课程验收和环境交付材料，包括两份 `.docx` 文件 |
 | `docs/README.md` | 文档目录说明 |
@@ -93,13 +96,13 @@ copy .env.example .env
 docker compose up -d
 ```
 
-看到 `Pluggable database DORMPDB opened read write` 后，再启动样板后端和前端：
+看到 `Pluggable database DORMPDB opened read write` 后，再启动后端和前端：
 
 > 🔐 **启动后端前必须配置 User Secrets**
 >
 > 本项目使用 .NET User Secrets 管理敏感信息（数据库连接串、JWT Key），**请勿**将凭据写入 `appsettings.json`。
 >
-> 在 Visual Studio 中右键点击 `template-backend` 项目 → “管理用户机密”，将以下内容粘贴到 `secrets.json` 中（根据实际环境修改 `Data Source` 和 `Password`）：
+> 在 Visual Studio 中右键点击 `backend` 项目 → “管理用户机密”，将以下内容粘贴到 `secrets.json` 中（根据实际环境修改 `Data Source` 和 `Password`）：
 >
 > ```json
 > {
@@ -117,24 +120,18 @@ docker compose up -d
 > 保存后，再执行 `dotnet run` 启动后端。若未配置，项目启动时会抛出异常提示。
 
 ```bash
-cd template-backend
+cd backend
 dotnet restore
 dotnet run
 ```
 
 ```bash
-cd template-frontend
+cd frontend
 npm ci
 npm run dev
 ```
 
 默认入口：后端 Swagger 为 `http://localhost:5000/swagger`，前端为 `http://localhost:3000`。
-
-## 技术栈
-
-Vue 3、Vite、Pinia、ASP.NET Core .NET 8、C#、Oracle XE 21、EF Core、Docker Compose、Nginx、Apifox。
-
----
 
 ## 分支命名规范
 
@@ -147,7 +144,7 @@ Vue 3、Vite、Pinia、ASP.NET Core .NET 8、C#、Oracle XE 21、EF Core、Docke
 | 分支 | 说明 |
 |---|---|
 | `master` | 生产分支，只接受 PR 合并，需 Review + CI 通过 |
-| `develop` | 开发主分支，M1 样板间代码在此维护 |
+| `develop` | 开发主分支，项目代码在此维护 |
 
 ### 1. 功能开发分支 `feature/`
 
@@ -196,12 +193,12 @@ Vue 3、Vite、Pinia、ASP.NET Core .NET 8、C#、Oracle XE 21、EF Core、Docke
 
 - **前缀：** `docs/`
 - **格式：** `docs/{文档类型}-{内容}`
-- **适用：** 需求文档、数据库设计、样板间教程、部署报告、PPT 素材
+- **适用：** 需求文档、数据库设计、开发规范、部署报告、PPT 素材
 - **示例：**
 
 | 分支名 | 说明 |
 |---|---|
-| `docs/template-dev-guide` | 样板间开发教程 |
+| `docs/dev-guide` | 开发规范文档 |
 | `docs/deploy-check-report` | 云端部署验证报告 |
 | `docs/m1-acceptance-file` | M1 里程碑验收材料 |
 | `docs/api-contract-spec` | 接口契约规范文档 |
@@ -255,13 +252,13 @@ git push -u origin feature/模块名-功能描述
 
 | 服务 | 地址 | 账号 / 密码 |
 |---|---|---|
-| Oracle PDB | `localhost:1521/DORMPDB` | `DORM_OPER` / `Dorm@2026` |
+| Oracle PDB | `localhost:1521/DORMPDB` | `DORM_OPER`，密码以本地 User Secrets / 初始化脚本说明为准 |
 | 后端 Swagger | `http://localhost:5000/swagger` | — |
 | 前端页面 | `http://localhost:3000` | — |
-| DBeaver 连接 | Service Name: `DORMPDB` | `system` / `Dorm@123456` |
+| DBeaver 连接 | Service Name: `DORMPDB` | `system`，密码以本地 `.env` 的 `ORACLE_PASSWORD` 为准 |
 
 ---
 
 ## CI
 
-`.github/workflows/build-deploy.yml` 会在面向 `master` 或 `develop` 的 PR，以及 `develop` 的推送事件中检查两个模板项目：后端执行 `dotnet restore/build/publish`，前端执行 `npm ci` 和 `npm run build`。云端部署部分按运维阶段计划启用。
+`.github/workflows/build-deploy.yml` 会在面向 `master` 或 `develop` 的 PR，以及 `develop` 的推送事件中检查两个项目：后端执行 `dotnet restore/build/publish`，前端执行 `npm ci` 和 `npm run check`。云端部署部分按运维阶段计划启用。

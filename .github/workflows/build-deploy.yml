@@ -38,13 +38,13 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: 还原 NuGet 依赖
-        run: dotnet restore template-backend/TemplateDormApi.csproj
+        run: dotnet restore backend/TemplateDormApi.csproj
 
       - name: 编译后端项目
-        run: dotnet build template-backend/TemplateDormApi.csproj --configuration Release --no-restore
+        run: dotnet build backend/TemplateDormApi.csproj --configuration Release --no-restore
 
       - name: 发布后端（输出 dll）
-        run: dotnet publish template-backend/TemplateDormApi.csproj --configuration Release --output publish/backend
+        run: dotnet publish backend/TemplateDormApi.csproj --configuration Release --output publish/backend
 
       - name: 上传后端构建产物
         uses: actions/upload-artifact@v4
@@ -70,19 +70,19 @@ jobs:
 
       - name: 安装 npm 依赖
         run: |
-          cd template-frontend
+          cd frontend
           npm ci
 
       - name: 检查并编译前端项目
         run: |
-          cd template-frontend
+          cd frontend
           npm run check
 
       - name: 上传前端构建产物
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
-          path: template-frontend/dist/
+          path: frontend/dist/
 
   # ==========================================
   # Job 3：构建 Docker 镜像（阶段二启用）
@@ -106,7 +106,7 @@ jobs:
   #       uses: actions/download-artifact@v4
   #       with:
   #         name: frontend-dist
-  #         path: template-frontend/dist/
+  #         path: frontend/dist/
   #
   #     - name: 构建后端镜像
   #       run: |

@@ -1,4 +1,0 @@
-<Solution>
-  <Project Path="TemplateDormApi.csproj" />
-  <Project Path="../tests/TemplateDormApi.Tests/TemplateDormApi.Tests.csproj" />
-</Solution>
