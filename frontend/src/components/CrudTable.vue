@@ -1,89 +1,117 @@
 <template>
-  <div class="crud-table">
-    <!-- 操作按钮区 -->
-    <div class="toolbar">
-      <button
-        v-if="showCreate"
-        type="button"
-        class="btn btn-primary"
-        :disabled="loading"
-        @click="$emit('create')"
+  <section class="crud-table" :aria-busy="loading">
+    <header class="toolbar">
+      <div class="toolbar__heading">
+        <span>DATA REGISTER</span>
+        <strong>{{ caption }}</strong>
+      </div>
+      <div class="toolbar__actions">
+        <button
+          v-if="showCreate"
+          type="button"
+          class="btn btn-primary"
+          :disabled="loading"
+          @click="$emit('create')"
+        >
+          <span aria-hidden="true">＋</span>
+          {{ createText.replace(/^\+\s*/, '') }}
+        </button>
+        <slot name="toolbar"></slot>
+      </div>
+    </header>
+
+    <div class="table-frame">
+      <table v-if="data.length > 0" class="table">
+        <caption class="sr-only">
+          {{
+            caption
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th v-for="col in columns" :key="col.prop" :style="{ width: col.width }">
+              {{ col.label }}
+            </th>
+            <th v-if="showActions" class="actions-heading">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, index) in data" :key="getRowKey(row, index)">
+            <td v-for="col in columns" :key="col.prop">
+              <slot :name="'cell-' + col.prop" :row="row" :value="row[col.prop]">
+                {{ row[col.prop] }}
+              </slot>
+            </td>
+            <td v-if="showActions" class="actions">
+              <slot name="actions" :row="row">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-ghost"
+                  :disabled="loading"
+                  @click="$emit('edit', row)"
+                >
+                  编辑
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  :disabled="loading"
+                  @click="$emit('delete', row)"
+                >
+                  删除
+                </button>
+              </slot>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div v-else-if="!loading" class="empty">
+        <span class="empty__mark" aria-hidden="true">空</span>
+        <strong>{{ emptyText }}</strong>
+        <small>调整筛选条件或新增一条记录</small>
+      </div>
+      <div
+        v-if="loading"
+        class="loading"
+        :class="{ 'loading--overlay': data.length > 0 }"
+        role="status"
+        aria-live="polite"
       >
-        {{ createText }}
-      </button>
-      <slot name="toolbar"></slot>
+        <span class="loading__dot" aria-hidden="true"></span>
+        正在整理数据…
+      </div>
     </div>
 
-    <!-- 数据表格 -->
-    <table v-if="data.length > 0" class="table">
-      <caption class="sr-only">
-        {{
-          caption
-        }}
-      </caption>
-      <thead>
-        <tr>
-          <th v-for="col in columns" :key="col.prop" :style="{ width: col.width }">
-            {{ col.label }}
-          </th>
-          <th v-if="showActions" style="width: 160px">操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, index) in data" :key="getRowKey(row, index)">
-          <td v-for="col in columns" :key="col.prop">
-            <slot :name="'cell-' + col.prop" :row="row" :value="row[col.prop]">
-              {{ row[col.prop] }}
-            </slot>
-          </td>
-          <td v-if="showActions" class="actions">
-            <slot name="actions" :row="row">
-              <button
-                type="button"
-                class="btn btn-sm btn-edit"
-                :disabled="loading"
-                @click="$emit('edit', row)"
-              >
-                编辑
-              </button>
-              <button
-                type="button"
-                class="btn btn-sm btn-danger"
-                :disabled="loading"
-                @click="$emit('delete', row)"
-              >
-                删除
-              </button>
-            </slot>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-else-if="!loading" class="empty">{{ emptyText }}</div>
-    <div v-if="loading" class="loading" role="status" aria-live="polite">加载中...</div>
-
-    <!-- 分页 -->
-    <div v-if="total > 0" class="pagination">
-      <span>共 {{ total }} 条</span>
-      <button
-        type="button"
-        class="btn btn-sm"
-        :disabled="loading || page <= 1"
-        @click="goPage(page - 1)"
+    <footer v-if="total > 0" class="pagination">
+      <span class="pagination__summary"
+        >共 <strong>{{ total }}</strong> 条记录</span
       >
-        上一页
-      </button>
-      <span>{{ page }} / {{ totalPages }}</span>
-      <button
-        type="button"
-        class="btn btn-sm"
-        :disabled="loading || page >= totalPages"
-        @click="goPage(page + 1)"
-      >
-        下一页
-      </button>
-    </div>
-  </div>
+      <div class="pagination__controls">
+        <button
+          type="button"
+          class="btn btn-sm"
+          :disabled="loading || page <= 1"
+          aria-label="上一页"
+          @click="goPage(page - 1)"
+        >
+          ←
+        </button>
+        <span class="pagination__current"
+          >{{ page }} <small>/ {{ totalPages }}</small></span
+        >
+        <button
+          type="button"
+          class="btn btn-sm"
+          :disabled="loading || page >= totalPages"
+          aria-label="下一页"
+          @click="goPage(page + 1)"
+        >
+          →
+        </button>
+      </div>
+    </footer>
+  </section>
 </template>
 
 <script setup>
@@ -122,86 +150,211 @@ const goPage = (page) => {
 
 <style scoped>
 .crud-table {
-  padding: 16px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
 }
+
 .toolbar {
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-height: 74px;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-line);
 }
+
+.toolbar__heading {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.toolbar__heading span {
+  color: var(--color-text-soft);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.toolbar__heading strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.toolbar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.table-frame {
+  position: relative;
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
-  border: 1px solid #e8e8e8;
+  background: var(--color-surface);
+  font-size: 13px;
 }
+
 .table th,
 .table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #e8e8e8;
+  padding: 14px var(--space-4);
+  border-bottom: 1px solid var(--color-line);
   text-align: left;
-}
-.table th {
-  background: #fafafa;
-  font-weight: 600;
-}
-.table tbody tr:hover {
-  background: #f5f5f5;
-}
-.actions {
   white-space: nowrap;
 }
-.btn {
-  cursor: pointer;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  padding: 6px 14px;
-  background: #fff;
-  font-size: 14px;
+
+.table th {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+
+.table tbody tr {
+  transition: background 0.16s ease;
 }
-.btn-primary {
-  background: #1890ff;
-  color: #fff;
-  border-color: #1890ff;
+
+.table tbody tr:hover {
+  background: rgba(220, 238, 232, 0.28);
 }
-.btn-sm {
-  padding: 4px 10px;
-  font-size: 12px;
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
 }
-.btn-edit {
-  color: #1890ff;
-  border-color: #1890ff;
-  margin-right: 6px;
+
+.actions-heading {
+  width: 156px;
 }
-.btn-danger {
-  color: #ff4d4f;
-  border-color: #ff4d4f;
+
+.actions {
+  width: 156px;
+  white-space: nowrap;
 }
+
 .pagination {
-  margin-top: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 14px;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 62px;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
+
+.pagination__summary strong,
+.pagination__current {
+  color: var(--color-ink);
+  font-weight: 800;
+}
+
+.pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pagination__current {
+  min-width: 58px;
+  text-align: center;
+}
+
+.pagination__current small {
+  color: var(--color-text-soft);
+  font-weight: 600;
+}
+
 .empty,
 .loading {
+  display: grid;
+  min-height: 260px;
+  place-content: center;
+  place-items: center;
+  gap: var(--space-2);
   text-align: center;
-  padding: 48px 0;
-  color: #999;
-  font-size: 14px;
+  color: var(--color-text-muted);
 }
-.sr-only {
+
+.empty__mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-2);
+  place-items: center;
+  border: 1px dashed var(--color-brand-border);
+  border-radius: 50%;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+
+.empty strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+
+.empty small,
+.loading {
+  font-size: 12px;
+}
+
+.loading--overlay {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  z-index: 1;
+  inset: 0;
+  min-height: 0;
+  background: rgba(255, 253, 248, 0.82);
+  backdrop-filter: blur(2px);
+}
+
+.loading__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow:
+    14px 0 0 var(--color-brand-border),
+    -14px 0 0 var(--color-brand-border);
+  animation: loading-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes loading-pulse {
+  to {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+@media (max-width: 640px) {
+  .toolbar,
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar__actions,
+  .pagination__controls {
+    justify-content: space-between;
+  }
+
+  .toolbar__actions .btn-primary {
+    flex: 1;
+  }
 }
 </style>

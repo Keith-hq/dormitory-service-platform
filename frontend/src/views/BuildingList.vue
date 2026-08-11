@@ -1,88 +1,121 @@
 <template>
   <div class="building-page">
-    <div class="page-heading">
-      <div>
-        <p class="eyebrow">标准样板间</p>
-        <h2>楼栋管理</h2>
-      </div>
-      <StatusTag v-if="mockEnabled" label="Mock 数据" tone="warning" />
-    </div>
-
-    <!-- 搜索栏 -->
-    <SearchForm :loading="loading" @search="fetchData" @reset="onReset">
-      <template #default="{ disabled }">
-        <label class="filter-field">
-          <span>楼栋类型</span>
-          <select v-model="filterType" class="form-select" :disabled="disabled">
-            <option value="">全部类型</option>
-            <option value="男生宿舍">男生宿舍</option>
-            <option value="女生宿舍">女生宿舍</option>
-            <option value="混合宿舍">混合宿舍</option>
-          </select>
-        </label>
-      </template>
-    </SearchForm>
-
-    <!-- 数据表格 -->
-    <CrudTable
-      :columns="columns"
-      :data="list"
-      :total="total"
-      :loading="loading"
-      :page="currentPage"
-      row-key="buildingId"
-      caption="楼栋列表"
-      @create="openCreateModal"
-      @edit="openEditModal"
-      @delete="handleDelete"
-      @page-change="onPageChange"
+    <PageHeader
+      eyebrow="SPACE DIRECTORY"
+      title="楼栋档案"
+      description="统一维护宿舍楼栋类型、楼层与启用信息，为房间、床位和报修模块提供可靠的空间底座。"
     >
-      <template #cell-buildingType="{ value }">
-        <StatusTag :label="value" :tone="buildingTypeTones[value] || 'neutral'" />
-      </template>
-    </CrudTable>
-
-    <!-- 新增/编辑弹窗 -->
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal">
-        <h3>{{ isEdit ? '编辑楼栋' : '新增楼栋' }}</h3>
-        <div class="form-group">
-          <label>楼栋名称</label>
-          <input v-model="form.buildingName" class="form-input" placeholder="如：1号楼" />
-        </div>
-        <div class="form-group">
-          <label>楼栋类型</label>
-          <select v-model="form.buildingType" class="form-select">
-            <option value="男生宿舍">男生宿舍</option>
-            <option value="女生宿舍">女生宿舍</option>
-            <option value="混合宿舍">混合宿舍</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>楼层数量</label>
-          <input
-            v-model.number="form.floorCount"
-            type="number"
-            class="form-input"
-            min="1"
-            max="50"
-          />
-        </div>
-        <div class="modal-actions">
-          <button class="btn" @click="closeModal">取消</button>
-          <button class="btn btn-primary" :disabled="submitting" @click="submit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
+      <StatusTag v-if="mockEnabled" label="Mock 数据" tone="warning" />
+      <div class="page-stat" aria-label="当前楼栋记录数">
+        <span>当前记录</span>
+        <strong>{{ total }}</strong>
       </div>
+    </PageHeader>
+
+    <div class="workspace">
+      <SearchForm :loading="loading" @search="fetchData" @reset="onReset">
+        <template #default="{ disabled }">
+          <label class="filter-field">
+            <span>楼栋类型</span>
+            <select v-model="filterType" class="form-select" :disabled="disabled">
+              <option value="">全部类型</option>
+              <option value="男生宿舍">男生宿舍</option>
+              <option value="女生宿舍">女生宿舍</option>
+              <option value="混合宿舍">混合宿舍</option>
+            </select>
+          </label>
+        </template>
+      </SearchForm>
+
+      <CrudTable
+        :columns="columns"
+        :data="list"
+        :total="total"
+        :loading="loading"
+        :page="currentPage"
+        row-key="buildingId"
+        caption="楼栋列表"
+        @create="openCreateModal"
+        @edit="openEditModal"
+        @delete="handleDelete"
+        @page-change="onPageChange"
+      >
+        <template #cell-buildingType="{ value }">
+          <StatusTag :label="value" :tone="buildingTypeTones[value] || 'neutral'" />
+        </template>
+      </CrudTable>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+        <form
+          class="modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="building-modal-title"
+          @submit.prevent="submit"
+          @keydown.esc.stop.prevent="closeModal"
+        >
+          <header class="modal-header">
+            <div>
+              <p class="modal-kicker">BUILDING RECORD</p>
+              <h2 id="building-modal-title">{{ isEdit ? '编辑楼栋' : '新增楼栋' }}</h2>
+            </div>
+            <button class="modal-close" type="button" aria-label="关闭弹窗" @click="closeModal">
+              ×
+            </button>
+          </header>
+
+          <div class="modal-fields">
+            <div class="form-group">
+              <label for="building-name">楼栋名称</label>
+              <input
+                id="building-name"
+                ref="buildingNameInput"
+                v-model="form.buildingName"
+                class="form-input"
+                placeholder="如：1号楼"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="building-type">楼栋类型</label>
+              <select id="building-type" v-model="form.buildingType" class="form-select">
+                <option value="男生宿舍">男生宿舍</option>
+                <option value="女生宿舍">女生宿舍</option>
+                <option value="混合宿舍">混合宿舍</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="floor-count">楼层数量</label>
+              <input
+                id="floor-count"
+                v-model.number="form.floorCount"
+                type="number"
+                class="form-input"
+                min="1"
+                max="50"
+                required
+              />
+            </div>
+          </div>
+
+          <footer class="modal-actions">
+            <button class="btn" type="button" @click="closeModal">取消</button>
+            <button class="btn btn-primary" type="submit" :disabled="submitting">
+              {{ submitting ? '提交中…' : isEdit ? '保存修改' : '创建档案' }}
+            </button>
+          </footer>
+        </form>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { buildingApi } from '@/api/building'
-import { CrudTable, SearchForm, StatusTag } from '@/components'
+import { CrudTable, PageHeader, SearchForm, StatusTag } from '@/components'
 
 // ===== 表格配置 =====
 const columns = [
@@ -113,6 +146,8 @@ const showModal = ref(false)
 const isEdit = ref(false)
 const editId = ref(null)
 const submitting = ref(false)
+const buildingNameInput = ref(null)
+let modalTrigger = null
 const form = reactive({
   buildingName: '',
   buildingType: '男生宿舍',
@@ -165,22 +200,26 @@ const onReset = () => {
 
 // ===== 新增 =====
 const openCreateModal = () => {
+  modalTrigger = document.activeElement
   isEdit.value = false
   editId.value = null
   form.buildingName = ''
   form.buildingType = '男生宿舍'
   form.floorCount = 6
   showModal.value = true
+  nextTick(() => buildingNameInput.value?.focus())
 }
 
 // ===== 编辑 =====
 const openEditModal = (row) => {
+  modalTrigger = document.activeElement
   isEdit.value = true
   editId.value = row.buildingId
   form.buildingName = row.buildingName
   form.buildingType = row.buildingType
   form.floorCount = row.floorCount
   showModal.value = true
+  nextTick(() => buildingNameInput.value?.focus())
 }
 
 // ===== 提交 =====
@@ -225,7 +264,12 @@ const handleDelete = async (row) => {
 
 // ===== 弹窗 =====
 const closeModal = () => {
+  if (!showModal.value) return
   showModal.value = false
+  nextTick(() => {
+    modalTrigger?.focus?.()
+    modalTrigger = null
+  })
 }
 
 // ===== 初始化 =====
@@ -236,105 +280,179 @@ onMounted(() => {
 
 <style scoped>
 .building-page {
-  max-width: 960px;
+  width: min(calc(100% - 48px), var(--content-max));
   margin: 0 auto;
-  padding: 24px;
+  padding-bottom: var(--space-9);
 }
-h2 {
-  margin: 0;
-  font-size: 22px;
-}
-.page-heading {
+
+.page-stat {
   display: flex;
+  min-width: 116px;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-line);
 }
-.eyebrow {
-  margin: 0 0 4px;
-  color: #667085;
+
+.page-stat span {
+  color: var(--color-text-muted);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
-.form-select,
-.form-input {
-  padding: 6px 10px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 14px;
+
+.page-stat strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1;
 }
+
+.workspace {
+  display: grid;
+  gap: var(--space-5);
+  padding-top: var(--space-6);
+}
+
 .filter-field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #475467;
+  gap: var(--space-3);
+  color: var(--color-text);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
 }
+
 .filter-field .form-select {
-  min-width: 150px;
+  min-width: 164px;
 }
-.form-select:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
+
+.form-group {
+  display: grid;
+  gap: var(--space-2);
 }
-.form-input {
+
+.form-group label {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.form-group .form-input,
+.form-group .form-select {
   width: 100%;
 }
-.form-group {
-  margin-bottom: 12px;
-}
-.form-group label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 13px;
-  color: #555;
-}
-/* 弹窗 */
+
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--space-5);
+  background: rgba(12, 36, 38, 0.52);
+  backdrop-filter: blur(6px);
   z-index: 100;
 }
+
 .modal {
-  background: #fff;
-  border-radius: 8px;
-  padding: 24px;
-  width: 420px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: min(460px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lift);
 }
-.modal h3 {
-  margin: 0 0 16px;
-  font-size: 18px;
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-6) var(--space-5);
+  border-bottom: 1px solid var(--color-line);
 }
+
+.modal-kicker {
+  margin: 0 0 var(--space-2);
+  color: var(--color-brand-strong);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.modal h2 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 25px;
+}
+
+.modal-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  border-color: var(--color-brand-border);
+  color: var(--color-brand-strong);
+}
+
+.modal-close:focus-visible {
+  outline: 3px solid var(--color-focus);
+}
+
+.modal-fields {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  background: var(--color-surface-muted);
 }
-.btn {
-  cursor: pointer;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  padding: 6px 14px;
-  background: #fff;
-  font-size: 14px;
-}
-.btn-primary {
-  background: #1890ff;
-  color: #fff;
-  border-color: #1890ff;
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+
+@media (max-width: 640px) {
+  .building-page {
+    width: min(calc(100% - 28px), var(--content-max));
+  }
+
+  .page-stat {
+    justify-content: flex-start;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .filter-field {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-field .form-select {
+    width: 100%;
+  }
+
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
 }
 </style>
