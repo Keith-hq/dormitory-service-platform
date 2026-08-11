@@ -1,0 +1,233 @@
+-- 共享物品借还与维修耗材出库存储过程（难点④）
+-- 依赖：D_Shared_Item, D_Item_Loan, D_Repair_Material, D_Repair_Material_Usage, D_Credit_Account, D_Credit_Log
+-- 基线：database/ddl/extensions/010_extension_tables.sql
+-- 裁决红线：D_Shared_Item 不复用为桶装水库存；三种库存不混用
+
+-- ============================================================
+-- 创建专用序列
+-- ============================================================
+DECLARE v_StartVal NUMBER;
+BEGIN
+    SELECT NVL(MAX(Loan_ID), 0) + 1 INTO v_StartVal FROM D_Item_Loan;
+    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_ITEM_LOAN START WITH ' || v_StartVal || ' INCREMENT BY 1';
+EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+
+DECLARE v_StartVal NUMBER;
+BEGIN
+    SELECT NVL(MAX(Usage_ID), 0) + 1 INTO v_StartVal FROM D_Repair_Material_Usage;
+    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_MATERIAL_USAGE START WITH ' || v_StartVal || ' INCREMENT BY 1';
+EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+
+DECLARE v_StartVal NUMBER;
+BEGIN
+    SELECT NVL(MAX(Log_ID), 0) + 1 INTO v_StartVal FROM D_Credit_Log;
+    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_CREDIT_LOG START WITH ' || v_StartVal || ' INCREMENT BY 1';
+EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+
+-- ============================================================
+-- SP_Borrow_Item：借出共享物品
+-- 返回：0=成功, 1=物品不存在, 2=物品停用, 3=库存不足, 4=信用分冻结
+-- ============================================================
+CREATE OR REPLACE PROCEDURE SP_Borrow_Item(
+    p_Item_ID     IN  NUMBER,
+    p_Student_ID  IN  VARCHAR2,
+    p_Result_Code OUT NUMBER,
+    p_Loan_ID     OUT NUMBER
+) AS
+    v_Status       VARCHAR2(10);
+    v_Available    NUMBER;
+    v_Credit_Score NUMBER;
+BEGIN
+    p_Result_Code := 0;
+
+    -- 1. 检查物品
+    BEGIN
+        SELECT Status, Available_Qty INTO v_Status, v_Available
+        FROM D_Shared_Item WHERE Item_ID = p_Item_ID;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN p_Result_Code := 1; RETURN;
+    END;
+
+    IF v_Status != '正常' THEN p_Result_Code := 2; RETURN; END IF;
+    IF v_Available <= 0 THEN p_Result_Code := 3; RETURN; END IF;
+
+    -- 2. 信用分检查
+    BEGIN
+        SELECT Current_Score INTO v_Credit_Score
+        FROM D_Credit_Account WHERE Student_ID = p_Student_ID;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN p_Result_Code := 4; RETURN;
+    END;
+
+    IF v_Credit_Score < 60 THEN p_Result_Code := 4; RETURN; END IF;
+
+    -- 3. 原子扣减库存 + 写借出记录
+    UPDATE D_Shared_Item
+    SET Available_Qty = Available_Qty - 1
+    WHERE Item_ID = p_Item_ID AND Available_Qty > 0;
+
+    IF SQL%ROWCOUNT = 0 THEN p_Result_Code := 3; RETURN; END IF;
+
+    INSERT INTO D_Item_Loan (
+        Loan_ID, Item_ID, Student_ID, Borrow_Time, Due_Time
+    ) VALUES (
+        SEQ_ITEM_LOAN.NEXTVAL, p_Item_ID, p_Student_ID, SYSDATE, SYSDATE + 1
+    ) RETURNING Loan_ID INTO p_Loan_ID;
+
+    COMMIT;
+END SP_Borrow_Item;
+/
+
+-- ============================================================
+-- SP_Return_Item：归还共享物品（原子 + 超期扣分）
+-- 返回：0=成功, 1=借出记录不存在/状态不对
+-- ============================================================
+CREATE OR REPLACE PROCEDURE SP_Return_Item(
+    p_Loan_ID     IN  NUMBER,
+    p_Result_Code OUT NUMBER
+) AS
+    v_Item_ID      NUMBER;
+    v_Student_ID   VARCHAR2(20);
+    v_Due_Time     DATE;
+    v_Overdue_Days NUMBER;
+    v_Penalty      NUMBER;
+    v_Score        NUMBER;
+BEGIN
+    p_Result_Code := 0;
+
+    -- 1. 锁定借出记录
+    BEGIN
+        SELECT Item_ID, Student_ID, Due_Time INTO v_Item_ID, v_Student_ID, v_Due_Time
+        FROM D_Item_Loan
+        WHERE Loan_ID = p_Loan_ID AND Return_Time IS NULL;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN p_Result_Code := 1; RETURN;
+    END;
+
+    -- 2. 归还：库存 +1
+    UPDATE D_Shared_Item
+    SET Available_Qty = Available_Qty + 1
+    WHERE Item_ID = v_Item_ID;
+
+    UPDATE D_Item_Loan
+    SET Return_Time = SYSDATE
+    WHERE Loan_ID = p_Loan_ID;
+
+    -- 3. 超期判定与信用分扣分
+    IF SYSDATE > v_Due_Time THEN
+        v_Overdue_Days := TRUNC(SYSDATE - v_Due_Time);
+
+        BEGIN
+            SELECT Current_Score INTO v_Score
+            FROM D_Credit_Account WHERE Student_ID = v_Student_ID;
+
+            -- 每超期一天扣5分，不能扣超过当前分数，也不能扣到负数
+            v_Penalty := LEAST(v_Score, v_Overdue_Days * 5);
+            IF v_Penalty > 0 THEN
+                UPDATE D_Credit_Account
+                SET Current_Score = GREATEST(0, Current_Score - v_Penalty)
+                WHERE Student_ID = v_Student_ID;
+
+                INSERT INTO D_Credit_Log (
+                    Log_ID, Student_ID, Score_Change, Reason, Event_Key, Create_Time
+                ) VALUES (
+                    SEQ_CREDIT_LOG.NEXTVAL, v_Student_ID, -v_Penalty,
+                    '共享物品超期归还（Loan_ID=' || p_Loan_ID || ',逾期' || v_Overdue_Days || '天）',
+                    'OVERDUE-' || p_Loan_ID,
+                    SYSDATE
+                );
+            END IF;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN NULL;  -- 无信用账户则跳过
+            WHEN DUP_VAL_ON_INDEX THEN NULL;  -- 幂等：同一次归还不重复写日志
+        END;
+    END IF;
+
+    COMMIT;
+END SP_Return_Item;
+/
+
+-- ============================================================
+-- SP_Consume_Material：维修耗材出库
+-- 返回：0=成功, 1=耗材不存在, 2=库存不足
+-- ============================================================
+CREATE OR REPLACE PROCEDURE SP_Consume_Material(
+    p_Material_ID  IN  NUMBER,
+    p_Ticket_ID    IN  NUMBER,
+    p_Quantity     IN  NUMBER,
+    p_Result_Code  OUT NUMBER
+) AS
+    v_Stock  NUMBER;
+BEGIN
+    p_Result_Code := 0;
+
+    -- 1. 检查耗材库存（原子扣减）
+    UPDATE D_Repair_Material
+    SET Stock_Qty = Stock_Qty - p_Quantity
+    WHERE Material_ID = p_Material_ID AND Stock_Qty >= p_Quantity;
+
+    IF SQL%ROWCOUNT = 0 THEN
+        -- 判断是不存在还是不够
+        BEGIN
+            SELECT Stock_Qty INTO v_Stock FROM D_Repair_Material WHERE Material_ID = p_Material_ID;
+            p_Result_Code := 2;  -- 库存不足
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN p_Result_Code := 1;  -- 耗材不存在
+        END;
+        RETURN;
+    END IF;
+
+    -- 2. 记录消耗
+    INSERT INTO D_Repair_Material_Usage (
+        Usage_ID, Ticket_ID, Material_ID, Quantity, Use_Time
+    ) VALUES (
+        SEQ_MATERIAL_USAGE.NEXTVAL, p_Ticket_ID, p_Material_ID, p_Quantity, SYSDATE
+    );
+
+    COMMIT;
+END SP_Consume_Material;
+/
+
+-- ============================================================
+-- SP_Check_Overdue：逾期巡检——每15分钟扫未归还+超期→扣分
+-- ============================================================
+CREATE OR REPLACE PROCEDURE SP_Check_Overdue AS
+    v_Penalty NUMBER;
+BEGIN
+    FOR loan_rec IN (
+        SELECT Loan_ID, Student_ID, Item_ID,
+               TRUNC(SYSDATE - Due_Time) AS Overdue_Days
+        FROM D_Item_Loan
+        WHERE Return_Time IS NULL AND Due_Time < SYSDATE
+    ) LOOP
+        -- 扣信用分：每超1天扣5分，单次上限100
+        v_Penalty := LEAST(5 * loan_rec.Overdue_Days, 100);
+
+        -- INSERT 在前作为幂等守门员：Event_Key 冲突则整条跳过（含 UPDATE）
+        BEGIN
+            INSERT INTO D_Credit_Log (
+                Log_ID, Student_ID, Score_Change, Reason, Event_Key, Create_Time
+            ) VALUES (
+                SEQ_CREDIT_LOG.NEXTVAL, loan_rec.Student_ID, -v_Penalty,
+                '共享物品逾期未还（Loan_ID=' || loan_rec.Loan_ID || ',超' || loan_rec.Overdue_Days || '天）',
+                'OVERDUE-SCAN-' || loan_rec.Loan_ID || '-' || TO_CHAR(SYSDATE, 'YYYYMMDD'),
+                SYSDATE
+            );
+
+            UPDATE D_Credit_Account
+            SET Current_Score = GREATEST(0, Current_Score - v_Penalty)
+            WHERE Student_ID = loan_rec.Student_ID;
+        EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN NULL;  -- 今天已处理过，跳过
+        END;
+    END LOOP;
+
+    COMMIT;
+END SP_Check_Overdue;
+/
