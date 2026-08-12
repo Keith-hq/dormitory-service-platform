@@ -1,0 +1,32 @@
+# ============================================================
+# 后端 ASP.NET Core .NET 8 运行镜像
+# 构建前提：dotnet publish 产物已输出到 publish/backend/
+# 构建命令：docker build -t dorm-api:latest -f deploy/docker/Dockerfile.backend .
+# ============================================================
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+
+# 设置时区为中国标准时间（与业务代码保持一致）
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+WORKDIR /app
+
+# 复制发布产物
+COPY publish/backend/ ./
+
+# 安装 curl（HEALTHCHECK 需要）并创建上传目录
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/uploads && chmod 755 /app/uploads
+
+# 非 root 运行
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+USER appuser
+
+ENV ASPNETCORE_URLS=http://+:5000
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
+
+ENTRYPOINT ["dotnet", "TemplateDormApi.dll"]

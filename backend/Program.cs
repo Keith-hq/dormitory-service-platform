@@ -200,9 +200,14 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddScoped<VisitorService>();
 builder.Services.AddScoped<VoteService>();
+// ===== 8. 健康检查端点（容器 HEALTHCHECK + 部署验证用）=====
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // ===== 中间件管道 =====
+// 健康检查端点（不经过认证中间件，所有环境可用）
+app.MapHealthChecks("/health");
 app.UseMiddleware<ExceptionMiddleware>();
 if (app.Environment.IsDevelopment())
 {
