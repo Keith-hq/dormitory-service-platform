@@ -5,33 +5,49 @@ namespace TemplateDormApi.Services;
 
 public interface IStudentProfileService
 {
-    Task<StudentProfileDto> UpdateProfileAsync(string studentId, UpdateStudentProfileRequest request, CancellationToken cancellationToken);
-    Task<AccommodationDto> GetCurrentAccommodationAsync(string studentId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<AccommodationDto>> GetAccommodationHistoryAsync(string studentId, CancellationToken cancellationToken);
+    Task<StudentProfileDto> UpdateProfileAsync(string studentId, int accountId, UpdateStudentProfileRequest request, CancellationToken cancellationToken);
+    Task<AccommodationDto> GetCurrentAccommodationAsync(string studentId, int accountId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AccommodationDto>> GetAccommodationHistoryAsync(string studentId, int accountId, CancellationToken cancellationToken);
 }
 
 public sealed class StudentProfileService : IStudentProfileService
 {
     private readonly StudentProfileRepository _repository;
+    private readonly IStudentIdentityService _identityService;
 
-    public StudentProfileService(StudentProfileRepository repository)
+    public StudentProfileService(
+        StudentProfileRepository repository,
+        IStudentIdentityService identityService)
     {
         _repository = repository;
+        _identityService = identityService;
     }
 
-    public Task<StudentProfileDto> UpdateProfileAsync(
+    public async Task<StudentProfileDto> UpdateProfileAsync(
         string studentId,
+        int accountId,
         UpdateStudentProfileRequest request,
         CancellationToken cancellationToken)
-        => _repository.UpdateProfileAsync(studentId, request, cancellationToken);
+    {
+        await _identityService.EnsureOwnStudentIdAsync(accountId, studentId, cancellationToken);
+        return await _repository.UpdateProfileAsync(studentId, request, cancellationToken);
+    }
 
-    public Task<AccommodationDto> GetCurrentAccommodationAsync(
+    public async Task<AccommodationDto> GetCurrentAccommodationAsync(
         string studentId,
+        int accountId,
         CancellationToken cancellationToken)
-        => _repository.GetCurrentAccommodationAsync(studentId, cancellationToken);
+    {
+        await _identityService.EnsureOwnStudentIdAsync(accountId, studentId, cancellationToken);
+        return await _repository.GetCurrentAccommodationAsync(studentId, cancellationToken);
+    }
 
-    public Task<IReadOnlyList<AccommodationDto>> GetAccommodationHistoryAsync(
+    public async Task<IReadOnlyList<AccommodationDto>> GetAccommodationHistoryAsync(
         string studentId,
+        int accountId,
         CancellationToken cancellationToken)
-        => _repository.GetAccommodationHistoryAsync(studentId, cancellationToken);
+    {
+        await _identityService.EnsureOwnStudentIdAsync(accountId, studentId, cancellationToken);
+        return await _repository.GetAccommodationHistoryAsync(studentId, cancellationToken);
+    }
 }

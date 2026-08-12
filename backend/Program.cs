@@ -88,6 +88,7 @@ builder.Services.AddScoped<INoticeService, NoticeService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
 builder.Services.AddScoped<IFacilityBookingService, FacilityBookingService>();
 builder.Services.AddScoped<IStudentProfileService, StudentProfileService>();
+builder.Services.AddScoped<IStudentIdentityService, StudentIdentityService>();
 builder.Services.AddScoped<IRepairService, RepairService>();
 builder.Services.AddScoped<ILateEntryService, LateEntryService>();
 builder.Services.AddScoped<IHygieneService, HygieneService>();

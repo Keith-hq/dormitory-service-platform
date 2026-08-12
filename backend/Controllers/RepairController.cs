@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
 namespace TemplateDormApi.Controllers;
@@ -34,7 +35,13 @@ public sealed class RepairController : ControllerBase
         [FromQuery] RepairTicketQueryDto query,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetStudentTicketsAsync(studentId, query, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetStudentTicketsAsync(studentId, accountId.Value, query, cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 

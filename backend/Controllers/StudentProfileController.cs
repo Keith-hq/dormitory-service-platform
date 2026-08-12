@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
 namespace TemplateDormApi.Controllers;
@@ -24,7 +25,13 @@ public sealed class StudentProfileController : ControllerBase
         [FromBody] UpdateStudentProfileRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.UpdateProfileAsync(studentId, request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.UpdateProfileAsync(studentId, accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "个人信息更新成功"));
     }
 
@@ -34,7 +41,13 @@ public sealed class StudentProfileController : ControllerBase
         string studentId,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetCurrentAccommodationAsync(studentId, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetCurrentAccommodationAsync(studentId, accountId.Value, cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 
@@ -44,7 +57,13 @@ public sealed class StudentProfileController : ControllerBase
         string studentId,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetAccommodationHistoryAsync(studentId, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetAccommodationHistoryAsync(studentId, accountId.Value, cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 }

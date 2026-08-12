@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
 namespace TemplateDormApi.Controllers;
@@ -24,7 +25,13 @@ public sealed class StudentReportController : ControllerBase
         [FromQuery] MonthlyReportQueryDto query,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetMonthlyFeeAsync(studentId, query, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetMonthlyFeeAsync(studentId, accountId.Value, query, cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 
@@ -35,7 +42,13 @@ public sealed class StudentReportController : ControllerBase
         [FromQuery] MonthlyReportQueryDto query,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetFacilityUsageAsync(studentId, query, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetFacilityUsageAsync(studentId, accountId.Value, query, cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 
@@ -46,7 +59,13 @@ public sealed class StudentReportController : ControllerBase
         [FromQuery] AnnualReportQueryDto query,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetAnnualReportAsync(studentId, query, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetAnnualReportAsync(studentId, accountId.Value, query, cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 }
