@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Models;
 
 namespace TemplateDormApi.Repository;
 
@@ -7,13 +9,26 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
 {
     public HygieneRepository(AppDbContext context) : base(context) { }
 
-    public Task<IReadOnlyList<HygieneRecordDto>> GetRoomRecordsAsync(
+    public async Task<IReadOnlyList<HygieneRecordDto>> GetRoomRecordsAsync(
         long roomId,
         CancellationToken cancellationToken)
-        => PendingAsync<IReadOnlyList<HygieneRecordDto>>(
-            "STU-18",
-            "卫生评分与评语组合读取待实现",
-            cancellationToken);
+    {
+        return await DbContext.HygieneRecords
+            .AsNoTracking()
+            .Where(item => item.RoomId == roomId)
+            .OrderByDescending(item => item.CheckDate)
+            .ThenByDescending(item => item.RecordId)
+            .Select(item => new HygieneRecordDto
+            {
+                RecordId = item.RecordId,
+                RoomId = item.RoomId ?? 0,
+                CheckDate = item.CheckDate,
+                Score = (int)item.Score,
+                InspectorId = item.InspectorId,
+                Comment = item.Comment == null ? null : item.Comment.CommentText
+            })
+            .ToListAsync(cancellationToken);
+    }
 
     public Task<HygieneRecordDto> CreateAsync(
         CreateHygieneRecordRequest request,
@@ -23,14 +38,44 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
             "卫生记录和评语主键生成方案待确认",
             cancellationToken);
 
-    public Task<HygieneRecordDto> UpdateAsync(
-        long recordId,
+    public Task<HygieneRecord?> FindByIdAsync(long recordId, CancellationToken cancellationToken)
+        => DbContext.HygieneRecords
+            .Include(item => item.Comment)
+            .SingleOrDefaultAsync(item => item.RecordId == recordId, cancellationToken);
+
+    public async Task<HygieneRecordDto> UpdateAsync(
+        HygieneRecord record,
         UpdateHygieneRecordRequest request,
         CancellationToken cancellationToken)
-        => PendingAsync<HygieneRecordDto>(
-            "DORM-33",
-            "24 小时修改窗口及评语更新规则待实现",
-            cancellationToken);
+    {
+        record.Score = request.Score;
+        if (request.Comment is not null)
+        {
+            if (record.Comment is null)
+            {
+                record.Comment = new HygieneComment
+                {
+                    RecordId = record.RecordId,
+                    CommentText = request.Comment
+                };
+            }
+            else
+            {
+                record.Comment.CommentText = request.Comment;
+            }
+        }
+
+        await DbContext.SaveChangesAsync(cancellationToken);
+        return new HygieneRecordDto
+        {
+            RecordId = record.RecordId,
+            RoomId = record.RoomId ?? 0,
+            CheckDate = record.CheckDate,
+            Score = (int)record.Score,
+            InspectorId = record.InspectorId,
+            Comment = record.Comment?.CommentText
+        };
+    }
 
     public Task<IReadOnlyList<HygieneRankingDto>> GetRankingsAsync(
         HygieneRankingQueryDto query,

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 
@@ -15,14 +16,43 @@ public sealed class RepairRepository : FrameworkRepositoryBase
             "D_REPAIR_TICKET 缺少 CATEGORY 字段，且新增记录主键生成方案待确认",
             cancellationToken);
 
-    public Task<PagedResult<RepairTicketDto>> GetStudentTicketsAsync(
+    public async Task<PagedResult<RepairTicketDto>> GetStudentTicketsAsync(
         string studentId,
         RepairTicketQueryDto query,
         CancellationToken cancellationToken)
-        => PendingAsync<PagedResult<RepairTicketDto>>(
-            "STU-09",
-            "工单分页及学生数据权限查询待实现",
-            cancellationToken);
+    {
+        var ticketQuery = DbContext.RepairTickets
+            .AsNoTracking()
+            .Where(item => item.StudentId == studentId);
+
+        var total = await ticketQuery.CountAsync(cancellationToken);
+        var items = await ticketQuery
+            .OrderByDescending(item => item.SubmitTime)
+            .ThenByDescending(item => item.TicketId)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(item => new RepairTicketDto
+            {
+                TicketId = item.TicketId,
+                StudentId = item.StudentId!,
+                RoomId = item.RoomId ?? 0,
+                Description = item.IssueDescription,
+                SubmitTime = item.SubmitTime,
+                Status = item.Status ?? string.Empty,
+                SlaLevel = item.SlaLevel,
+                Deadline = item.Deadline,
+                AssignedTo = item.AssignedTo
+            })
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<RepairTicketDto>
+        {
+            Items = items,
+            Total = total,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
+    }
 
     public Task<RepairTicketDto> GetByIdAsync(long ticketId, CancellationToken cancellationToken)
         => PendingAsync<RepairTicketDto>(

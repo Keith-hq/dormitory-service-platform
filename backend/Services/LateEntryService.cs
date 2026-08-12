@@ -1,12 +1,14 @@
 using TemplateDormApi.DTO;
+using TemplateDormApi.Exceptions;
 using TemplateDormApi.Repository;
+using Microsoft.AspNetCore.Http;
 
 namespace TemplateDormApi.Services;
 
 public interface ILateEntryService
 {
     Task<PagedResult<LateEntryDto>> GetStudentEntriesAsync(string studentId, int accountId, LateEntryQueryDto query, CancellationToken cancellationToken);
-    Task<LateEntryDto> UpdateReasonAsync(long recordId, UpdateLateEntryReasonRequest request, CancellationToken cancellationToken);
+    Task<LateEntryDto> UpdateReasonAsync(long recordId, int accountId, UpdateLateEntryReasonRequest request, CancellationToken cancellationToken);
     Task<LateEntryDto> CreateAsync(CreateLateEntryRequest request, CancellationToken cancellationToken);
 }
 
@@ -31,11 +33,33 @@ public sealed class LateEntryService : ILateEntryService
         return await _repository.GetStudentEntriesAsync(studentId, query, cancellationToken);
     }
 
-    public Task<LateEntryDto> UpdateReasonAsync(
+    public async Task<LateEntryDto> UpdateReasonAsync(
         long recordId,
+        int accountId,
         UpdateLateEntryReasonRequest request,
         CancellationToken cancellationToken)
-        => _repository.UpdateReasonAsync(recordId, request, cancellationToken);
+    {
+        var entry = await _repository.FindByIdAsync(recordId, cancellationToken)
+            ?? throw new BusinessException(404, "晚归记录不存在", StatusCodes.Status404NotFound);
+
+        await _identityService.EnsureOwnStudentIdAsync(
+            accountId,
+            entry.StudentId ?? string.Empty,
+            cancellationToken);
+
+        if (DateTime.Now > entry.ReturnTime.AddHours(24))
+        {
+            throw new BusinessException(409, "已超过 24 小时补充说明时限", StatusCodes.Status409Conflict);
+        }
+
+        var reason = request.Reason.Trim();
+        if (reason.Length == 0)
+        {
+            throw new BusinessException(400, "晚归说明不能为空");
+        }
+
+        return await _repository.UpdateReasonAsync(entry, reason, cancellationToken);
+    }
 
     public Task<LateEntryDto> CreateAsync(CreateLateEntryRequest request, CancellationToken cancellationToken)
         => _repository.CreateAsync(request, cancellationToken);

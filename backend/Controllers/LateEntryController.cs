@@ -43,7 +43,13 @@ public sealed class LateEntryController : ControllerBase
         [FromBody] UpdateLateEntryReasonRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.UpdateReasonAsync(recordId, request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.UpdateReasonAsync(recordId, accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "晚归说明更新成功"));
     }
 

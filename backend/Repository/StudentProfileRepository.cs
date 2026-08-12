@@ -35,19 +35,56 @@ public sealed class StudentProfileRepository : FrameworkRepositoryBase
         };
     }
 
-    public Task<AccommodationDto> GetCurrentAccommodationAsync(
+    public async Task<AccommodationDto> GetCurrentAccommodationAsync(
         string studentId,
         CancellationToken cancellationToken)
-        => PendingAsync<AccommodationDto>(
-            "STU-02",
-            "住宿数据由住宿模块统一维护，待读取边界确认",
-            cancellationToken);
+    {
+        var accommodation = await DbContext.BedAllocations
+            .AsNoTracking()
+            .Where(item =>
+                item.StudentId == studentId &&
+                item.CheckOutDate == null &&
+                item.RoomId != null)
+            .OrderByDescending(item => item.CheckInDate)
+            .ThenByDescending(item => item.AllocationId)
+            .Select(item => new AccommodationDto
+            {
+                AllocationId = item.AllocationId,
+                StudentId = item.StudentId!,
+                RoomId = item.RoomId!.Value,
+                BedNo = item.BedNo,
+                CheckInDate = item.CheckInDate,
+                CheckOutDate = item.CheckOutDate
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-    public Task<IReadOnlyList<AccommodationDto>> GetAccommodationHistoryAsync(
+        return accommodation ?? throw new BusinessException(
+            404,
+            "未找到当前住宿信息",
+            StatusCodes.Status404NotFound);
+    }
+
+    public async Task<IReadOnlyList<AccommodationDto>> GetAccommodationHistoryAsync(
         string studentId,
         CancellationToken cancellationToken)
-        => PendingAsync<IReadOnlyList<AccommodationDto>>(
-            "STU-03",
-            "住宿历史读取口径待住宿模块确认",
-            cancellationToken);
+    {
+        return await DbContext.BedAllocations
+            .AsNoTracking()
+            .Where(item =>
+                item.StudentId == studentId &&
+                item.CheckOutDate != null &&
+                item.RoomId != null)
+            .OrderByDescending(item => item.CheckOutDate)
+            .ThenByDescending(item => item.CheckInDate)
+            .Select(item => new AccommodationDto
+            {
+                AllocationId = item.AllocationId,
+                StudentId = item.StudentId!,
+                RoomId = item.RoomId!.Value,
+                BedNo = item.BedNo,
+                CheckInDate = item.CheckInDate,
+                CheckOutDate = item.CheckOutDate
+            })
+            .ToListAsync(cancellationToken);
+    }
 }
