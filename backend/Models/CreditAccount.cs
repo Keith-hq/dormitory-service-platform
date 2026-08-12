@@ -11,11 +11,3 @@ public class CreditAccount
 
     public DateTime UpdatedTime { get; set; }
 }
-
-/// <summary>
-/// 仅用于锁定 D_STUDENT 父行，串行化信用账户的懒创建。
-/// </summary>
-internal class CreditStudentLock
-{
-    public string StudentId { get; set; } = string.Empty;
-}
