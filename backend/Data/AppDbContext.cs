@@ -267,6 +267,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SlaLevel).HasColumnName("SLA_LEVEL").HasMaxLength(10).IsRequired();
             entity.Property(e => e.Deadline).HasColumnName("DEADLINE");
             entity.Property(e => e.AssignedTo).HasColumnName("ASSIGNED_TO").HasMaxLength(20);
+            entity.Property(e => e.EscalationTime).HasColumnName("ESCALATION_TIME");
         });
 
         // ===== RepairLog 维修日志实体映射（D_Repair_Log，难点⑤）=====
@@ -280,6 +281,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TicketId).HasColumnName("TICKET_ID");
             entity.Property(e => e.AdminId).HasColumnName("ADMIN_ID").HasMaxLength(20).IsRequired();
             entity.Property(e => e.ProcessDesc).HasColumnName("PROCESS_DESC").HasMaxLength(500);
+            entity.Property(e => e.RepairResult).HasColumnName("REPAIR_RESULT").HasMaxLength(200);
             entity.Property(e => e.ResolveTime).HasColumnName("RESOLVE_TIME").IsRequired();
         });
     }

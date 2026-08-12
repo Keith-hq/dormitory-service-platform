@@ -26,4 +26,7 @@ public class RepairTicket
 
     /// <summary>指派管理员 ID</summary>
     public string? AssignedTo { get; set; }
+
+    /// <summary>SLA 首次升级时间（NULL=未升级，NOT NULL=已升级，防二次升级）</summary>
+    public DateTime? EscalationTime { get; set; }
 }
