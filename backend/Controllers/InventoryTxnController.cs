@@ -27,6 +27,8 @@ public class InventoryTxnController : ControllerBase
         _context = context;
     }
 
+    private const string IdempotencyKeyHeader = "Idempotency-Key";
+
     /// <summary>从 JWT 解析当前学生的 Student_ID</summary>
     private async Task<string> ResolveStudentId()
     {
@@ -41,6 +43,12 @@ public class InventoryTxnController : ControllerBase
         return studentId ?? throw new BusinessException(401, "当前账户未关联学生身份");
     }
 
+    /// <summary>读取 Idempotency-Key 请求头，为空则返回 null</summary>
+    private static string? GetIdempotencyKey(HttpRequest request)
+    {
+        return request.Headers[IdempotencyKeyHeader].FirstOrDefault();
+    }
+
     // ==================== 学生端 ====================
 
     /// <summary>STU-24：查询可借共享物品列表</summary>
@@ -53,14 +61,19 @@ public class InventoryTxnController : ControllerBase
         return Ok(ApiResponse.Ok(items));
     }
 
-    /// <summary>STU-25：借用共享物品（扣库存）</summary>
-    [HttpPost("shared-items/{itemId}/borrow")]
+    /// <summary>STU-25：借用共享物品（扣库存，需 Idempotency-Key 保证幂等）</summary>
+    [HttpPost("item-loans")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<object>>> Borrow(int itemId)
+    public async Task<ActionResult<ApiResponse<object>>> Borrow(
+        [FromBody] BorrowItemRequest req)
     {
         var studentId = await ResolveStudentId();
+        var idempotencyKey = GetIdempotencyKey(Request);
 
-        var (rc, loanId) = await _service.BorrowItem(itemId, studentId);
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            return Ok(ApiResponse.Error(400, "缺少 Idempotency-Key 请求头"));
+
+        var (rc, loanId) = await _service.BorrowItem(req.ItemId, studentId, idempotencyKey);
 
         var msgs = new[] { "借用成功", "物品不存在", "物品已停用", "库存不足", "信用分不足（低于60）" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
@@ -69,15 +82,16 @@ public class InventoryTxnController : ControllerBase
             : Ok(ApiResponse.Error(400, msg));
     }
 
-    /// <summary>STU-26：归还共享物品</summary>
+    /// <summary>STU-26：归还共享物品（校验 Student_ID 归属）</summary>
     [HttpPost("item-loans/{loanId}/return")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> Return(int loanId)
     {
-        var rc = await _service.ReturnItem(loanId);
+        var studentId = await ResolveStudentId();
+        var rc = await _service.ReturnItem(loanId, studentId);
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, "归还成功"))
-            : Ok(ApiResponse.Error(400, "借出记录不存在或已归还"));
+            : Ok(ApiResponse.Error(400, "借出记录不存在、已归还或非本人操作"));
     }
 
     /// <summary>STU-27：查询当前学生借还记录</summary>
@@ -92,13 +106,18 @@ public class InventoryTxnController : ControllerBase
 
     // ==================== 宿管端 ====================
 
-    /// <summary>DORM-29：耗材出库</summary>
-    [HttpPost("repair-materials/{materialId}/consume")]
+    /// <summary>DORM-29：耗材出库（需 Idempotency-Key 保证幂等）</summary>
+    [HttpPost("repair-tickets/{ticketId}/materials")]
     [Authorize(Policy = AuthPolicies.DormAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> ConsumeMaterial(
-        int materialId, [FromBody] ConsumeMaterialRequest req)
+        int ticketId, [FromBody] ConsumeMaterialRequest req)
     {
-        var rc = await _service.ConsumeMaterial(materialId, req.TicketId, req.Quantity);
+        var idempotencyKey = GetIdempotencyKey(Request);
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            return Ok(ApiResponse.Error(400, "缺少 Idempotency-Key 请求头"));
+
+        var rc = await _service.ConsumeMaterial(req.MaterialId, ticketId, req.Quantity, idempotencyKey);
         var msgs = new[] { "出库成功", "耗材不存在", "库存不足" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
@@ -127,12 +146,20 @@ public class InventoryTxnController : ControllerBase
     }
 }
 
+/// <summary>借用物品请求体</summary>
+public class BorrowItemRequest
+{
+    /// <summary>共享物品 ID</summary>
+    [Range(1, int.MaxValue, ErrorMessage = "物品ID必须大于0")]
+    public int ItemId { get; set; }
+}
+
 /// <summary>耗材出库请求体</summary>
 public class ConsumeMaterialRequest
 {
-    /// <summary>报修工单 ID</summary>
-    [Range(1, int.MaxValue, ErrorMessage = "工单ID必须大于0")]
-    public int TicketId { get; set; }
+    /// <summary>耗材 ID</summary>
+    [Range(1, int.MaxValue, ErrorMessage = "耗材ID必须大于0")]
+    public int MaterialId { get; set; }
 
     /// <summary>消耗数量</summary>
     [Range(1, int.MaxValue, ErrorMessage = "消耗数量必须大于0")]

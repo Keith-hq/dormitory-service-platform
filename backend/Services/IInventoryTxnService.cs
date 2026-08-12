@@ -8,14 +8,14 @@ namespace TemplateDormApi.Services;
 /// </summary>
 public interface IInventoryTxnService
 {
-    /// <summary>借用共享物品，返回 (resultCode, loanId)</summary>
-    Task<(int resultCode, int loanId)> BorrowItem(int itemId, string studentId);
+    /// <summary>借用共享物品，返回 (resultCode, loanId)。idempotencyKey 用于幂等防重。</summary>
+    Task<(int resultCode, int loanId)> BorrowItem(int itemId, string studentId, string? idempotencyKey);
 
-    /// <summary>归还共享物品，返回 resultCode</summary>
-    Task<int> ReturnItem(int loanId);
+    /// <summary>归还共享物品，校验 studentId 归属，返回 resultCode</summary>
+    Task<int> ReturnItem(int loanId, string studentId);
 
-    /// <summary>维修耗材出库，返回 resultCode</summary>
-    Task<int> ConsumeMaterial(int materialId, int ticketId, int quantity);
+    /// <summary>维修耗材出库，idempotencyKey 用于幂等防重，返回 resultCode</summary>
+    Task<int> ConsumeMaterial(int materialId, int ticketId, int quantity, string? idempotencyKey);
 
     /// <summary>逾期巡检（定时任务调用）</summary>
     Task CheckOverdue();

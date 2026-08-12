@@ -21,7 +21,7 @@ public class InventoryTxnService : IInventoryTxnService
 
     // ===== 写操作：调用存储过程 =====
 
-    public async Task<(int resultCode, int loanId)> BorrowItem(int itemId, string studentId)
+    public async Task<(int resultCode, int loanId)> BorrowItem(int itemId, string studentId, string? idempotencyKey)
     {
         var conn = _context.Database.GetDbConnection();
         var wasOpen = conn.State == ConnectionState.Open;
@@ -34,6 +34,8 @@ public class InventoryTxnService : IInventoryTxnService
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.Add(new OracleParameter("p_Item_ID", itemId));
             cmd.Parameters.Add(new OracleParameter("p_Student_ID", studentId));
+            cmd.Parameters.Add(new OracleParameter("p_Idempotency_Key",
+                (object?)idempotencyKey ?? DBNull.Value));
 
             var rc = new OracleParameter("p_Result_Code", OracleDbType.Int32, ParameterDirection.Output);
             var lid = new OracleParameter("p_Loan_ID", OracleDbType.Int32, ParameterDirection.Output);
@@ -52,18 +54,21 @@ public class InventoryTxnService : IInventoryTxnService
         }
     }
 
-    public async Task<int> ReturnItem(int loanId)
+    public async Task<int> ReturnItem(int loanId, string studentId)
     {
         return await CallResultCode("SP_Return_Item",
-            new OracleParameter("p_Loan_ID", loanId));
+            new OracleParameter("p_Loan_ID", loanId),
+            new OracleParameter("p_Student_ID", studentId));
     }
 
-    public async Task<int> ConsumeMaterial(int materialId, int ticketId, int quantity)
+    public async Task<int> ConsumeMaterial(int materialId, int ticketId, int quantity, string? idempotencyKey)
     {
         return await CallResultCode("SP_Consume_Material",
             new OracleParameter("p_Material_ID", materialId),
             new OracleParameter("p_Ticket_ID", ticketId),
-            new OracleParameter("p_Quantity", quantity));
+            new OracleParameter("p_Quantity", quantity),
+            new OracleParameter("p_Idempotency_Key",
+                (object?)idempotencyKey ?? DBNull.Value));
     }
 
     public async Task CheckOverdue()
