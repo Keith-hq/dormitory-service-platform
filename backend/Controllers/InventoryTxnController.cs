@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -62,9 +63,10 @@ public class InventoryTxnController : ControllerBase
         var (rc, loanId) = await _service.BorrowItem(itemId, studentId);
 
         var msgs = new[] { "借用成功", "物品不存在", "物品已停用", "库存不足", "信用分不足（低于60）" };
+        var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
-            ? Ok(ApiResponse.Ok(new { loanId }, msgs[0]))
-            : Ok(ApiResponse.Error(400, msgs[rc]));
+            ? Ok(ApiResponse.Ok(new { loanId }, msg))
+            : Ok(ApiResponse.Error(400, msg));
     }
 
     /// <summary>STU-26：归还共享物品</summary>
@@ -98,9 +100,10 @@ public class InventoryTxnController : ControllerBase
     {
         var rc = await _service.ConsumeMaterial(materialId, req.TicketId, req.Quantity);
         var msgs = new[] { "出库成功", "耗材不存在", "库存不足" };
+        var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
-            ? Ok(ApiResponse.Ok(new { }, msgs[0]))
-            : Ok(ApiResponse.Error(400, msgs[rc]));
+            ? Ok(ApiResponse.Ok(new { }, msg))
+            : Ok(ApiResponse.Error(400, msg));
     }
 
     /// <summary>DORM-30：耗材库存查询</summary>
@@ -127,6 +130,11 @@ public class InventoryTxnController : ControllerBase
 /// <summary>耗材出库请求体</summary>
 public class ConsumeMaterialRequest
 {
+    /// <summary>报修工单 ID</summary>
+    [Range(1, int.MaxValue, ErrorMessage = "工单ID必须大于0")]
     public int TicketId { get; set; }
+
+    /// <summary>消耗数量</summary>
+    [Range(1, int.MaxValue, ErrorMessage = "消耗数量必须大于0")]
     public int Quantity { get; set; }
 }

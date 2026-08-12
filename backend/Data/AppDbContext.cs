@@ -255,6 +255,8 @@ public class AppDbContext : DbContext
         });
 
         // ===== SharedItem 共享物品实体映射（D_Shared_Item，难点④）=====
+        // 注：Item_ID 实际由 SP 内部 SEQ_ITEM_LOAN 生成，非 IDENTITY；
+        // ValueGeneratedOnAdd 仅用于 EF 不主动发送该列，写入全走 SP 不受影响。
         modelBuilder.Entity<SharedItem>(entity =>
         {
             entity.ToTable("D_SHARED_ITEM");
@@ -269,6 +271,7 @@ public class AppDbContext : DbContext
         });
 
         // ===== ItemLoan 共享物品借还记录实体映射（D_Item_Loan，难点④）=====
+        // 注：Loan_ID 由 SEQ_ITEM_LOAN 生成，同上。
         modelBuilder.Entity<ItemLoan>(entity =>
         {
             entity.ToTable("D_ITEM_LOAN");
@@ -295,6 +298,7 @@ public class AppDbContext : DbContext
         });
 
         // ===== RepairMaterialUsage 维修耗材消耗记录实体映射（D_Repair_Material_Usage，难点④）=====
+        // 注：Usage_ID 由 SEQ_MATERIAL_USAGE 生成，同上。
         modelBuilder.Entity<RepairMaterialUsage>(entity =>
         {
             entity.ToTable("D_REPAIR_MATERIAL_USAGE");

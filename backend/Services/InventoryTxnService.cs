@@ -27,24 +27,29 @@ public class InventoryTxnService : IInventoryTxnService
         var wasOpen = conn.State == ConnectionState.Open;
         if (!wasOpen) await conn.OpenAsync();
 
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SP_Borrow_Item";
-        cmd.CommandType = CommandType.StoredProcedure;
-        cmd.Parameters.Add(new OracleParameter("p_Item_ID", itemId));
-        cmd.Parameters.Add(new OracleParameter("p_Student_ID", studentId));
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SP_Borrow_Item";
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add(new OracleParameter("p_Item_ID", itemId));
+            cmd.Parameters.Add(new OracleParameter("p_Student_ID", studentId));
 
-        var rc = new OracleParameter("p_Result_Code", OracleDbType.Int32, ParameterDirection.Output);
-        var lid = new OracleParameter("p_Loan_ID", OracleDbType.Int32, ParameterDirection.Output);
-        cmd.Parameters.Add(rc);
-        cmd.Parameters.Add(lid);
+            var rc = new OracleParameter("p_Result_Code", OracleDbType.Int32, ParameterDirection.Output);
+            var lid = new OracleParameter("p_Loan_ID", OracleDbType.Int32, ParameterDirection.Output);
+            cmd.Parameters.Add(rc);
+            cmd.Parameters.Add(lid);
 
-        await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync();
 
-        if (!wasOpen) conn.Close();
-
-        int code = OracleValueToInt(rc.Value);
-        int loanId = OracleValueToInt(lid.Value);
-        return (code, loanId);
+            int code = OracleValueToInt(rc.Value);
+            int loanId = OracleValueToInt(lid.Value);
+            return (code, loanId);
+        }
+        finally
+        {
+            if (!wasOpen) conn.Close();
+        }
     }
 
     public async Task<int> ReturnItem(int loanId)
@@ -78,7 +83,7 @@ public class InventoryTxnService : IInventoryTxnService
                             Building_ID AS BuildingId, Total_Qty AS TotalQty,
                             Available_Qty AS AvailableQty, Status
                      FROM D_Shared_Item
-                     WHERE Status = '正常' AND Building_ID = {0}
+                     WHERE Status = '正常' AND Available_Qty > 0 AND Building_ID = {0}
                      ORDER BY Item_ID", buildingId.Value)
                 .ToListAsync();
         }
@@ -89,7 +94,7 @@ public class InventoryTxnService : IInventoryTxnService
                         Building_ID AS BuildingId, Total_Qty AS TotalQty,
                         Available_Qty AS AvailableQty, Status
                  FROM D_Shared_Item
-                 WHERE Status = '正常'
+                 WHERE Status = '正常' AND Available_Qty > 0
                  ORDER BY Item_ID")
             .ToListAsync();
     }
@@ -126,18 +131,23 @@ public class InventoryTxnService : IInventoryTxnService
         var wasOpen = conn.State == ConnectionState.Open;
         if (!wasOpen) await conn.OpenAsync();
 
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = procedure;
-        cmd.CommandType = CommandType.StoredProcedure;
-        cmd.Parameters.AddRange(parameters);
-        var rc = new OracleParameter("p_Result_Code", OracleDbType.Int32, ParameterDirection.Output);
-        cmd.Parameters.Add(rc);
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = procedure;
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.AddRange(parameters);
+            var rc = new OracleParameter("p_Result_Code", OracleDbType.Int32, ParameterDirection.Output);
+            cmd.Parameters.Add(rc);
 
-        await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync();
 
-        if (!wasOpen) conn.Close();
-
-        return OracleValueToInt(rc.Value);
+            return OracleValueToInt(rc.Value);
+        }
+        finally
+        {
+            if (!wasOpen) conn.Close();
+        }
     }
 
     /// <summary>OracleDecimal.Value → int 安全转换</summary>
