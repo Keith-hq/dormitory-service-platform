@@ -21,6 +21,8 @@ public class AppDbContext : DbContext
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<Notice> Notices => Set<Notice>();
     public DbSet<NoticeDisplay> NoticeDisplays => Set<NoticeDisplay>();
+    public DbSet<RepairTicket> RepairTickets => Set<RepairTicket>();
+    public DbSet<RepairLog> RepairLogs => Set<RepairLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -248,6 +250,37 @@ public class AppDbContext : DbContext
             entity.Property(e => e.NoticeId).HasColumnName("NOTICE_ID");
             entity.Property(e => e.IsPinned).HasColumnName("IS_PINNED").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
+        });
+        // ===== RepairTicket 报修工单实体映射（D_Repair_Ticket，难点⑤）=====
+        // 注：Ticket_ID 由数据库序列/触发器生成，非 IDENTITY；写入全走 SP 不受影响。
+        modelBuilder.Entity<RepairTicket>(entity =>
+        {
+            entity.ToTable("D_REPAIR_TICKET");
+            entity.HasKey(e => e.TicketId);
+            entity.Property(e => e.TicketId).HasColumnName("TICKET_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
+            entity.Property(e => e.IssueDesc).HasColumnName("ISSUE_DESC").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.SubmitTime).HasColumnName("SUBMIT_TIME").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.SlaLevel).HasColumnName("SLA_LEVEL").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Deadline).HasColumnName("DEADLINE");
+            entity.Property(e => e.AssignedTo).HasColumnName("ASSIGNED_TO").HasMaxLength(20);
+        });
+
+        // ===== RepairLog 维修日志实体映射（D_Repair_Log，难点⑤）=====
+        // 注：Log_ID 由 SEQ_SLA_LOG 生成，同上。
+        modelBuilder.Entity<RepairLog>(entity =>
+        {
+            entity.ToTable("D_REPAIR_LOG");
+            entity.HasKey(e => e.LogId);
+            entity.Property(e => e.LogId).HasColumnName("LOG_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.TicketId).HasColumnName("TICKET_ID");
+            entity.Property(e => e.AdminId).HasColumnName("ADMIN_ID").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ProcessDesc).HasColumnName("PROCESS_DESC").HasMaxLength(500);
+            entity.Property(e => e.ResolveTime).HasColumnName("RESOLVE_TIME").IsRequired();
         });
     }
 }
