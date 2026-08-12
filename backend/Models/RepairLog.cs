@@ -14,5 +14,8 @@ public class RepairLog
 
     public string ProcessDesc { get; set; } = string.Empty;
 
+    /// <summary>维修结果（对齐契约 result 字段）</summary>
+    public string? RepairResult { get; set; }
+
     public DateTime ResolveTime { get; set; }
 }

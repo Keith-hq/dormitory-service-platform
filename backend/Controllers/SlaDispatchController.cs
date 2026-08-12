@@ -11,7 +11,7 @@ using TemplateDormApi.Services;
 namespace TemplateDormApi.Controllers;
 
 /// <summary>
-/// SLA 派单接口（难点⑤）。
+/// SLA 派单接口（难点⑤ 一审修复版）。
 /// DORM-26~28 宿管端报修派单。
 /// </summary>
 [ApiController]
@@ -43,17 +43,27 @@ public class SlaDispatchController : ControllerBase
 
     // ==================== 宿管端 ====================
 
-    /// <summary>DORM-26：待处理工单列表</summary>
-    [HttpGet("repair-tickets/pending")]
+    /// <summary>DORM-26：待处理工单列表（分页）</summary>
+    [HttpGet("admins/{adminId}/repair-tickets")]
     [Authorize(Policy = AuthPolicies.DormAdmin)]
-    public async Task<ActionResult<ApiResponse<object>>> GetPendingTickets()
+    public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetPendingTickets(
+        string adminId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
-        var adminId = await ResolveAdminId();
-        var tickets = await _service.GetPendingTickets(adminId);
-        return Ok(ApiResponse.Ok(tickets));
+        // adminId 来自 URL，需与 JWT 解析的管理员身份一致
+        var currentAdminId = await ResolveAdminId();
+        if (!string.Equals(adminId, currentAdminId, StringComparison.Ordinal))
+            return Ok(ApiResponse.Error(403, "无权访问其他管理员的工单"));
+
+        if (page < 1 || pageSize < 1 || pageSize > 100)
+            return Ok(ApiResponse.Error(400, "分页参数不合法：page>=1，1<=pageSize<=100"));
+
+        var result = await _service.GetPendingTickets(adminId, page, pageSize);
+        return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>DORM-27：接单（并发唯一）</summary>
+    /// <summary>DORM-27：接单（并发唯一，仅允许被指派的维修员接单）</summary>
     [HttpPost("repair-tickets/{ticketId}/claim")]
     [Authorize(Policy = AuthPolicies.DormAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> Claim(int ticketId)
@@ -63,19 +73,20 @@ public class SlaDispatchController : ControllerBase
 
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, "接单成功"))
-            : Ok(ApiResponse.Error(400, "工单不存在、已被他人接走或状态不是待处理"));
+            : Ok(ApiResponse.Error(400, "工单不存在、状态不是待处理或非本人指派"));
     }
 
     /// <summary>DORM-28：录入维修日志（完工）</summary>
-    [HttpPost("repair-tickets/{ticketId}/complete")]
+    [HttpPost("repair-tickets/{ticketId}/logs")]
     [Authorize(Policy = AuthPolicies.DormAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> Complete(
         int ticketId, [FromBody] CompleteRepairRequest req)
     {
         var adminId = await ResolveAdminId();
-        var rc = await _service.CompleteRepair(ticketId, adminId, req.ProcessDesc);
+        var rc = await _service.CompleteRepair(
+            ticketId, adminId, req.Content, req.Result, req.SolveTime);
 
-        var msgs = new[] { "维修完成", "工单不存在", "工单已完成", "日志写入冲突" };
+        var msgs = new[] { "维修完成", "工单不存在", "状态不是处理中或非本人操作", "维修日志已存在" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, msg))
@@ -104,11 +115,18 @@ public class SlaDispatchController : ControllerBase
     }
 }
 
-/// <summary>完工请求体</summary>
+/// <summary>完工请求体（DORM-28）</summary>
 public class CompleteRepairRequest
 {
     /// <summary>维修处理描述</summary>
     [Required(ErrorMessage = "维修描述不能为空")]
     [StringLength(500, ErrorMessage = "维修描述最长500字")]
-    public string ProcessDesc { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>维修结果（可选）</summary>
+    [StringLength(200, ErrorMessage = "维修结果最长200字")]
+    public string? Result { get; set; }
+
+    /// <summary>解决时间（可选，默认当前时间）</summary>
+    public DateTime? SolveTime { get; set; }
 }
