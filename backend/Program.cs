@@ -96,6 +96,7 @@ builder.Services.AddScoped<IStudentReportService, StudentReportService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
+builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
@@ -162,6 +163,18 @@ builder.Services.AddQuartz(q =>
     q.AddJob<AutoCompleteJob>(opts => opts.WithIdentity(autoKey));
     q.AddTrigger(opts => opts.ForJob(autoKey).WithIdentity("AutoCompleteTrigger")
         .WithCronSchedule("0/15 * * * * ?", x => x.InTimeZone(tz)));
+
+    // --- 难点⑤ SLA派单补齐：每 30 秒兜底扫描未指派工单 ---
+    var assignKey = new JobKey("TicketAssignJob");
+    q.AddJob<TicketAssignJob>(opts => opts.WithIdentity(assignKey));
+    q.AddTrigger(opts => opts.ForJob(assignKey).WithIdentity("TicketAssignTrigger")
+        .WithCronSchedule("0/30 * * * * ?", x => x.InTimeZone(tz)));
+
+    // --- 难点⑤ SLA升级巡检：每 15 分钟扫描普通超时工单 ---
+    var escalateKey = new JobKey("SlaEscalationJob");
+    q.AddJob<SlaEscalationJob>(opts => opts.WithIdentity(escalateKey));
+    q.AddTrigger(opts => opts.ForJob(escalateKey).WithIdentity("SlaEscalateTrigger")
+        .WithCronSchedule("0 0/15 * * * ?", x => x.InTimeZone(tz)));
 });
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
