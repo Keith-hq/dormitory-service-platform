@@ -1,0 +1,31 @@
+-- 扩展表迁移 018：D_Student 增加 Email（邮箱）列。
+-- 在已有环境上执行于 ddl/extensions/017_d_leave_application_reason.sql 之后；
+-- 全量重建时执行顺序为 foundation/001 -> extensions/010 -> extensions/011
+--   -> extensions/012 -> extensions/013 -> extensions/014 -> extensions/015
+--   -> extensions/016 -> extensions/017 -> extensions/018。
+-- 本脚本只 ALTER 基线表 D_Student 加列，不重建、不改写既有列。
+--
+-- 变更依据（C-027，2026-08-11 确认）：
+--   PRD-1.1、功能范围裁决 S-01 与锁定 Apifox 契约 STU-01 均要求学生
+--   修改手机号和邮箱；foundation D_Student 当前只有 Phone，没有 Email，邮箱
+--   无法持久化。受影响接口：STU-01、SUPER-03-create、SUPER-03-update。
+--
+-- 语义说明：
+--   Email 可空：既有学生数据和未填写邮箱的新增学生均允许为空。
+--   VARCHAR2(200 CHAR) 显式字符长度：本实例 NLS_LENGTH_SEMANTICS=BYTE（C-018），
+--   使用 CHAR 语义与锁定契约的字符串长度口径及迁移 013/017 保持一致。
+--   邮箱格式与唯一性当前未被数据库基线裁决，继续由接口校验；本迁移不新增
+--   CHECK 或 UNIQUE 约束。
+--
+-- 执行方式（DBeaver，JDBC 连接）：
+--   单条 ALTER 语句，选中执行（Ctrl+Enter）即可，不带 "/"。
+--
+-- 重复执行说明：
+--   ALTER TABLE ADD COLUMN 非幂等，重复执行报 ORA-01430（column already
+--   exists）；已执行环境跳过本脚本即可。
+--
+-- 验证：重跑 database/verify/extension_schema_checks.sql，确认新增的第 16
+--   部分输出 D_Student 的 EMAIL 列 1 行，且 NULLABLE='Y'、CHAR_USED='C'、
+--   CHAR_LENGTH=200。
+ALTER TABLE D_Student
+    ADD (Email VARCHAR2(200 CHAR));
