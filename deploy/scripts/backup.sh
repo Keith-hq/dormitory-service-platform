@@ -17,8 +17,12 @@ set -euo pipefail
 #   BACKUP_DIR_OVERRIDE  宿主机备份目录（默认 /opt/dorm-platform/backup）
 #   DB_CONTAINER         Oracle 容器名（默认 dorm-oracle-db）
 #   API_CONTAINER        后端容器名（默认 dorm-api）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 BACKUP_DIR="${BACKUP_DIR_OVERRIDE:-/opt/dorm-platform/backup}"
 CONTAINER="${DB_CONTAINER:-dorm-oracle-db}"
+# 服务名参数化（旧容器可能注册为小写 dormpdb）
+DB_SERVICE="${DB_SERVICE:-DORMPDB}"
 RETENTION_DAYS=7
 TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
 
@@ -31,20 +35,35 @@ echo "=========================================="
 
 # ---- 前置检查 ----
 # 注意：不 source docker/.env —— .env 中的密钥可能含 shell 特殊字符
-# （! @ # $ % ^ & * 等），source 会破坏脚本解析。密码一律通过容器内
-# 环境变量 $ORACLE_PASSWORD 解析（gvenzl 镜像自带，与 .env 注入值相同）。
-if ! docker exec "$CONTAINER" healthcheck.sh >/dev/null 2>&1; then
+# （! @ # $ % ^ & * 等），source 会破坏脚本解析。密码用 grep 提取，
+# 连接一律用 sqlplus CONNECT 命令 / expdp 引号 userid（@ 安全）。
+if [ ! -f "$SCRIPT_DIR/../docker/.env" ]; then
+    echo "❌ docker/.env 不存在，无法获取 ORACLE_PASSWORD"
+    exit 1
+fi
+DB_PASSWORD=$(grep -E '^ORACLE_PASSWORD=' "$SCRIPT_DIR/../docker/.env" | head -1 | cut -d= -f2-)
+DB_PASSWORD="${DB_PASSWORD%$'\r'}"
+if [ -z "$DB_PASSWORD" ]; then
+    echo "❌ docker/.env 中未找到 ORACLE_PASSWORD"
+    exit 1
+fi
+
+# 就绪探测用 sysdba OS 认证（不依赖监听服务名/healthcheck.sh）
+if ! echo "SELECT 1 FROM dual; EXIT;" | \
+    docker exec -i "$CONTAINER" bash -c 'sqlplus -S -L / as sysdba' >/dev/null 2>&1; then
     echo "❌ Oracle 容器未就绪，备份中止"
     exit 1
 fi
 
 # ---- 1. 查询容器内 DATA_PUMP_DIR 实际路径 ----
 echo "[1/4] 定位 DATA_PUMP_DIR..."
-DP_DIR=$(docker exec "$CONTAINER" bash -c "sqlplus -S -L SYSTEM/\"\$ORACLE_PASSWORD\"@localhost:1521/DORMPDB <<'EOSQL' | tr -d '[:space:]'
+DP_DIR=$(docker exec -i "$CONTAINER" bash -c 'sqlplus -S -L /nolog' <<EOSQL | tr -d '[:space:]' | tail -1
+CONNECT SYSTEM/"$DB_PASSWORD"@localhost:1521/$DB_SERVICE
 SET HEADING OFF FEEDBACK OFF PAGESIZE 0
 SELECT directory_path FROM dba_directories WHERE directory_name = 'DATA_PUMP_DIR';
 EXIT;
-EOSQL")
+EOSQL
+)
 if [ -z "$DP_DIR" ] || [[ "$DP_DIR" == ORA-* ]]; then
     echo "❌ 无法查询 DATA_PUMP_DIR（返回: $DP_DIR）"
     exit 1
@@ -56,8 +75,10 @@ echo "[2/4] Oracle 数据泵导出..."
 DUMP_NAME="dormdb_${TIMESTAMP}"
 LOG_NAME="dormdb_${TIMESTAMP}.log"
 
+# userid 用单引号包裹、密码保留双引号：expdp 与 sqlplus 相同，
+# 含 @ 的密码必须带引号，否则 userid 被按 @ 错误分割
 if ! docker exec "$CONTAINER" bash -c \
-    "expdp DORM_OPER/\"\$ORACLE_PASSWORD\"@localhost:1521/DORMPDB DIRECTORY=DATA_PUMP_DIR DUMPFILE=\"$DUMP_NAME.dmp\" LOGFILE=\"$LOG_NAME\" SCHEMAS=DORM_OPER"; then
+    "expdp 'DORM_OPER/\"$DB_PASSWORD\"@localhost:1521/$DB_SERVICE' DIRECTORY=DATA_PUMP_DIR DUMPFILE=\"$DUMP_NAME.dmp\" LOGFILE=\"$LOG_NAME\" SCHEMAS=DORM_OPER"; then
     echo "❌ expdp 导出失败（退出码非零）"
     exit 1
 fi

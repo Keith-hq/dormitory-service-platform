@@ -16,7 +16,8 @@
 # 错误策略：任何 SQL 失败 → sqlplus 非零退出 → 脚本立即中止（set -euo pipefail）
 # 幂等策略：仅两类操作允许重复执行（白名单）——
 #   a) 授权语句（GRANT 天然幂等）
-#   b) 序列创建（先查 user_sequences 存在性再建，无 WHEN OTHERS 吞错）
+#   b) 序列与主键触发器创建（先查 user_sequences/user_triggers 存在性再建，
+#      无 WHEN OTHERS 吞错）
 #   DDL 仅在空 schema（user_tables=0）时执行；已初始化则明确跳过。
 # ============================================================
 
@@ -26,6 +27,22 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DB_DIR="$SCRIPT_DIR/../../database"
 # 容器名可用环境变量覆盖（本地验证时避免与开发实例冲突）
 CONTAINER="${DB_CONTAINER:-dorm-oracle-db}"
+# 服务名参数化：gvenzl 监听注册的服务名随实例配置大小写不同
+# （云端 compose 为 DORMPDB；旧本地容器可能注册为小写 dormpdb）
+DB_SERVICE="${DB_SERVICE:-DORMPDB}"
+
+# 密码从 docker/.env 提取（grep 而非 source——不做 shell 解析，
+# 兼容 ! @ # $ % ^ & * 等特殊字符；CRLF 行尾一并剥除）
+if [ ! -f "$SCRIPT_DIR/../docker/.env" ]; then
+    echo "❌ docker/.env 不存在，无法获取 ORACLE_PASSWORD"
+    exit 1
+fi
+DB_PASSWORD=$(grep -E '^ORACLE_PASSWORD=' "$SCRIPT_DIR/../docker/.env" | head -1 | cut -d= -f2-)
+DB_PASSWORD="${DB_PASSWORD%$'\r'}"
+if [ -z "$DB_PASSWORD" ]; then
+    echo "❌ docker/.env 中未找到 ORACLE_PASSWORD"
+    exit 1
+fi
 
 echo "=========================================="
 echo "  Dormitory Platform - 数据库初始化"
@@ -33,25 +50,37 @@ echo "  时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "=========================================="
 
 # ---- sqlplus 执行封装：注入 WHENEVER SQLERROR，错误即非零退出 ----
-run_sql() {   # $1=文件  $2=连接串（如 DORM_OPER/...@localhost:1521/DORMPDB）
-    local f="$1" conn="$2"
-    { echo "WHENEVER SQLERROR EXIT SQL.SQLCODE"; cat "$f"; } | \
-        docker exec -i "$CONTAINER" bash -c "sqlplus -S -L \"$conn\""
+# 连接采用 /nolog + SQL 内 CONNECT 命令：密码以双引号包裹直达 sqlplus 层，
+# 含 @ 等特殊字符的密码安全（命令行参数方式会被 sqlplus 按第一个 @ 分割破坏）
+run_sql() {   # $1=文件  $2=用户（SYSTEM / DORM_OPER）
+    local f="$1" user="$2"
+    { echo "WHENEVER SQLERROR EXIT SQL.SQLCODE"
+      echo "CONNECT $user/\"$DB_PASSWORD\"@localhost:1521/$DB_SERVICE"
+      cat "$f"; } | \
+        docker exec -i "$CONTAINER" bash -c 'sqlplus -S -L /nolog'
 }
 
 run_sql_system() {  # 以 SYSTEM 执行（密码与 ORACLE_PASSWORD 相同，gvenzl 约定）
-    run_sql "$1" "SYSTEM/\${ORACLE_PASSWORD}@localhost:1521/DORMPDB"
+    run_sql "$1" SYSTEM
 }
 
 run_sql_oper() {    # 以 DORM_OPER 执行（密码 = APP_USER_PASSWORD = ORACLE_PASSWORD）
-    run_sql "$1" "DORM_OPER/\${ORACLE_PASSWORD}@localhost:1521/DORMPDB"
+    run_sql "$1" DORM_OPER
+}
+
+# 查询封装：输出仅保留最后一个非空值（供 CNT 类判断）
+run_query() {   # $1=用户  $2=SQL文件
+    run_sql "$2" "$1" | tr -d '[:space:]' | tail -1
 }
 
 # ---- [1/6] 等待 Oracle 就绪（有上限，失败即退出）----
+# 用 sysdba OS 认证探测（不依赖监听服务名/healthcheck 脚本，
+# 旧容器 ORACLE_DATABASE 与实际 PDB 名不一致时 healthcheck.sh 会误报失败）
 echo "[1/6] 等待 Oracle 就绪..."
 READY=0
 for i in $(seq 1 36); do
-    if docker exec "$CONTAINER" healthcheck.sh >/dev/null 2>&1; then
+    if echo "SELECT 1 FROM dual; EXIT;" | \
+        docker exec -i "$CONTAINER" bash -c 'sqlplus -S -L / as sysdba' >/dev/null 2>&1; then
         READY=1
         break
     fi
@@ -66,17 +95,19 @@ echo "  ✓ Oracle 已就绪"
 
 # ---- [2/6] 等待 DORM_OPER 出现并补齐授权（SYSTEM，幂等）----
 echo "[2/6] 确认 DORM_OPER 存在并授权..."
-USER_READY=0
-for i in $(seq 1 12); do
-    CNT=$(docker exec "$CONTAINER" bash -c "sqlplus -S -L SYSTEM/\${ORACLE_PASSWORD}@localhost:1521/DORMPDB <<'EOSQL' | tr -d '[:space:]'
+cat > /tmp/initdb_check_user.sql <<'EOSQL'
 SET HEADING OFF FEEDBACK OFF PAGESIZE 0
 SELECT COUNT(*) FROM dba_users WHERE username = 'DORM_OPER';
 EXIT;
-EOSQL")
+EOSQL
+USER_READY=0
+for i in $(seq 1 12); do
+    CNT=$(run_query SYSTEM /tmp/initdb_check_user.sql)
     if [ "$CNT" = "1" ]; then USER_READY=1; break; fi
     echo "  … DORM_OPER 尚未创建（$i/12），5 秒后重试"
     sleep 5
 done
+rm -f /tmp/initdb_check_user.sql
 if [ "$USER_READY" -ne 1 ]; then
     echo "❌ DORM_OPER 未由镜像自动创建。请检查 docker-compose.yml 中"
     echo "   APP_USER / APP_USER_PASSWORD 环境变量，并确认使用了全新数据卷"
@@ -99,11 +130,13 @@ echo "  ✓ DORM_OPER 存在，授权完成"
 
 # ---- [3/6] DDL + 存储过程（仅空 schema 执行）----
 echo "[3/6] 检查 schema 状态..."
-TABLE_CNT=$(docker exec "$CONTAINER" bash -c "sqlplus -S -L DORM_OPER/\${ORACLE_PASSWORD}@localhost:1521/DORMPDB <<'EOSQL' | tr -d '[:space:]'
+cat > /tmp/initdb_table_cnt.sql <<'EOSQL'
 SET HEADING OFF FEEDBACK OFF PAGESIZE 0
 SELECT COUNT(*) FROM user_tables;
 EXIT;
-EOSQL")
+EOSQL
+TABLE_CNT=$(run_query DORM_OPER /tmp/initdb_table_cnt.sql)
+rm -f /tmp/initdb_table_cnt.sql
 
 SCRIPTS=(
     # 基础表
@@ -141,7 +174,7 @@ else
 fi
 
 # ---- [4/6] 序列补建（幂等白名单：先查存在性）----
-echo "[4/6] 序列存在性检查与补建..."
+echo "[4/6] 序列与主键触发器检查与补建..."
 cat > /tmp/initdb_seq.sql <<'EOSQL'
 DECLARE
   cnt NUMBER;
@@ -154,13 +187,32 @@ BEGIN
 
   SELECT COUNT(*) INTO cnt FROM user_sequences WHERE sequence_name = 'SEQ_D_ASSET';
   IF cnt = 0 THEN EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_D_ASSET START WITH 1 INCREMENT BY 1 NOCACHE'; END IF;
+
+  -- 主键生成触发器（幂等白名单：先查 user_triggers 存在性）。
+  -- D_Building/D_Room/D_Asset 的 NUMBER 主键无 IDENTITY 也无生成触发器，
+  -- EF 按 identity 语义省略主键列 → 插入 NULL → ORA-01400（API 新增 500）。
+  -- 触发器在 NEW 值为 NULL 时才赋序列值，手工指定 ID 的插入不受影响。
+  SELECT COUNT(*) INTO cnt FROM user_triggers WHERE trigger_name = 'TRG_D_BUILDING_ID_BI';
+  IF cnt = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE TRIGGER TRG_D_BUILDING_ID_BI BEFORE INSERT ON D_Building FOR EACH ROW WHEN (NEW.Building_ID IS NULL) BEGIN SELECT SEQ_D_BUILDING.NEXTVAL INTO :NEW.Building_ID FROM dual; END;';
+  END IF;
+
+  SELECT COUNT(*) INTO cnt FROM user_triggers WHERE trigger_name = 'TRG_D_ROOM_ID_BI';
+  IF cnt = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE TRIGGER TRG_D_ROOM_ID_BI BEFORE INSERT ON D_Room FOR EACH ROW WHEN (NEW.Room_ID IS NULL) BEGIN SELECT SEQ_D_ROOM.NEXTVAL INTO :NEW.Room_ID FROM dual; END;';
+  END IF;
+
+  SELECT COUNT(*) INTO cnt FROM user_triggers WHERE trigger_name = 'TRG_D_ASSET_ID_BI';
+  IF cnt = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE TRIGGER TRG_D_ASSET_ID_BI BEFORE INSERT ON D_Asset FOR EACH ROW WHEN (NEW.Asset_ID IS NULL) BEGIN SELECT SEQ_D_ASSET.NEXTVAL INTO :NEW.Asset_ID FROM dual; END;';
+  END IF;
 END;
 /
 EXIT;
 EOSQL
 run_sql_oper /tmp/initdb_seq.sql
 rm -f /tmp/initdb_seq.sql
-echo "  ✓ 序列检查完成"
+echo "  ✓ 序列与触发器检查完成"
 
 # ---- [5/6] 校验脚本（严格模式：任一异常即失败）----
 echo "[5/6] 执行校验脚本..."
@@ -183,11 +235,13 @@ echo "  ✓ 全部校验通过"
 echo "[6/6] 数据库初始化完成！"
 echo ""
 echo "  对象统计:"
-docker exec "$CONTAINER" bash -c "sqlplus -S -L DORM_OPER/\${ORACLE_PASSWORD}@localhost:1521/DORMPDB <<'EOSQL'
+cat > /tmp/initdb_summary.sql <<'EOSQL'
 SET HEADING OFF FEEDBACK OFF PAGESIZE 0
 SELECT '表: ' || COUNT(*) FROM user_tables;
 SELECT '序列: ' || COUNT(*) FROM user_sequences;
 SELECT '存储过程: ' || COUNT(*) FROM user_procedures WHERE object_type = 'PROCEDURE';
 EXIT;
-EOSQL"
+EOSQL
+run_sql_oper /tmp/initdb_summary.sql
+rm -f /tmp/initdb_summary.sql
 echo "=========================================="
