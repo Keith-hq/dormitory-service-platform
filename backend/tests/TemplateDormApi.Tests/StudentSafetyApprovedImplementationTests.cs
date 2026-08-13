@@ -121,6 +121,15 @@ public sealed class StudentSafetyApprovedImplementationTests
     {
         await using var context = TestDbContextFactory.Create();
         context.Students.Add(new Student { StudentId = "20260001", Name = "测试学生" });
+        AddStudentAccount(context, 101, "20260001");
+        context.UserAccounts.Add(new UserAccount
+        {
+            AccountId = 201,
+            LoginName = "admin-a001",
+            PasswordHash = "test-only",
+            AccountStatus = "正常",
+            AdminId = "A001"
+        });
         await context.SaveChangesAsync();
         var service = new LateEntryService(
             new LateEntryRepository(context),
@@ -128,20 +137,28 @@ public sealed class StudentSafetyApprovedImplementationTests
         var lateTime = DateTime.Today.AddDays(-1).AddHours(23).AddMinutes(45);
 
         var created = await service.CreateAsync(
+            201,
             new CreateLateEntryRequest { StudentId = "20260001", RecordTime = lateTime },
             CancellationToken.None);
         var tooEarly = await Assert.ThrowsAsync<BusinessException>(() =>
             service.CreateAsync(
+                201,
                 new CreateLateEntryRequest
                 {
                     StudentId = "20260001",
                     RecordTime = DateTime.Today.AddDays(-1).AddHours(22)
                 },
                 CancellationToken.None));
+        var studentError = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.CreateAsync(
+                101,
+                new CreateLateEntryRequest { StudentId = "20260001", RecordTime = lateTime },
+                CancellationToken.None));
 
         Assert.True(created.RecordId > 0);
         Assert.Null(created.Reason);
         Assert.Equal(StatusCodes.Status400BadRequest, tooEarly.HttpStatus);
+        Assert.Equal(StatusCodes.Status403Forbidden, studentError.HttpStatus);
     }
 
     [Fact]

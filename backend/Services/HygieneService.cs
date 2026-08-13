@@ -13,7 +13,7 @@ public interface IHygieneService
         bool isDormAdmin,
         CancellationToken cancellationToken);
     Task<HygieneRecordDto> CreateAsync(int accountId, CreateHygieneRecordRequest request, CancellationToken cancellationToken);
-    Task<HygieneRecordDto> UpdateAsync(long recordId, UpdateHygieneRecordRequest request, CancellationToken cancellationToken);
+    Task<HygieneRecordDto> UpdateAsync(long recordId, int accountId, UpdateHygieneRecordRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyList<HygieneRankingDto>> GetRankingsAsync(HygieneRankingQueryDto query, int accountId, bool isDormAdmin, CancellationToken cancellationToken);
 }
 
@@ -77,9 +77,13 @@ public sealed class HygieneService : IHygieneService
 
     public async Task<HygieneRecordDto> UpdateAsync(
         long recordId,
+        int accountId,
         UpdateHygieneRecordRequest request,
         CancellationToken cancellationToken)
     {
+        var adminId = await _repository.GetAdminIdAsync(accountId, cancellationToken)
+            ?? throw new BusinessException(403, "当前账户未关联宿管身份", StatusCodes.Status403Forbidden);
+
         var record = await _repository.FindByIdAsync(recordId, cancellationToken)
             ?? throw new BusinessException(404, "卫生评分记录不存在", StatusCodes.Status404NotFound);
 

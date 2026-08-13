@@ -140,6 +140,14 @@ public sealed class StudentSafetyImplementationTests
     {
         await using var context = TestDbContextFactory.Create();
         AddStudentAccount(context, 101, "20260001");
+        context.UserAccounts.Add(new UserAccount
+        {
+            AccountId = 201,
+            LoginName = "admin-a001",
+            PasswordHash = "test-only",
+            AccountStatus = "正常",
+            AdminId = "A001"
+        });
         var now = DateTime.Now;
         context.BedAllocations.Add(new BedAllocation
         {
@@ -181,6 +189,7 @@ public sealed class StudentSafetyImplementationTests
             CancellationToken.None);
         var updated = await service.UpdateAsync(
             1,
+            201,
             new UpdateHygieneRecordRequest { Score = 92, Comment = "整改完成" },
             CancellationToken.None);
 
@@ -193,9 +202,18 @@ public sealed class StudentSafetyImplementationTests
         var expiredError = await Assert.ThrowsAsync<BusinessException>(() =>
             service.UpdateAsync(
                 2,
+                201,
                 new UpdateHygieneRecordRequest { Score = 95 },
                 CancellationToken.None));
         Assert.Equal(StatusCodes.Status409Conflict, expiredError.HttpStatus);
+
+        var studentError = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.UpdateAsync(
+                1,
+                101,
+                new UpdateHygieneRecordRequest { Score = 96 },
+                CancellationToken.None));
+        Assert.Equal(StatusCodes.Status403Forbidden, studentError.HttpStatus);
     }
 
     [Fact]

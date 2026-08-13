@@ -9,7 +9,7 @@ public interface ILateEntryService
 {
     Task<PagedResult<LateEntryDto>> GetStudentEntriesAsync(string studentId, int accountId, LateEntryQueryDto query, CancellationToken cancellationToken);
     Task<LateEntryDto> UpdateReasonAsync(long recordId, int accountId, UpdateLateEntryReasonRequest request, CancellationToken cancellationToken);
-    Task<LateEntryDto> CreateAsync(CreateLateEntryRequest request, CancellationToken cancellationToken);
+    Task<LateEntryDto> CreateAsync(int accountId, CreateLateEntryRequest request, CancellationToken cancellationToken);
 }
 
 public sealed class LateEntryService : ILateEntryService
@@ -61,8 +61,17 @@ public sealed class LateEntryService : ILateEntryService
         return await _repository.UpdateReasonAsync(entry, reason, cancellationToken);
     }
 
-    public async Task<LateEntryDto> CreateAsync(CreateLateEntryRequest request, CancellationToken cancellationToken)
+    public async Task<LateEntryDto> CreateAsync(
+        int accountId,
+        CreateLateEntryRequest request,
+        CancellationToken cancellationToken)
     {
+        var adminId = await _repository.GetAdminIdAsync(accountId, cancellationToken);
+        if (adminId is null)
+        {
+            throw new BusinessException(403, "当前账户未关联宿管身份", StatusCodes.Status403Forbidden);
+        }
+
         if (request.RecordTime.TimeOfDay < new TimeSpan(23, 30, 0))
         {
             throw new BusinessException(400, "仅登记 23:30 后的晚归记录");

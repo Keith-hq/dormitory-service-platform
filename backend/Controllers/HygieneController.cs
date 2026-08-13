@@ -64,7 +64,13 @@ public sealed class HygieneController : ControllerBase
         [FromBody] UpdateHygieneRecordRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.UpdateAsync(recordId, request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.UpdateAsync(recordId, accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "卫生评分修改成功"));
     }
 

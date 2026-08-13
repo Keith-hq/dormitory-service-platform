@@ -60,7 +60,13 @@ public sealed class LateEntryController : ControllerBase
         [FromBody] CreateLateEntryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.CreateAsync(request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.CreateAsync(accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "晚归登记成功"));
     }
 }

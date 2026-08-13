@@ -9,6 +9,12 @@ public sealed class LateEntryRepository : FrameworkRepositoryBase
 {
     public LateEntryRepository(AppDbContext context) : base(context) { }
 
+    public Task<string?> GetAdminIdAsync(int accountId, CancellationToken cancellationToken)
+        => DbContext.UserAccounts.AsNoTracking()
+            .Where(item => item.AccountId == accountId && item.AccountStatus == "正常")
+            .Select(item => item.AdminId)
+            .SingleOrDefaultAsync(cancellationToken);
+
     public async Task<PagedResult<LateEntryDto>> GetStudentEntriesAsync(
         string studentId,
         LateEntryQueryDto query,
