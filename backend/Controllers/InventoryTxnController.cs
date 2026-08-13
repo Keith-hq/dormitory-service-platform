@@ -75,14 +75,18 @@ public class InventoryTxnController : ControllerBase
 
         var (rc, loanId) = await _service.BorrowItem(req.ItemId, studentId, idempotencyKey);
 
-        var msgs = new[] { "借用成功", "物品不存在", "物品已停用", "库存不足", "信用分不足（低于60）" };
+        var msgs = new[]
+        {
+            "借用成功", "物品不存在", "物品已停用", "库存不足", "信用分不足（低于60）",
+            "Idempotency-Key 已被使用且请求内容不一致"
+        };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
             ? Ok(ApiResponse.Ok(new { loanId }, msg))
             : Ok(ApiResponse.Error(400, msg));
     }
 
-    /// <summary>STU-26：归还共享物品（校验 Student_ID 归属）</summary>
+    /// <summary>STU-26：归还共享物品（校验 Student_ID 归属，超期归还按次扣 2 分）</summary>
     [HttpPost("item-loans/{loanId}/return")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> Return(int loanId)
@@ -94,14 +98,23 @@ public class InventoryTxnController : ControllerBase
             : Ok(ApiResponse.Error(400, "借出记录不存在、已归还或非本人操作"));
     }
 
-    /// <summary>STU-27：查询当前学生借还记录</summary>
-    [HttpGet("item-loans")]
+    /// <summary>STU-27：查询学生借还记录（分页，仅本人可见）</summary>
+    [HttpGet("students/{studentId}/item-loans")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<object>>> GetItemLoans()
+    public async Task<ActionResult<ApiResponse<object>>> GetItemLoans(
+        string studentId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
-        var studentId = await ResolveStudentId();
-        var loans = await _service.GetItemLoans(studentId);
-        return Ok(ApiResponse.Ok(loans));
+        var currentStudentId = await ResolveStudentId();
+        if (!string.Equals(studentId, currentStudentId, StringComparison.Ordinal))
+            return Ok(ApiResponse.Error(403, "无权查看他人的借还记录"));
+
+        if (page < 1 || pageSize < 1 || pageSize > 100)
+            return Ok(ApiResponse.Error(400, "分页参数不合法：page 从 1 开始，pageSize 范围 1~100"));
+
+        var result = await _service.GetItemLoans(studentId, page, pageSize);
+        return Ok(ApiResponse.Ok(result));
     }
 
     // ==================== 宿管端 ====================
@@ -118,7 +131,7 @@ public class InventoryTxnController : ControllerBase
             return Ok(ApiResponse.Error(400, "缺少 Idempotency-Key 请求头"));
 
         var rc = await _service.ConsumeMaterial(req.MaterialId, ticketId, req.Quantity, idempotencyKey);
-        var msgs = new[] { "出库成功", "耗材不存在", "库存不足" };
+        var msgs = new[] { "出库成功", "耗材不存在", "库存不足", "Idempotency-Key 已被使用且请求内容不一致" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, msg))

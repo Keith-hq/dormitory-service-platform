@@ -4,8 +4,9 @@ using TemplateDormApi.Services;
 namespace TemplateDormApi.Jobs;
 
 /// <summary>
-/// 共享物品逾期巡检——每15分钟扫描未归还的超期记录并扣信用分（难点④）。
-/// SP_Check_Overdue 内部通过 Event_Key 幂等：同一 Loan_ID 每天只扣一次。
+/// 共享物品逾期巡检——每15分钟扫描未归还的超期记录，给借款人发逾期提醒（难点④）。
+/// 不扣信用分：超期归还按次扣 2 分由归还路径经信用分统一入口完成（PRD 规则）。
+/// SP_Check_Overdue 按"同一笔借出同一天一条"去重提醒。
 /// </summary>
 [DisallowConcurrentExecution]
 public class OverdueCheckJob : IJob
