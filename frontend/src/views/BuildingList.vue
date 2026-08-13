@@ -49,12 +49,15 @@
     <Teleport to="body">
       <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
         <form
+          ref="modalElement"
           class="modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="building-modal-title"
+          tabindex="-1"
           @submit.prevent="submit"
           @keydown.esc.stop.prevent="closeModal"
+          @keydown.tab="trapModalFocus"
         >
           <header class="modal-header">
             <div>
@@ -113,7 +116,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { buildingApi } from '@/api/building'
 import { CrudTable, PageHeader, SearchForm, StatusTag } from '@/components'
 
@@ -146,8 +149,11 @@ const showModal = ref(false)
 const isEdit = ref(false)
 const editId = ref(null)
 const submitting = ref(false)
+const modalElement = ref(null)
 const buildingNameInput = ref(null)
 let modalTrigger = null
+let inertBackground = null
+let backgroundWasInert = false
 const form = reactive({
   buildingName: '',
   buildingType: '男生宿舍',
@@ -199,6 +205,28 @@ const onReset = () => {
 }
 
 // ===== 新增 =====
+const isolateBackground = () => {
+  const appElement = document.querySelector('#app')
+  if (!appElement || inertBackground) return
+
+  inertBackground = appElement
+  backgroundWasInert = appElement.inert
+  appElement.inert = true
+}
+
+const restoreBackground = () => {
+  if (!inertBackground) return
+
+  inertBackground.inert = backgroundWasInert
+  inertBackground = null
+  backgroundWasInert = false
+}
+
+const focusModal = () => {
+  isolateBackground()
+  nextTick(() => buildingNameInput.value?.focus())
+}
+
 const openCreateModal = () => {
   modalTrigger = document.activeElement
   isEdit.value = false
@@ -207,7 +235,7 @@ const openCreateModal = () => {
   form.buildingType = '男生宿舍'
   form.floorCount = 6
   showModal.value = true
-  nextTick(() => buildingNameInput.value?.focus())
+  focusModal()
 }
 
 // ===== 编辑 =====
@@ -219,7 +247,7 @@ const openEditModal = (row) => {
   form.buildingType = row.buildingType
   form.floorCount = row.floorCount
   showModal.value = true
-  nextTick(() => buildingNameInput.value?.focus())
+  focusModal()
 }
 
 // ===== 提交 =====
@@ -263,9 +291,46 @@ const handleDelete = async (row) => {
 }
 
 // ===== 弹窗 =====
+const focusableSelector = [
+  'button:not([disabled])',
+  '[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])'
+].join(',')
+
+const trapModalFocus = (event) => {
+  const modal = modalElement.value
+  if (!modal) return
+
+  const focusableElements = [...modal.querySelectorAll(focusableSelector)].filter(
+    (element) => element.getAttribute('aria-hidden') !== 'true'
+  )
+
+  if (focusableElements.length === 0) {
+    event.preventDefault()
+    modal.focus()
+    return
+  }
+
+  const firstElement = focusableElements[0]
+  const lastElement = focusableElements.at(-1)
+  const activeElement = document.activeElement
+
+  if (event.shiftKey && (activeElement === firstElement || !modal.contains(activeElement))) {
+    event.preventDefault()
+    lastElement.focus()
+  } else if (!event.shiftKey && activeElement === lastElement) {
+    event.preventDefault()
+    firstElement.focus()
+  }
+}
+
 const closeModal = () => {
   if (!showModal.value) return
   showModal.value = false
+  restoreBackground()
   nextTick(() => {
     modalTrigger?.focus?.()
     modalTrigger = null
@@ -275,6 +340,10 @@ const closeModal = () => {
 // ===== 初始化 =====
 onMounted(() => {
   fetchData()
+})
+
+onBeforeUnmount(() => {
+  restoreBackground()
 })
 </script>
 
