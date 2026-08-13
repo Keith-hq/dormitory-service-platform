@@ -2,8 +2,8 @@
 # CI/CD 自动化流水线（阶段二：编译 → 构建镜像 → 推送 → 部署）
 # ============================================================
 # 触发器：
-#   push develop → 编译 + 构建镜像 + 推送
-#   PR master/develop → 仅编译检查（不推送镜像）
+#   push develop → 编译 + 构建镜像 + 推送 GHCR + SSH 部署
+#   PR master/develop → 编译 + 构建镜像验证（不推送、不部署）
 #
 # 流程：
 #   1. 编译后端 .NET 项目 → 输出 dll
@@ -26,8 +26,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  API_IMAGE_NAME: ${{ github.repository_owner }}/dorm-api
-  WEB_IMAGE_NAME: ${{ github.repository_owner }}/dorm-web
+  # GHCR 要求仓库名全小写：github.repository_owner 会保留原始大小写
+  # （Keith-hq）导致 buildx 拒绝，故此处硬编码小写
+  API_IMAGE_NAME: keith-hq/dorm-api
+  WEB_IMAGE_NAME: keith-hq/dorm-web
 
 jobs:
   # ==========================================
