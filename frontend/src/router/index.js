@@ -1,11 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getSafeAuthRedirect } from '@/router/authRedirect'
+import { getRoleHome, isRoleAllowed } from '@/router/roleAccess'
 import { useUserStore } from '@/store/user'
 
 const routes = [
   {
     path: '/',
-    redirect: '/building'
+    name: 'Workspace',
+    component: () => import('@/views/RoleDashboard.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/login',
@@ -14,14 +17,38 @@ const routes = [
     meta: { public: true, layout: 'auth' }
   },
   {
+    path: '/student',
+    name: 'StudentHome',
+    component: () => import('@/views/RoleDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['student'] }
+  },
+  {
+    path: '/student/services',
+    name: 'StudentServices',
+    component: () => import('@/views/StudentServicesView.vue'),
+    meta: { requiresAuth: true, roles: ['student'] }
+  },
+  {
+    path: '/admin',
+    name: 'AdminHome',
+    component: () => import('@/views/RoleDashboard.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
+  },
+  {
+    path: '/admin/operations',
+    name: 'AdminOperations',
+    component: () => import('@/views/AdminOperationsView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
+  },
+  {
     path: '/building',
     name: 'Building',
     component: () => import('@/views/BuildingList.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/building'
+    redirect: '/'
   }
 ]
 
@@ -32,6 +59,7 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const userStore = useUserStore()
+  const roleHome = getRoleHome(userStore.userInfo?.role)
 
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     return {
@@ -40,8 +68,16 @@ router.beforeEach((to) => {
     }
   }
 
+  if (to.name === 'Workspace' && userStore.isLoggedIn) {
+    return roleHome
+  }
+
+  if (to.meta.requiresAuth && !isRoleAllowed(userStore.userInfo?.role, to.meta.roles)) {
+    return roleHome
+  }
+
   if (to.name === 'Login' && userStore.isLoggedIn) {
-    return getSafeAuthRedirect(to.query.redirect)
+    return getSafeAuthRedirect(to.query.redirect, roleHome)
   }
 
   return true

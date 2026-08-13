@@ -1,4 +1,5 @@
 export { default as CrudTable } from './CrudTable.vue'
 export { default as PageHeader } from './PageHeader.vue'
+export { default as RecordsTable } from './RecordsTable.vue'
 export { default as SearchForm } from './SearchForm.vue'
 export { default as StatusTag } from './StatusTag.vue'

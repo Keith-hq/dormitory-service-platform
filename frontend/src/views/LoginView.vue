@@ -3,13 +3,19 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
 import { getSafeAuthRedirect } from '@/router/authRedirect'
+import { getRoleHome } from '@/router/roleAccess'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const mockEnabled = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true'
-const mockCredentials = import.meta.env.DEV ? { loginName: 'student001', password: '123456' } : null
+const mockAccounts = import.meta.env.DEV
+  ? [
+      { label: '学生', loginName: 'student001', password: '123456' },
+      { label: '宿管', loginName: 'admin001', password: '123456' }
+    ]
+  : []
 
 const loginName = ref('')
 const password = ref('')
@@ -18,6 +24,12 @@ const errorMessage = ref('')
 
 const clearError = () => {
   errorMessage.value = ''
+}
+
+const useMockAccount = (account) => {
+  loginName.value = account.loginName
+  password.value = account.password
+  clearError()
 }
 
 const submitLogin = async () => {
@@ -36,7 +48,9 @@ const submitLogin = async () => {
       password: password.value
     })
     userStore.setSession(session)
-    await router.replace(getSafeAuthRedirect(route.query.redirect))
+    await router.replace(
+      getSafeAuthRedirect(route.query.redirect, getRoleHome(session.userInfo.role))
+    )
   } catch (error) {
     errorMessage.value = error.message || '登录失败，请稍后重试'
   } finally {
@@ -105,9 +119,18 @@ const submitLogin = async () => {
       </form>
 
       <aside v-if="mockEnabled" class="mock-tip">
-        <strong>Mock 测试账号</strong>
-        <span>登录名：{{ mockCredentials.loginName }}</span>
-        <span>密码：{{ mockCredentials.password }}</span>
+        <strong>选择 Mock 角色</strong>
+        <span>测试密码统一为 123456</span>
+        <div class="mock-accounts">
+          <button
+            v-for="account in mockAccounts"
+            :key="account.loginName"
+            type="button"
+            @click="useMockAccount(account)"
+          >
+            {{ account.label }} · {{ account.loginName }}
+          </button>
+        </div>
       </aside>
     </section>
   </main>
@@ -317,6 +340,32 @@ const submitLogin = async () => {
   background: var(--color-brand-soft);
   color: var(--color-text);
   font-size: 13px;
+}
+
+.mock-accounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mock-accounts button {
+  min-height: 36px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-brand-strong);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mock-accounts button:hover,
+.mock-accounts button:focus-visible {
+  border-color: var(--color-brand);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
 }
 
 .mock-tip strong {

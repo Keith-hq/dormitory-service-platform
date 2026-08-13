@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 
 const TOKEN_KEY = 'token'
 const USER_INFO_KEY = 'userInfo'
+const SUPPORTED_ROLES = new Set(['student', 'admin', 'super_admin'])
 
 const getLocalStorage = () => {
   try {
@@ -46,9 +47,11 @@ const clearStoredSession = () => {
 const isValidUserInfo = (userInfo) => {
   if (!userInfo || typeof userInfo !== 'object' || Array.isArray(userInfo)) return false
 
-  return ['id', 'name', 'role'].every(
+  const hasRequiredFields = ['id', 'name', 'role'].every(
     (key) => typeof userInfo[key] === 'string' && userInfo[key].trim().length > 0
   )
+
+  return hasRequiredFields && SUPPORTED_ROLES.has(userInfo.role)
 }
 
 const readStoredSession = () => {

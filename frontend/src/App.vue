@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearSession } from '@/store/session'
 import { useUserStore } from '@/store/user'
+import { getRoleHome, ROLE_LABEL } from '@/router/roleAccess'
 
 const route = useRoute()
 const router = useRouter()
@@ -10,6 +11,23 @@ const userStore = useUserStore()
 
 const showAppShell = computed(() => route.meta.layout !== 'auth')
 const userInitial = computed(() => userStore.userName?.trim().slice(0, 1) || '用')
+const userRole = computed(() => userStore.userInfo?.role || '')
+const roleHome = computed(() => getRoleHome(userRole.value))
+const roleLabel = computed(() => ROLE_LABEL[userRole.value] || '平台用户')
+const navigation = computed(() => {
+  if (userRole.value === 'student') {
+    return [
+      { to: '/student', label: '生活首页' },
+      { to: '/student/services', label: '我的服务' }
+    ]
+  }
+
+  return [
+    { to: '/admin', label: '运营首页' },
+    { to: '/admin/operations', label: '值班工作台' },
+    { to: '/building', label: '楼栋档案' }
+  ]
+})
 
 const logout = async () => {
   await clearSession()
@@ -22,7 +40,7 @@ const logout = async () => {
   <div v-else class="app-shell">
     <header class="app-header">
       <div class="app-header__inner">
-        <router-link class="brand" to="/building" aria-label="返回宿舍服务台首页">
+        <router-link class="brand" :to="roleHome" aria-label="返回宿舍服务台首页">
           <span class="brand__mark" aria-hidden="true">舍</span>
           <span class="brand__copy">
             <strong>宿舍服务台</strong>
@@ -31,9 +49,9 @@ const logout = async () => {
         </router-link>
 
         <nav class="primary-nav" aria-label="主导航">
-          <router-link to="/building">
+          <router-link v-for="item in navigation" :key="item.to" :to="item.to">
             <span class="nav-dot" aria-hidden="true"></span>
-            楼栋档案
+            {{ item.label }}
           </router-link>
         </nav>
 
@@ -41,7 +59,7 @@ const logout = async () => {
           <span class="user-avatar" aria-hidden="true">{{ userInitial }}</span>
           <span class="user-copy">
             <strong>{{ userStore.userName || '已登录用户' }}</strong>
-            <small>当前账号</small>
+            <small>{{ roleLabel }}</small>
           </span>
           <button type="button" class="btn btn-ghost logout-button" @click="logout">退出</button>
         </div>
