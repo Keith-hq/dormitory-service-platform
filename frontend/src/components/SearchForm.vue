@@ -6,6 +6,13 @@
     @submit.prevent="submit"
     @reset.prevent="reset"
   >
+    <div class="search-intro" aria-hidden="true">
+      <span class="search-intro__mark">筛</span>
+      <span>
+        <strong>筛选与检索</strong>
+        <small>快速定位目标记录</small>
+      </span>
+    </div>
     <div class="search-fields">
       <slot :disabled="controlsDisabled"></slot>
     </div>
@@ -51,77 +58,95 @@ const reset = () => {
 
 <style scoped>
 .search-form {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 253, 248, 0.76);
+  box-shadow: 0 9px 30px rgba(31, 54, 52, 0.045);
+}
+
+.search-intro {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-  padding: 14px 16px;
-  border: 1px solid #e3e8ef;
-  border-radius: 10px;
-  background: #fbfcfe;
+  gap: var(--space-3);
+  padding-right: var(--space-5);
+  border-right: 1px solid var(--color-line);
 }
+
+.search-intro__mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px 3px 10px 3px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.search-intro > span:last-child {
+  display: grid;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.search-intro strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 14px;
+}
+
+.search-intro small {
+  color: var(--color-text-soft);
+  font-size: 10px;
+}
+
 .search-fields,
 .search-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
+
 .search-fields {
   flex: 1;
 }
+
 .search-actions {
   justify-content: flex-end;
 }
-.btn {
-  cursor: pointer;
-  min-height: 34px;
-  border: 1px solid #cfd7e3;
-  border-radius: 7px;
-  padding: 6px 15px;
-  background: #fff;
-  color: #344054;
-  font-size: 14px;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-}
-.btn:hover:not(:disabled) {
-  border-color: #1677ff;
-  color: #0958d9;
-}
-.btn:focus-visible {
-  outline: 2px solid rgba(22, 119, 255, 0.35);
-  outline-offset: 2px;
-}
-.btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-.btn-primary {
-  background: #1677ff;
-  color: #fff;
-  border-color: #1677ff;
-  box-shadow: 0 4px 10px rgba(22, 119, 255, 0.16);
-}
-.btn-primary:hover:not(:disabled) {
-  border-color: #0958d9;
-  background: #0958d9;
-  color: #fff;
+
+@media (max-width: 860px) {
+  .search-form {
+    align-items: stretch;
+    grid-template-columns: 1fr auto;
+  }
+
+  .search-intro {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
   .search-form {
-    align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    padding: var(--space-4);
   }
+
   .search-actions {
-    justify-content: flex-start;
+    justify-content: stretch;
+  }
+
+  .search-actions .btn {
+    flex: 1;
   }
 }
 </style>

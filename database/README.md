@@ -53,9 +53,11 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 8. `ddl/extensions/016_d_room_floor_status.sql`
 9. `ddl/extensions/017_d_leave_application_reason.sql`
 10. `ddl/extensions/018_d_student_email.sql`
-11. `verify/foundation_schema_checks.sql`
-12. `verify/extension_schema_checks.sql`
+11. `ddl/extensions/019_shared_item_idempotency.sql`
+12. `ddl/extensions/020_repair_late_hygiene_room_sequences.sql`
+13. `verify/foundation_schema_checks.sql`
+14. `verify/extension_schema_checks.sql`
 
 `010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
-`011` 至 `018` 是按编号顺序执行的增量迁移；已有环境只执行尚未应用的迁移，
+`011` 至 `020` 是按编号顺序执行的增量迁移；已有环境只执行尚未应用的迁移，
 不要重复执行已完成的 `ALTER TABLE` 脚本。
