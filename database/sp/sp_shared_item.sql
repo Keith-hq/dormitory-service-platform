@@ -58,7 +58,8 @@ END;
 -- SP_Borrow_Item：借出共享物品
 -- 返回：0=成功, 1=物品不存在, 2=物品停用, 3=库存不足,
 --       4=信用分不足（低于60）, 5=幂等键已使用且请求内容不一致,
---       6=幂等键超过 100 字符（迁移 019 列宽 CHAR 语义，五审对齐）
+--       6=幂等键超过 100 字符（迁移 019 列宽 CHAR 语义，五审对齐）,
+--       7=学生不存在（六审 P3-3：捕获 ORA-02291 FK_D_ITEM_LOAN_STUDENT）
 -- 并发语义（三审 P1-2）：
 --   同 Key 并发：两个会话都通过幂等快路径后，先扣库存者先 INSERT 成功；
 --   后到者的 INSERT 撞唯一索引 UK_D_ITEM_LOAN_IDEM → 回滚库存扣减（SAVEPOINT）
@@ -163,6 +164,16 @@ BEGIN
             END IF;
             COMMIT;
             RETURN;
+        WHEN OTHERS THEN
+            IF SQLCODE = -2291 AND INSTR(DBMS_UTILITY.FORMAT_ERROR_STACK, 'FK_D_ITEM_LOAN_STUDENT') > 0 THEN
+                -- 学生不存在（六审 P3-3）：与信用账户缺失 rc=4 一致地返回业务码，
+                -- 撤销本次库存扣减，避免裸 ORA-02291 变 500
+                ROLLBACK TO sp_borrow;
+                p_Result_Code := 7;
+                COMMIT;
+                RETURN;
+            END IF;
+            RAISE;
     END;
 
     COMMIT;
@@ -230,7 +241,8 @@ END SP_Return_Item;
 -- ============================================================
 -- SP_Consume_Material：维修耗材出库
 -- 返回：0=成功, 1=耗材不存在, 2=库存不足, 3=幂等键已使用且请求内容不一致,
---       4=幂等键超过 100 字符（迁移 019 列宽 CHAR 语义，五审对齐）
+--       4=幂等键超过 100 字符（迁移 019 列宽 CHAR 语义，五审对齐）,
+--       5=票单不存在（六审 P2-2：捕获 ORA-02291 FK_D_REPAIR_MAT_USE_TICKET）
 -- 并发语义与 SP_Borrow_Item 相同（SAVEPOINT + 唯一索引兜底 + 内容比对），
 -- 比对内容为 Ticket_ID + Material_ID + Quantity。
 -- ============================================================
@@ -321,6 +333,16 @@ BEGIN
             END IF;
             COMMIT;
             RETURN;
+        WHEN OTHERS THEN
+            IF SQLCODE = -2291 AND INSTR(DBMS_UTILITY.FORMAT_ERROR_STACK, 'FK_D_REPAIR_MAT_USE_TICKET') > 0 THEN
+                -- 票单不存在（六审 P2-2）：库存扣减随 SAVEPOINT 回滚（数据安全），
+                -- 返回业务码避免裸 ORA-02291 变 500
+                ROLLBACK TO sp_consume;
+                p_Result_Code := 5;
+                COMMIT;
+                RETURN;
+            END IF;
+            RAISE;
     END;
 
     COMMIT;

@@ -8,6 +8,9 @@
 --   T5       归还 SP 不触碰通知表（D_Notification 行数不变）
 --   T6       自愈补扣候选谓词：已归还逾期且无 OVERDUE-{Loan_ID} 流水 → 命中；
 --              已有流水 → 不命中；已有流水经迁移 014 触发器路径写入（不带 Log_ID）
+--   T7       六审 FK 缺失捕获：借出学生不存在（FK_D_ITEM_LOAN_STUDENT）→ rc=7；
+--              耗材票单不存在（FK_D_REPAIR_MAT_USE_TICKET）→ rc=5；
+--              两路径库存扣减均随 SAVEPOINT 回滚、无记录残留
 -- 测试数据使用 4TH-% 幂等键与 Loan_ID 990001~990006，结尾自清理。
 SET SERVEROUTPUT ON SIZE UNLIMITED
 -- 会话切到 CHAR 语义：保证 VARCHAR2(200 CHAR) 声明按字符计长，
@@ -228,6 +231,101 @@ BEGIN
                       WHERE c.Event_Key = 'OVERDUE-' || l.Loan_ID);
     Assert(v_cnt = 1, 'T6 待补偿候选仅命中无流水的借出 (got ' || v_cnt || ')');
     IF v_ok = 0 THEN RAISE_APPLICATION_ERROR(-20099, 'T6 FAIL'); END IF;
+END;
+/
+
+-- ============ T7 六审 FK 缺失捕获（rc=5 票单不存在 / rc=7 学生不存在） ============
+-- P2-2 / P3-3：Ticket_ID / Student_ID 引用不存在时，SP 捕获 ORA-02291 返回业务码，
+-- 库存扣减随 SAVEPOINT 回滚，不再冒泡裸 ORA-02291 变 500。
+-- T7a 说明：D_Credit_Account.Student_ID 本身带 FK_D_CREDIT_STUDENT → D_Student，
+-- 正常数据下「信用账户在、学生行缺」的态不可能存在，仅并发删除窗口
+-- （信用账户先删、学生行随后删，恰在 SP 信用闸门与 INSERT 之间）或约束停用场景出现。
+-- 学生行缺且信用账户缺时 SP 在信用闸门已 rc=4 返回（既有行为），故测试需构造
+-- 低概率态：临时停用 FK_D_CREDIT_STUDENT → 插信用账户 → 调用 SP → 立即恢复约束。
+DECLARE
+    v_rc     NUMBER;
+    v_lid    NUMBER;
+    v_before NUMBER;
+    v_after  NUMBER;
+    v_cnt    NUMBER;
+    v_ok     NUMBER := 1;
+    v_fk_off BOOLEAN := FALSE;
+    PROCEDURE Assert(cond IN BOOLEAN, msg IN VARCHAR2) IS
+    BEGIN
+        IF cond THEN DBMS_OUTPUT.PUT_LINE('  PASS: ' || msg);
+        ELSE v_ok := 0; DBMS_OUTPUT.PUT_LINE('  FAIL: ' || msg);
+        END IF;
+    END;
+BEGIN
+    -- T7a 借出：信用账户在、学生行缺 → 信用闸门通过，INSERT 撞
+    -- FK_D_ITEM_LOAN_STUDENT → rc=7，库存不扣、无记录残留
+    DELETE FROM D_Credit_Account WHERE Student_ID = 'ZZ_NO_SUCH_STUDENT';
+    EXECUTE IMMEDIATE 'ALTER TABLE D_Credit_Account DISABLE CONSTRAINT FK_D_CREDIT_STUDENT';
+    v_fk_off := TRUE;
+    INSERT INTO D_Credit_Account (Student_ID, Current_Score) VALUES ('ZZ_NO_SUCH_STUDENT', 100);
+    COMMIT;
+
+    SELECT Available_Qty INTO v_before FROM D_Shared_Item WHERE Item_ID = 1;
+    SP_Borrow_Item(1, 'ZZ_NO_SUCH_STUDENT', '4TH-T7A', v_rc, v_lid);
+    SELECT Available_Qty INTO v_after FROM D_Shared_Item WHERE Item_ID = 1;
+    SELECT COUNT(*) INTO v_cnt FROM D_Item_Loan WHERE Idempotency_Key = '4TH-T7A';
+    Assert(v_rc = 7, 'T7a 学生行缺失(信用账户在) rc=7 (got ' || v_rc || ')');
+    Assert(v_after = v_before, 'T7a 库存未扣减 (' || v_before || ' -> ' || v_after || ')');
+    Assert(v_cnt = 0, 'T7a 无借出记录残留 (got ' || v_cnt || ')');
+
+    DELETE FROM D_Credit_Account WHERE Student_ID = 'ZZ_NO_SUCH_STUDENT';
+    COMMIT;
+    EXECUTE IMMEDIATE 'ALTER TABLE D_Credit_Account ENABLE CONSTRAINT FK_D_CREDIT_STUDENT';
+    v_fk_off := FALSE;
+EXCEPTION
+    WHEN OTHERS THEN
+        IF v_fk_off THEN
+            DELETE FROM D_Credit_Account WHERE Student_ID = 'ZZ_NO_SUCH_STUDENT';
+            COMMIT;
+            EXECUTE IMMEDIATE 'ALTER TABLE D_Credit_Account ENABLE CONSTRAINT FK_D_CREDIT_STUDENT';
+        END IF;
+        RAISE;
+END;
+/
+-- 兜底：无论上一块成败，确保 FK_D_CREDIT_STUDENT 处于启用状态
+DECLARE
+    v_status VARCHAR2(10);
+BEGIN
+    SELECT status INTO v_status FROM user_constraints
+    WHERE constraint_name = 'FK_D_CREDIT_STUDENT';
+    IF v_status != 'ENABLED' THEN
+        DELETE FROM D_Credit_Account WHERE Student_ID = 'ZZ_NO_SUCH_STUDENT';
+        COMMIT;
+        EXECUTE IMMEDIATE 'ALTER TABLE D_Credit_Account ENABLE CONSTRAINT FK_D_CREDIT_STUDENT';
+        DBMS_OUTPUT.PUT_LINE('  INFO: FK_D_CREDIT_STUDENT 已恢复启用');
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN NULL;
+END;
+/
+DECLARE
+    v_rc     NUMBER;
+    v_before NUMBER;
+    v_after  NUMBER;
+    v_cnt    NUMBER;
+    v_ok     NUMBER := 1;
+    PROCEDURE Assert(cond IN BOOLEAN, msg IN VARCHAR2) IS
+    BEGIN
+        IF cond THEN DBMS_OUTPUT.PUT_LINE('  PASS: ' || msg);
+        ELSE v_ok := 0; DBMS_OUTPUT.PUT_LINE('  FAIL: ' || msg);
+        END IF;
+    END;
+BEGIN
+    -- T7b 耗材出库：票单不存在 → rc=5，库存不扣、无记录残留
+    SELECT Stock_Qty INTO v_before FROM D_Repair_Material WHERE Material_ID = 1;
+    SP_Consume_Material(1, 999999999, 1, '4TH-T7B', v_rc);
+    SELECT Stock_Qty INTO v_after FROM D_Repair_Material WHERE Material_ID = 1;
+    SELECT COUNT(*) INTO v_cnt FROM D_Repair_Material_Usage WHERE Idempotency_Key = '4TH-T7B';
+    Assert(v_rc = 5, 'T7b 票单不存在 rc=5 (got ' || v_rc || ')');
+    Assert(v_after = v_before, 'T7b 库存未扣减 (' || v_before || ' -> ' || v_after || ')');
+    Assert(v_cnt = 0, 'T7b 无消耗记录残留 (got ' || v_cnt || ')');
+
+    IF v_ok = 0 THEN RAISE_APPLICATION_ERROR(-20099, 'T7 FAIL'); END IF;
 END;
 /
 

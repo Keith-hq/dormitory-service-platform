@@ -181,9 +181,11 @@ public class InventoryTxnService : IInventoryTxnService
 
                 await tx.CommitAsync();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is BusinessException || ex is DbException)
             {
-                // 通知失败只记录：单个候选失败不影响其余候选，也不影响主业务。
+                // 六审 P3-2 收窄：只吞业务/数据库类可重试失败——单个候选失败不影响
+                // 其余候选与主业务；编程错误向上抛出令巡检 Job 失败（与补扣路径
+                // catch 收窄策略一致，避免"捕获一切"掩盖缺陷）。
                 // 五审建议：投递失败后通知实体仍滞留 DbContext Added 状态，
                 // 同上下文后续 SaveChanges 会重放失败插入——此处 Detach 清除跟踪，
                 // 失败留在本笔（事务已随 using 回滚），不污染后续业务。
@@ -364,10 +366,13 @@ public class InventoryTxnService : IInventoryTxnService
         {
             return; // 学生账户不存在或已停用，跳过扣分（自愈巡检不再重试）
         }
-        catch (BusinessException ex) when (ex.Code == 400 && ex.Message.Contains("0 到 100"))
+        catch (BusinessException ex) when (ex.Code == 400)
         {
             // 当前分数低于罚分：公共服务封底（FloorAtZero）未获确认前不可重试，
             // 每轮重试必然失败。记日志关闭该补偿项，待封底独立 PR 合入后由人工核对补扣。
+            // 六审 P3-1：按错误码结构化判别，不再匹配文案（文案变化曾会静默失效）。
+            // 本调用 ScoreChange 恒为 -2，公共服务的入参校验 400（scoreChange 超出
+            // -100~100）在此上下文不可能触发，故 400 只可能是"结果超出 0~100 范围"。
             _logger.LogWarning(
                 "超期扣分永久跳过（分数低于罚分，封底能力待架构负责人确认）：Loan_ID={LoanId} Student_ID={StudentId}。{Message}",
                 loanId, studentId, ex.Message);

@@ -90,7 +90,8 @@ public class InventoryTxnController : ControllerBase
         var msgs = new[]
         {
             "借用成功", "物品不存在", "物品已停用", "库存不足", "信用分不足（低于60）",
-            "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字符"
+            "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字符",
+            "学生不存在"
         };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
@@ -150,7 +151,7 @@ public class InventoryTxnController : ControllerBase
             return Ok(ApiResponse.Error(400, "Idempotency-Key 不能超过 100 字符"));
 
         var rc = await _service.ConsumeMaterial(req.MaterialId, ticketId, req.Quantity, idempotencyKey);
-        var msgs = new[] { "出库成功", "耗材不存在", "库存不足", "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字符" };
+        var msgs = new[] { "出库成功", "耗材不存在", "库存不足", "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字符", "票单不存在" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, msg))
