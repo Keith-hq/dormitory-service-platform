@@ -15,7 +15,7 @@ public interface ISlaDispatchService
     Task<int> ClaimTicket(int ticketId, string adminId);
 
     /// <summary>
-    /// 管理员完成维修 + 写日志（需校验 Status='处理中' AND Assigned_To=本人）。
+    /// 管理员完成维修 + 写日志（需校验 Status='已派单' AND Assigned_To=本人）。
     /// repairResult 为 DORM-28 契约字段（已修复/需更换配件/无法修复），可为 NULL。
     /// </summary>
     Task<int> CompleteRepair(int ticketId, string adminId, string content, string? repairResult, DateTime? solveTime);
@@ -26,6 +26,6 @@ public interface ISlaDispatchService
     /// </summary>
     Task EscalateSla();
 
-    /// <summary>查询当前管理员的待处理/处理中工单（DORM-26，分页，DTO 投影）</summary>
+    /// <summary>查询当前管理员的待处理/已派单工单（DORM-26，分页，DTO 投影）</summary>
     Task<PagedResult<PendingRepairTicketDto>> GetPendingTickets(string adminId, int page, int pageSize);
 }

@@ -142,7 +142,7 @@ public class SlaDispatchService : ISlaDispatchService
                         SLA_Level AS ""SlaLevel"", Deadline AS ""Deadline"",
                         Assigned_To AS ""AssignedTo"", Escalation_Time AS ""EscalationTime""
                  FROM D_Repair_Ticket
-                 WHERE Assigned_To = {0} AND Status IN ('待处理', '处理中')
+                 WHERE Assigned_To = {0} AND Status IN ('待处理', '已派单')
                  ORDER BY
                      CASE SLA_Level WHEN '紧急' THEN 0 ELSE 1 END,
                      Deadline ASC
@@ -151,7 +151,7 @@ public class SlaDispatchService : ISlaDispatchService
         // 标量查询的输出列必须别名为 "Value"（Oracle 提供程序要求）
         var countSql = @"SELECT COUNT(*) AS ""Value""
                  FROM D_Repair_Ticket
-                 WHERE Assigned_To = {0} AND Status IN ('待处理', '处理中')";
+                 WHERE Assigned_To = {0} AND Status IN ('待处理', '已派单')";
 
         var total = await _context.Database
             .SqlQueryRaw<int>(countSql, adminId)

@@ -1,62 +1,21 @@
--- SLA派单存储过程（难点⑤ 三审修复版）
+-- SLA派单存储过程（难点⑤ 四审修复版）
 -- 依赖：D_Repair_Ticket, D_Repair_Log, D_Admin, D_Room
 -- 基线：database/ddl/foundation/001_create_tables.sql + database/ddl/extensions/010_extension_tables.sql
--- 流程：学生报修 → SP_Assign_Ticket(初始派单) → SP_Claim_Ticket(被指派的维修员接单) → SP_Complete_Repair(完工写日志)
+-- DDL 由编号迁移 database/ddl/extensions/021_sla_dispatch.sql 提供（Escalation_Time /
+--   Repair_Result VARCHAR2(200 CHAR) / SEQ_SLA_LOG / CK_D_REPAIR_TICKET_STATUS /
+--   CK_D_ADMIN_ROLE），本文件不再内联任何 DDL（四审 R2）。
+-- 状态机（PRD §2.3.4，四审裁决）：提交→待处理 → 派单→已派单 → 完工→已完成；可撤销→已撤销；
+--   接单（SP_Claim_Ticket）不改状态，仅做并发守门——开工与否以维修日志是否存在判定（PR #44 裁决 §四-3）。
+-- 流程：学生报修 → SP_Assign_Ticket(初始派单, 待处理→已派单) → SP_Claim_Ticket(被指派的维修员接单)
+--   → SP_Complete_Repair(完工写日志, 已派单→已完成)
 -- 巡检：SP_Escalate_SLA(普通超时→原子标记升级并返回清单，通知由应用层公共服务投递，不转派)
 -- 注意：本 SP 不直接写 D_Notification / D_Audit_Event（数据拥有者边界，且 MAX+1 并发撞主键）
 
 -- ============================================================
--- DDL 补丁：增列 + 约束（幂等执行）
--- ============================================================
-
--- 补丁 1：D_Repair_Ticket 加 Escalation_Time（NULL=未升级，NOT NULL=已升级，防二次升级）
-BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE D_Repair_Ticket ADD (Escalation_Time DATE)';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -1430 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
--- 补丁 2：D_Repair_Log 加 Repair_Result（对齐契约 result 字段）
-BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE D_Repair_Log ADD (Repair_Result VARCHAR2(200))';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -1430 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
--- 补丁 3：D_Repair_Ticket.Status CHECK 约束
--- 重跑处理：约束已存在（同名）→ ORA-02264；已有同定义不同名约束 → ORA-02293 校验仍会生效，按新约束创建处理。
-BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE D_Repair_Ticket ADD CONSTRAINT CK_D_REPAIR_TICKET_STATUS CHECK (Status IN (''待处理'',''处理中'',''已完成''))';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -2264 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
--- 补丁 4：D_Admin.Role_Level CHECK 约束
-BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE D_Admin ADD CONSTRAINT CK_D_ADMIN_ROLE CHECK (Role_Level IN (''楼长'',''维修员'',''超级管理员''))';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -2264 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
--- ============================================================
--- 创建专用序列
--- ============================================================
-DECLARE v_StartVal NUMBER;
-BEGIN
-    SELECT NVL(MAX(Log_ID), 0) + 1 INTO v_StartVal FROM D_Repair_Log;
-    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_SLA_LOG START WITH ' || v_StartVal || ' INCREMENT BY 1';
-EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
--- ============================================================
--- SP_Assign_Ticket：初始派单——根据楼栋自动指派维修员
+-- SP_Assign_Ticket：初始派单——根据楼栋自动指派维修员（待处理→已派单）
 -- P2-1 修复：原子 UPDATE 守门（WHERE Assigned_To IS NULL AND Status='待处理'）
 -- P1-4 配套：无维修员 → rc=3（配置异常），不再擅自回退楼长
+-- 四审 R1：派单成功即置 Status='已派单'（与迁移 021 CK_D_REPAIR_TICKET_STATUS 4 值状态机一致）
 -- 返回：0=成功, 1=工单不存在, 2=已指派或状态不对(并发被抢), 3=无可用维修员
 -- ============================================================
 CREATE OR REPLACE PROCEDURE SP_Assign_Ticket(
@@ -108,7 +67,8 @@ BEGIN
     UPDATE D_Repair_Ticket
     SET Assigned_To = v_Admin_ID,
         SLA_Level   = '普通',
-        Deadline    = v_Submit_Time + INTERVAL '24' HOUR
+        Deadline    = v_Submit_Time + INTERVAL '24' HOUR,
+        Status      = '已派单'
     WHERE Ticket_ID = p_Ticket_ID
       AND Assigned_To IS NULL
       AND Status = '待处理';
@@ -123,9 +83,11 @@ END SP_Assign_Ticket;
 /
 
 -- ============================================================
--- SP_Claim_Ticket：被指派的维修员接单（并发唯一）
+-- SP_Claim_Ticket：被指派的维修员接单（并发守门，不改状态）
 -- P1-3 修复：移除 Assigned_To IS NULL 路径，仅允许被指派的维修员接单
--- 原子 UPDATE 守门：Status='待处理' AND Assigned_To=p_Admin_ID
+-- 四审 R1：接单不再写 Status（PRD §2.3.4 无'处理中'；开工与否以维修日志
+--   是否存在判定，PR #44 裁决 §四-3）。此处以自赋值 UPDATE 作原子守门——
+--   仅 Status='已派单' 且 Assigned_To=p_Admin_ID 的工单命中（SQL%ROWCOUNT 判定）。
 -- DORM-27
 -- 返回：0=成功, 1=工单不存在/状态不对/非本人指派
 -- ============================================================
@@ -137,11 +99,11 @@ CREATE OR REPLACE PROCEDURE SP_Claim_Ticket(
 BEGIN
     p_Result_Code := 0;
 
-    -- 原子接单：仅允许被指派的管理员将待处理工单转为处理中
+    -- 原子守门（自赋值 UPDATE，仅利用其行计数判定是否命中）
     UPDATE D_Repair_Ticket
-    SET Status = '处理中'
+    SET Assigned_To = Assigned_To
     WHERE Ticket_ID = p_Ticket_ID
-      AND Status = '待处理'
+      AND Status = '已派单'
       AND Assigned_To = p_Admin_ID;
 
     IF SQL%ROWCOUNT = 0 THEN
@@ -154,12 +116,13 @@ END SP_Claim_Ticket;
 /
 
 -- ============================================================
--- SP_Complete_Repair：管理员完成维修 + 写入维修日志
--- P1-2 修复：原子 UPDATE 守门——Status='处理中' AND Assigned_To=p_Admin_ID
+-- SP_Complete_Repair：管理员完成维修 + 写入维修日志（已派单→已完成）
+-- P1-2 修复：原子 UPDATE 守门——Status='已派单' AND Assigned_To=p_Admin_ID
 -- P2-3 修复：SAVEPOINT + ROLLBACK 确保 INSERT 失败时不残留状态变更
 -- 新增 p_Repair_Result 和 p_Solve_Time 参数对齐契约
+-- 四审 R1：守门状态由'处理中'改为'已派单'（4 值状态机；开工与否以维修日志是否存在判定）
 -- DORM-28
--- 返回：0=成功, 1=工单不存在, 2=状态不是处理中或非本人, 3=日志写入冲突(UK)
+-- 返回：0=成功, 1=工单不存在, 2=状态不是已派单或非本人, 3=日志写入冲突(UK)
 -- ============================================================
 CREATE OR REPLACE PROCEDURE SP_Complete_Repair(
     p_Ticket_ID     IN  NUMBER,
@@ -177,11 +140,11 @@ BEGIN
     -- 1. SAVEPOINT 守门——确保后续 INSERT 失败时可回滚状态变更
     SAVEPOINT sp_complete;
 
-    -- 2. 原子 UPDATE 守门：仅 Status='处理中' 且指派给当前管理员的工单可完工
+    -- 2. 原子 UPDATE 守门：仅 Status='已派单' 且指派给当前管理员的工单可完工
     UPDATE D_Repair_Ticket
     SET Status = '已完成'
     WHERE Ticket_ID = p_Ticket_ID
-      AND Status = '处理中'
+      AND Status = '已派单'
       AND Assigned_To = p_Admin_ID;
 
     IF SQL%ROWCOUNT = 0 THEN
@@ -189,7 +152,7 @@ BEGIN
         DECLARE v_Dummy NUMBER;
         BEGIN
             SELECT 1 INTO v_Dummy FROM D_Repair_Ticket WHERE Ticket_ID = p_Ticket_ID;
-            p_Result_Code := 2;  -- 状态不是处理中或非本人
+            p_Result_Code := 2;  -- 状态不是已派单或非本人
         EXCEPTION
             WHEN NO_DATA_FOUND THEN p_Result_Code := 1;  -- 工单不存在
         END;
@@ -239,10 +202,12 @@ BEGIN
 
     -- 仅游标扫描 D_Repair_Ticket 单表（FOR UPDATE 要求可更新单表查询）；
     -- D_Room 的关联（楼长查询）在下游结果游标中完成。
+    -- 四审 R1：状态集随 4 值状态机更新（'处理中'已剔除）；
+    -- 未派单（待处理）工单 Deadline 为空，Deadline < SYSDATE 恒不成立，天然不命中。
     FOR ticket_rec IN (
         SELECT Ticket_ID
         FROM D_Repair_Ticket
-        WHERE Status IN ('待处理', '处理中')
+        WHERE Status IN ('待处理', '已派单')
           AND SLA_Level = '普通'
           AND Deadline < SYSDATE
           AND Escalation_Time IS NULL   -- 仅首次升级

@@ -74,7 +74,7 @@ public class SlaDispatchController : ControllerBase
 
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, "接单成功"))
-            : Ok(ApiResponse.Error(400, "工单不存在、状态不是待处理或非本人指派"));
+            : Ok(ApiResponse.Error(400, "工单不存在、状态不是已派单或非本人指派"));
     }
 
     /// <summary>DORM-28：录入维修日志（完工），repairResult 枚举见 CompleteRepairRequest</summary>
@@ -92,7 +92,7 @@ public class SlaDispatchController : ControllerBase
         var rc = await _service.CompleteRepair(
             ticketId, adminId, req.Content, req.RepairResult, req.SolveTime);
 
-        var msgs = new[] { "维修完成", "工单不存在", "状态不是处理中或非本人操作", "维修日志已存在" };
+        var msgs = new[] { "维修完成", "工单不存在", "状态不是已派单或非本人操作", "维修日志已存在" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, msg))

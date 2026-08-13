@@ -1,10 +1,10 @@
 -- ============================================================
--- 难点⑤ SLA派单 回归测试（三审修复版）
+-- 难点⑤ SLA派单 回归测试（四审修复版——4 值状态机：待处理/已派单/已完成/已撤销）
 -- 测试场景：
---   1. 基本流程：创建工单→派单(维修员)→被指派维修员接单→完工
+--   1. 基本流程：创建工单→派单(维修员, 待处理→已派单)→被指派维修员接单(不改状态)→完工
 --   2. 完工越权：Admin B 尝试完成 Admin A 的工单 → rc=2（SP 级授权）
---   3. 未接单不能完工：待处理工单直接完工 → rc=2
---   4. 幂等：重复派单→rc=2，重复接单→rc=1，重复完工→rc=2
+--   3. 未派单不能完工：待处理工单直接完工 → rc=2；已派单未接单可完工 → rc=0（接单不改状态）
+--   4. 幂等：重复派单→rc=2，重复接单→rc=0（接单为幂等确认，不改状态），重复完工→rc=2
 --   5. 无维修员→rc=3（配置异常，不擅自派楼长）
 --   6. 公共抢单拦截：未指派工单不能被随意 Claim → rc=1（SP 级授权）
 --   7. SLA 升级一次：游标返回升级清单 + Escalation_Time 非空 + 不覆盖负责人/SLA
@@ -52,7 +52,7 @@ DECLARE
         RETURN v_Id;
     END;
 BEGIN
-    P('========== 难点⑤ SLA派单 回归测试（三审修复版）==========');
+    P('========== 难点⑤ SLA派单 回归测试（四审修复版——4 值状态机）==========');
     v_Ts := TO_CHAR(SYSDATE, 'MMDDHH24MI');
     PL('Timestamp: ' || v_Ts);
 
@@ -129,6 +129,10 @@ BEGIN
     IF v_SLA_Level != '普通' THEN
         RAISE_APPLICATION_ERROR(-20003, 'Test 1 FAIL: SLA_Level=' || v_SLA_Level);
     END IF;
+    -- 四审：派单成功即 Status='已派单'（4 值状态机）
+    IF v_Status != '已派单' THEN
+        RAISE_APPLICATION_ERROR(-20033, 'Test 1 FAIL: Status=' || v_Status || ', expected 已派单');
+    END IF;
 
     -- ================================================================
     -- TEST 2: 幂等——重复派单 → rc=2
@@ -148,17 +152,18 @@ BEGIN
 
     SELECT Status INTO v_Status FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket1_ID;
     PL('Status=' || v_Status);
-    IF v_Status != '处理中' THEN
-        RAISE_APPLICATION_ERROR(-20006, 'Test 3 FAIL: Status=' || v_Status);
+    -- 四审：接单不改状态（开工与否以维修日志是否存在判定），仍为已派单
+    IF v_Status != '已派单' THEN
+        RAISE_APPLICATION_ERROR(-20006, 'Test 3 FAIL: Status=' || v_Status || ', expected 已派单');
     END IF;
 
     -- ================================================================
-    -- TEST 4: 重复接单 → rc=1
+    -- TEST 4: 重复接单 → rc=0（接单为幂等确认，不改状态）
     -- ================================================================
-    P('--- Test 4: SP_Claim_Ticket again (expect rc=1, already claimed) ---');
+    P('--- Test 4: SP_Claim_Ticket again (expect rc=0, idempotent confirmation) ---');
     SP_Claim_Ticket(v_Ticket1_ID, v_Maint_Admin, v_Rc);
-    PL('Claim again rc=' || v_Rc || ' (expect 1)');
-    IF v_Rc != 1 THEN RAISE_APPLICATION_ERROR(-20007, 'Test 4 FAIL: expected rc=1'); END IF;
+    PL('Claim again rc=' || v_Rc || ' (expect 0)');
+    IF v_Rc != 0 THEN RAISE_APPLICATION_ERROR(-20007, 'Test 4 FAIL: expected rc=0, got ' || v_Rc); END IF;
 
     -- ================================================================
     -- TEST 5: 完工越权——Admin B 尝试完成 Admin A 的工单 → rc=2
@@ -170,8 +175,8 @@ BEGIN
 
     -- 验证状态未被修改
     SELECT Status INTO v_Status FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket1_ID;
-    PL('Status still=' || v_Status || ' (expect 处理中)');
-    IF v_Status != '处理中' THEN
+    PL('Status still=' || v_Status || ' (expect 已派单)');
+    IF v_Status != '已派单' THEN
         RAISE_APPLICATION_ERROR(-20009, 'Test 5 FAIL: Status changed to ' || v_Status);
     END IF;
 
@@ -203,7 +208,7 @@ BEGIN
     END;
 
     -- ================================================================
-    -- TEST 7: 重复完工 → rc=2（Status 已不是处理中）
+    -- TEST 7: 重复完工 → rc=2（Status 已不是已派单）
     -- ================================================================
     P('--- Test 7: Complete again (expect rc=2, already done) ---');
     SP_Complete_Repair(v_Ticket1_ID, v_Maint_Admin, '再次完工', '应该失败', NULL, v_Rc);
@@ -237,18 +242,32 @@ BEGIN
     END IF;
 
     -- ================================================================
-    -- TEST 9: 未接单不能完工——待处理工单直接完工 → rc=2
+    -- TEST 9: 未派单不能完工（待处理 → rc=2）；已派单未接单可完工（接单不改状态）
     -- ================================================================
-    P('--- Test 9: Complete pending ticket (expect rc=2, not in-progress) ---');
-    -- 先派单给维修员A
+    P('--- Test 9: Complete unassigned ticket (expect rc=2) ---');
+    -- 9a: 未派单（待处理）直接完工 → 应失败
+    SP_Complete_Repair(v_Ticket2_ID, v_Maint_Admin, '未派单完工', NULL, NULL, v_Rc);
+    PL('Complete unassigned rc=' || v_Rc || ' (expect 2)');
+    IF v_Rc != 2 THEN RAISE_APPLICATION_ERROR(-20033, 'Test 9a FAIL: expected rc=2, got ' || v_Rc); END IF;
+
+    -- 9b: 派单后（已派单）未接单直接完工 → 应成功（四审：接单不改状态，
+    --     开工与否以维修日志是否存在判定，接单不构成完工前提）
     SP_Assign_Ticket(v_Ticket2_ID, v_Rc);
     PL('Assign rc=' || v_Rc);
-    IF v_Rc != 0 THEN RAISE_APPLICATION_ERROR(-20017, 'Test 9 FAIL: Assign rc=' || v_Rc); END IF;
+    IF v_Rc != 0 THEN RAISE_APPLICATION_ERROR(-20034, 'Test 9b FAIL: Assign rc=' || v_Rc); END IF;
 
-    -- 未接单就尝试完工 → 应失败
-    SP_Complete_Repair(v_Ticket2_ID, v_Maint_Admin, '未接单完工', NULL, NULL, v_Rc);
-    PL('Complete before claim rc=' || v_Rc || ' (expect 2)');
-    IF v_Rc != 2 THEN RAISE_APPLICATION_ERROR(-20018, 'Test 9 FAIL: expected rc=2, got ' || v_Rc); END IF;
+    SELECT Assigned_To INTO v_Assigned_To FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket2_ID;
+    PL('Assigned_To=' || v_Assigned_To);
+
+    SP_Complete_Repair(v_Ticket2_ID, v_Assigned_To, '未接单直接完工', '已修复', NULL, v_Rc);
+    PL('Complete without claim rc=' || v_Rc || ' (expect 0)');
+    IF v_Rc != 0 THEN RAISE_APPLICATION_ERROR(-20035, 'Test 9b FAIL: expected rc=0, got ' || v_Rc); END IF;
+
+    SELECT Status INTO v_Status FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket2_ID;
+    PL('Status=' || v_Status || ' (expect 已完成)');
+    IF v_Status != '已完成' THEN
+        RAISE_APPLICATION_ERROR(-20036, 'Test 9b FAIL: Status=' || v_Status);
+    END IF;
 
     -- ================================================================
     -- TEST 10: 无维修员 → rc=3（配置异常，不擅自派楼长）
@@ -312,7 +331,7 @@ BEGIN
         SLA_Level, Deadline, Assigned_To, Escalation_Time
     ) VALUES (
         v_Ticket4_ID, 'S004', v_Room_ID, 'T12: 窗户破损',
-        SYSDATE - 2, '待处理', '普通', SYSDATE - 1, v_Maint_Admin, NULL
+        SYSDATE - 2, '已派单', '普通', SYSDATE - 1, v_Maint_Admin, NULL
     );
     COMMIT;
     PL('Created expired 普通 ticket: ' || v_Ticket4_ID
@@ -413,7 +432,7 @@ BEGIN
         SLA_Level, Deadline, Assigned_To
     ) VALUES (
         v_Ticket5_ID, 'S001', v_Room_ID, 'T13: 电源故障',
-        SYSDATE, '处理中', '普通', SYSDATE + 1, v_Maint_Admin
+        SYSDATE, '已派单', '普通', SYSDATE + 1, v_Maint_Admin
     );
     COMMIT;
     PL('Created Ticket_ID=' || v_Ticket5_ID);
@@ -435,8 +454,8 @@ BEGIN
 
     -- 验证状态未变（SAVEPOINT 回滚成功）
     SELECT Status INTO v_Status FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket5_ID;
-    PL('Status after UK conflict: ' || v_Status || ' (expect 处理中, rollback worked)');
-    IF v_Status != '处理中' THEN
+    PL('Status after UK conflict: ' || v_Status || ' (expect 已派单, rollback worked)');
+    IF v_Status != '已派单' THEN
         RAISE_APPLICATION_ERROR(-20029, 'Test 13 FAIL: Status changed to ' || v_Status || ' (SAVEPOINT not working)');
     END IF;
 
@@ -452,7 +471,7 @@ BEGIN
     BEGIN
         -- 总数（与 countSql 一致：Assigned_To + 状态过滤）
         SELECT COUNT(*) INTO v_Total FROM D_Repair_Ticket
-        WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '处理中');
+        WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '已派单');
         PL('total for ' || v_Maint_Admin || ': ' || v_Total || ' (expect >=2)');
         IF v_Total < 2 THEN
             RAISE_APPLICATION_ERROR(-20030, 'Test 14 FAIL: expected at least 2 pending tickets for A');
@@ -466,7 +485,7 @@ BEGIN
                    SLA_Level AS "SlaLevel", Deadline AS "Deadline",
                    Assigned_To AS "AssignedTo", Escalation_Time AS "EscalationTime"
             FROM D_Repair_Ticket
-            WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '处理中')
+            WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '已派单')
             ORDER BY CASE SLA_Level WHEN '紧急' THEN 0 ELSE 1 END, Deadline ASC
             OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY);
         PL('page rows (page=1,size=20): ' || v_Page || ' (expect total if <=20)');
@@ -478,7 +497,7 @@ BEGIN
         SELECT COUNT(*) INTO v_Rest FROM (
             SELECT Ticket_ID AS "TicketId"
             FROM D_Repair_Ticket
-            WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '处理中')
+            WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '已派单')
             ORDER BY Deadline ASC
             OFFSET v_Total ROWS FETCH NEXT 20 ROWS ONLY);
         PL('rows beyond last page: ' || v_Rest || ' (expect 0)');
