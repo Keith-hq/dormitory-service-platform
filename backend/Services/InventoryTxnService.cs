@@ -345,10 +345,11 @@ public class InventoryTxnService : IInventoryTxnService
     /// 超期归还按次扣 2 分（PRD 规则，组长确认）：统一走信用分公共服务。
     /// Event_Key = OVERDUE-{loanId}：与巡检并发、客户端重试都只产生一次扣分，
     /// 且冻结（跌破 60）通知由信用分服务统一发出，语义不丢失。
-    /// 永久性跳过：40401（账户不存在/停用）与 400 范围拒绝（当前分数低于罚分，
-    /// 信用分服务的封底能力属公共服务改动，五审要求未获架构负责人确认前不保留，
-    /// 故本库视为不可重试，日志留痕；确认后以独立 PR 恢复封底，此处拒绝自然消失）。
-    /// 其余异常向上抛出，由 TryDeductOverdueAsync 捕获后标记待补偿、交巡检自愈重试。
+    /// FloorAtZero = true（七审恢复，架构师确认）：低分学生（如 1 分）扣 2 分在服务
+    /// 锁内封底到 0，不再因"结果低于 0"被拒——「结果超范围」400 从此不可能发生，
+    /// 400 只剩可重试语义（系统繁忙/数据冲突/参数校验不可触发），全部交巡检重试。
+    /// 永久性跳过仅 40401（账户不存在/停用）；其余异常向上抛出，由
+    /// TryDeductOverdueAsync 捕获后标记待补偿、交巡检自愈重试。
     /// </summary>
     private async Task DeductOverdueAsync(int loanId, string studentId, int overdueDays)
     {
@@ -359,23 +360,13 @@ public class InventoryTxnService : IInventoryTxnService
                 StudentId = studentId,
                 ScoreChange = -2,
                 Reason = $"共享物品超期归还（Loan_ID={loanId}，逾期{overdueDays}天，按次扣2分）",
-                EventKey = $"OVERDUE-{loanId}"
+                EventKey = $"OVERDUE-{loanId}",
+                FloorAtZero = true
             }, CancellationToken.None);
         }
         catch (BusinessException ex) when (ex.Code == 40401)
         {
             return; // 学生账户不存在或已停用，跳过扣分（自愈巡检不再重试）
-        }
-        catch (BusinessException ex) when (ex.Code == 400)
-        {
-            // 当前分数低于罚分：公共服务封底（FloorAtZero）未获确认前不可重试，
-            // 每轮重试必然失败。记日志关闭该补偿项，待封底独立 PR 合入后由人工核对补扣。
-            // 六审 P3-1：按错误码结构化判别，不再匹配文案（文案变化曾会静默失效）。
-            // 本调用 ScoreChange 恒为 -2，公共服务的入参校验 400（scoreChange 超出
-            // -100~100）在此上下文不可能触发，故 400 只可能是"结果超出 0~100 范围"。
-            _logger.LogWarning(
-                "超期扣分永久跳过（分数低于罚分，封底能力待架构负责人确认）：Loan_ID={LoanId} Student_ID={StudentId}。{Message}",
-                loanId, studentId, ex.Message);
         }
     }
 
