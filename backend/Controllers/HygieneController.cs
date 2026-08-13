@@ -24,7 +24,18 @@ public sealed class HygieneController : ControllerBase
         long roomId,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetRoomRecordsAsync(roomId, cancellationToken);
+        var isDormAdmin = User.IsInRole("admin") || User.IsInRole("super_admin");
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!isDormAdmin && !accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetRoomRecordsAsync(
+            roomId,
+            accountId,
+            isDormAdmin,
+            cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 

@@ -9,6 +9,33 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
 {
     public HygieneRepository(AppDbContext context) : base(context) { }
 
+    public async Task<long?> GetCurrentRoomIdAsync(
+        int accountId,
+        CancellationToken cancellationToken)
+    {
+        var studentId = await DbContext.UserAccounts
+            .AsNoTracking()
+            .Where(item => item.AccountId == accountId && item.AccountStatus == "正常")
+            .Select(item => item.StudentId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (studentId is null)
+        {
+            return null;
+        }
+
+        return await DbContext.BedAllocations
+            .AsNoTracking()
+            .Where(item =>
+                item.StudentId == studentId &&
+                item.CheckOutDate == null &&
+                item.RoomId != null)
+            .OrderByDescending(item => item.CheckInDate)
+            .ThenByDescending(item => item.AllocationId)
+            .Select(item => item.RoomId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<HygieneRecordDto>> GetRoomRecordsAsync(
         long roomId,
         CancellationToken cancellationToken)
@@ -23,7 +50,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
                 RecordId = item.RecordId,
                 RoomId = item.RoomId ?? 0,
                 CheckDate = item.CheckDate,
-                Score = (int)item.Score,
+                Score = item.Score,
                 InspectorId = item.InspectorId,
                 Comment = item.Comment == null ? null : item.Comment.CommentText
             })
@@ -71,7 +98,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
             RecordId = record.RecordId,
             RoomId = record.RoomId ?? 0,
             CheckDate = record.CheckDate,
-            Score = (int)record.Score,
+            Score = record.Score,
             InspectorId = record.InspectorId,
             Comment = record.Comment?.CommentText
         };

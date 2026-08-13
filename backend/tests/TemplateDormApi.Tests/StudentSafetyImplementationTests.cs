@@ -138,14 +138,23 @@ public sealed class StudentSafetyImplementationTests
     public async Task HygieneQueriesAndUpdate_ReadCommentAndEnforceTwentyFourHours()
     {
         await using var context = TestDbContextFactory.Create();
+        AddStudentAccount(context, 101, "20260001");
         var now = DateTime.Now;
+        context.BedAllocations.Add(new BedAllocation
+        {
+            AllocationId = 1,
+            StudentId = "20260001",
+            RoomId = 201,
+            BedNo = 1,
+            CheckInDate = now.AddMonths(-1)
+        });
         context.HygieneRecords.AddRange(
             new HygieneRecord
             {
                 RecordId = 1,
                 RoomId = 201,
                 CheckDate = now.AddHours(-2),
-                Score = 85,
+                Score = 89.5m,
                 InspectorId = "A001",
                 Comment = new HygieneComment
                 {
@@ -164,15 +173,20 @@ public sealed class StudentSafetyImplementationTests
         await context.SaveChangesAsync();
 
         var service = new HygieneService(new HygieneRepository(context));
-        var records = await service.GetRoomRecordsAsync(201, CancellationToken.None);
+        var records = await service.GetRoomRecordsAsync(
+            201,
+            101,
+            isDormAdmin: false,
+            CancellationToken.None);
         var updated = await service.UpdateAsync(
             1,
             new UpdateHygieneRecordRequest { Score = 92, Comment = "整改完成" },
             CancellationToken.None);
 
         Assert.Equal(2, records.Count);
+        Assert.Equal(89.5m, records[0].Score);
         Assert.Equal("桌面需整理", records[0].Comment);
-        Assert.Equal(92, updated.Score);
+        Assert.Equal(92m, updated.Score);
         Assert.Equal("整改完成", updated.Comment);
 
         var expiredError = await Assert.ThrowsAsync<BusinessException>(() =>
@@ -181,6 +195,66 @@ public sealed class StudentSafetyImplementationTests
                 new UpdateHygieneRecordRequest { Score = 95 },
                 CancellationToken.None));
         Assert.Equal(StatusCodes.Status409Conflict, expiredError.HttpStatus);
+    }
+
+    [Fact]
+    public async Task HygieneQuery_RejectsAnotherRoomAndStudentWithoutCurrentAccommodation()
+    {
+        await using var context = TestDbContextFactory.Create();
+        AddStudentAccount(context, 101, "20260001");
+        AddStudentAccount(context, 102, "20260002");
+        context.BedAllocations.Add(new BedAllocation
+        {
+            AllocationId = 1,
+            StudentId = "20260001",
+            RoomId = 201,
+            BedNo = 1,
+            CheckInDate = DateTime.Now.AddMonths(-1)
+        });
+        await context.SaveChangesAsync();
+
+        var service = new HygieneService(new HygieneRepository(context));
+
+        var otherRoomError = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.GetRoomRecordsAsync(
+                202,
+                101,
+                isDormAdmin: false,
+                CancellationToken.None));
+        Assert.Equal(StatusCodes.Status403Forbidden, otherRoomError.HttpStatus);
+
+        var noAccommodationError = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.GetRoomRecordsAsync(
+                201,
+                102,
+                isDormAdmin: false,
+                CancellationToken.None));
+        Assert.Equal(StatusCodes.Status403Forbidden, noAccommodationError.HttpStatus);
+    }
+
+    [Fact]
+    public async Task HygieneQuery_AllowsDormAdminWithoutStudentAccommodation()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.HygieneRecords.Add(new HygieneRecord
+        {
+            RecordId = 1,
+            RoomId = 201,
+            CheckDate = DateTime.Now,
+            Score = 91.5m,
+            InspectorId = "A001"
+        });
+        await context.SaveChangesAsync();
+
+        var service = new HygieneService(new HygieneRepository(context));
+        var records = await service.GetRoomRecordsAsync(
+            201,
+            accountId: null,
+            isDormAdmin: true,
+            CancellationToken.None);
+
+        Assert.Single(records);
+        Assert.Equal(91.5m, records[0].Score);
     }
 
     private static StudentProfileService CreateStudentProfileService(AppDbContext context)
