@@ -118,8 +118,8 @@ const submitLogin = async () => {
   min-height: 100svh;
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
-  background: #f4f7fb;
-  color: #172033;
+  background: var(--color-canvas);
+  color: var(--color-ink);
 }
 
 .login-intro {
@@ -131,8 +131,15 @@ const submitLogin = async () => {
   padding: clamp(48px, 8vw, 112px);
   text-align: left;
   background:
-    radial-gradient(circle at 15% 20%, rgba(92, 178, 255, 0.28), transparent 32%),
-    linear-gradient(145deg, #0b2d4f 0%, #125b78 58%, #198b8d 100%);
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 16% 18%, rgba(110, 213, 190, 0.24), transparent 32%),
+    linear-gradient(145deg, #132f33 0%, #135c59 58%, #168279 100%);
+  background-size:
+    40px 40px,
+    40px 40px,
+    auto,
+    auto;
   color: #fff;
 }
 
@@ -163,7 +170,10 @@ const submitLogin = async () => {
   margin: 0 0 22px;
   font-size: clamp(42px, 5vw, 68px);
   line-height: 1.08;
-  color: #fff;
+  color: #fffdf8;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.04em;
 }
 
 .login-intro p {
@@ -179,10 +189,10 @@ const submitLogin = async () => {
   margin: 48px auto;
   padding: 40px;
   box-sizing: border-box;
-  border: 1px solid #e1e8f0;
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 24px 70px rgba(21, 51, 77, 0.12);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lift);
   text-align: left;
 }
 
@@ -198,8 +208,8 @@ const submitLogin = async () => {
   width: 48px;
   height: 48px;
   place-items: center;
-  border-radius: 14px;
-  background: #146b7c;
+  border-radius: var(--radius-md);
+  background: var(--color-ink);
   color: #fff;
   font-size: 21px;
   font-weight: 700;
@@ -207,13 +217,14 @@ const submitLogin = async () => {
 
 .login-heading h2 {
   margin: 0 0 5px;
-  color: #172033;
+  color: var(--color-ink);
+  font-family: var(--font-display);
   font-size: 25px;
   font-weight: 700;
 }
 
 .login-heading p {
-  color: #718096;
+  color: var(--color-text-muted);
   font-size: 14px;
 }
 
@@ -224,7 +235,7 @@ const submitLogin = async () => {
 
 .login-form label {
   margin: 0 0 8px;
-  color: #354156;
+  color: var(--color-text);
   font-size: 14px;
   font-weight: 600;
 }
@@ -235,10 +246,10 @@ const submitLogin = async () => {
   margin-bottom: 20px;
   padding: 0 14px;
   box-sizing: border-box;
-  border: 1px solid #cad5e1;
-  border-radius: 10px;
-  background: #fff;
-  color: #172033;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
   font: inherit;
   font-size: 15px;
   transition:
@@ -247,13 +258,13 @@ const submitLogin = async () => {
 }
 
 .login-form input:focus {
-  border-color: #14788a;
+  border-color: var(--color-brand);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(20, 120, 138, 0.13);
+  box-shadow: 0 0 0 3px var(--color-focus);
 }
 
 .login-form input:disabled {
-  background: #f5f7fa;
+  background: var(--color-canvas-deep);
   cursor: not-allowed;
 }
 
@@ -261,8 +272,8 @@ const submitLogin = async () => {
   height: 48px;
   margin-top: 4px;
   border: 0;
-  border-radius: 10px;
-  background: #146b7c;
+  border-radius: var(--radius-sm);
+  background: var(--color-brand);
   color: #fff;
   font: inherit;
   font-weight: 700;
@@ -273,8 +284,13 @@ const submitLogin = async () => {
 }
 
 .login-form button:hover:not(:disabled) {
-  background: #0f5968;
+  background: var(--color-brand-strong);
   transform: translateY(-1px);
+}
+
+.login-form button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .login-form button:disabled {
@@ -285,9 +301,9 @@ const submitLogin = async () => {
 .login-error {
   margin: -8px 0 16px;
   padding: 10px 12px;
-  border-radius: 8px;
-  background: #fff0f0;
-  color: #b42318;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
   font-size: 13px;
 }
 
@@ -296,14 +312,15 @@ const submitLogin = async () => {
   gap: 4px;
   margin-top: 24px;
   padding: 13px 15px;
-  border-radius: 10px;
-  background: #eef7f7;
-  color: #42616a;
+  border: 1px solid var(--color-brand-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-soft);
+  color: var(--color-text);
   font-size: 13px;
 }
 
 .mock-tip strong {
-  color: #1c5662;
+  color: var(--color-brand-strong);
 }
 
 @media (max-width: 820px) {
