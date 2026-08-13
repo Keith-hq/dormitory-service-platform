@@ -222,12 +222,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    // 宿管端写操作策略（B6/S2）：要求已登录且 role claim 属于宿管/超级管理员
-    options.AddPolicy(AuthPolicies.DormAdmin, policy =>
-        policy.RequireAuthenticatedUser().RequireRole("admin", "super_admin"));
-});
+builder.Services.AddAuthorization(AuthPolicies.Register);
 builder.Services.AddScoped<VisitorService>();
 builder.Services.AddScoped<VoteService>();
 var app = builder.Build();

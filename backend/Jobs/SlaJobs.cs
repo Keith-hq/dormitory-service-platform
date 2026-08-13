@@ -24,12 +24,10 @@ public class TicketAssignJob : IJob
 
     public async Task Execute(IJobExecutionContext context)
     {
-        // 查所有未指派工单
-        var unassigned = await _context.Set<Models.RepairTicket>()
-            .FromSqlRaw(
-                @"SELECT Ticket_ID AS TicketId FROM D_Repair_Ticket
-                  WHERE Assigned_To IS NULL")
-            .Select(t => t.TicketId)
+        // 标量投影（输出列别名为 "Value"），避免实体映射被 EF 二次组合（ORA-00904）
+        var unassigned = await _context.Database
+            .SqlQueryRaw<int>(@"SELECT Ticket_ID AS ""Value"" FROM D_Repair_Ticket
+                                WHERE Assigned_To IS NULL")
             .ToListAsync();
 
         foreach (var ticketId in unassigned)
@@ -40,9 +38,9 @@ public class TicketAssignJob : IJob
 }
 
 /// <summary>
-/// SLA 升级巡检——每 15 分钟扫描普通超时工单并升级（难点⑤）。
-/// 只升级"普通"超时工单 → 紧急 + 转派楼长 + Deadline 重置 12h；
-/// "紧急"已超时的不再升级。
+/// SLA 升级巡检——每 15 分钟扫描普通超时工单（难点⑤）。
+/// 只提醒不转派：SP 原子标记 Escalation_Time 并返回新升级工单，通知楼长由公共服务投递；
+/// 多实例并发时每单只会升级/通知一次（条件 UPDATE + SQL%ROWCOUNT 守门）。
 /// </summary>
 [DisallowConcurrentExecution]
 public class SlaEscalationJob : IJob

@@ -1,8 +1,9 @@
--- SLA派单存储过程（难点⑤ 一审修复版）
--- 依赖：D_Repair_Ticket, D_Repair_Log, D_Admin, D_Room, D_User_Account, D_Notification, D_Audit_Event
+-- SLA派单存储过程（难点⑤ 三审修复版）
+-- 依赖：D_Repair_Ticket, D_Repair_Log, D_Admin, D_Room
 -- 基线：database/ddl/foundation/001_create_tables.sql + database/ddl/extensions/010_extension_tables.sql
 -- 流程：学生报修 → SP_Assign_Ticket(初始派单) → SP_Claim_Ticket(被指派的维修员接单) → SP_Complete_Repair(完工写日志)
--- 巡检：SP_Escalate_SLA(普通超时→通知楼长，不转派)
+-- 巡检：SP_Escalate_SLA(普通超时→原子标记升级并返回清单，通知由应用层公共服务投递，不转派)
+-- 注意：本 SP 不直接写 D_Notification / D_Audit_Event（数据拥有者边界，且 MAX+1 并发撞主键）
 
 -- ============================================================
 -- DDL 补丁：增列 + 约束（幂等执行）
@@ -25,10 +26,11 @@ END;
 /
 
 -- 补丁 3：D_Repair_Ticket.Status CHECK 约束
+-- 重跑处理：约束已存在（同名）→ ORA-02264；已有同定义不同名约束 → ORA-02293 校验仍会生效，按新约束创建处理。
 BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE D_Repair_Ticket ADD CONSTRAINT CK_D_REPAIR_TICKET_STATUS CHECK (Status IN (''待处理'',''处理中'',''已完成''))';
 EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -2260 THEN NULL; ELSE RAISE; END IF;
+    IF SQLCODE = -2264 THEN NULL; ELSE RAISE; END IF;
 END;
 /
 
@@ -36,7 +38,7 @@ END;
 BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE D_Admin ADD CONSTRAINT CK_D_ADMIN_ROLE CHECK (Role_Level IN (''楼长'',''维修员'',''超级管理员''))';
 EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -2260 THEN NULL; ELSE RAISE; END IF;
+    IF SQLCODE = -2264 THEN NULL; ELSE RAISE; END IF;
 END;
 /
 
@@ -215,82 +217,71 @@ END SP_Complete_Repair;
 /
 
 -- ============================================================
--- SP_Escalate_SLA：SLA 升级巡检——普通超时工单通知楼长，不转派
+-- SP_Escalate_SLA：SLA 升级巡检——普通超时工单原子标记升级并返回本次升级清单
 -- P1-4 修复：只提醒不转派，不覆盖 Assigned_To，不改变 SLA_Level
--- 每 15 分钟由 Quartz 调用
--- Escalation_Time IS NULL → 首次升级，写入通知+审计
--- Escalation_Time IS NOT NULL → 已升级过，跳过（防二次升级）
+-- 三审修复（并发安全 + 数据拥有者边界）：
+--   1) FOR UPDATE SKIP LOCKED + 条件 UPDATE + SQL%ROWCOUNT 检查：
+--      多实例并发巡检同一工单时，行锁保证每个工单只会被一个会话赢得
+--      （另一会话 SKIP 或提交后重读已提交数据，条件不再成立 → 跳过），杜绝双升级；
+--      ORDER BY Ticket_ID 固定加锁顺序，避免两实例交叉死锁。
+--   2) 不再在 SP 内写 D_Notification / D_Audit_Event：
+--      MAX(Audit_ID)+1、MAX(Notification_ID)+1 并发会撞主键；
+--      通知改由应用层公共服务 INotificationService 投递（数据拥有者边界），
+--      SP 通过 SYS_REFCURSOR 返回本次新升级的工单清单（含楼长信息）。
+-- 每 15 分钟由 Quartz 调用。
 -- ============================================================
-CREATE OR REPLACE PROCEDURE SP_Escalate_SLA AS
-    v_Building_ID    NUMBER;
-    v_Mgr_Admin_ID   VARCHAR2(20);
-    v_Mgr_Account_ID NUMBER;
-    v_Audit_ID       NUMBER;
-    v_Notif_ID       NUMBER;
+CREATE OR REPLACE PROCEDURE SP_Escalate_SLA(
+    p_Cursor OUT SYS_REFCURSOR
+) AS
+    v_Id_List VARCHAR2(4000);
 BEGIN
+    v_Id_List := NULL;
+
+    -- 仅游标扫描 D_Repair_Ticket 单表（FOR UPDATE 要求可更新单表查询）；
+    -- D_Room 的关联（楼长查询）在下游结果游标中完成。
     FOR ticket_rec IN (
-        SELECT t.Ticket_ID, t.Assigned_To, t.SLA_Level, r.Building_ID,
-               t.Room_ID
-        FROM D_Repair_Ticket t
-        JOIN D_Room r ON t.Room_ID = r.Room_ID
-        WHERE t.Status IN ('待处理', '处理中')
-          AND t.SLA_Level = '普通'
-          AND t.Deadline < SYSDATE
-          AND t.Escalation_Time IS NULL   -- 仅首次升级
+        SELECT Ticket_ID
+        FROM D_Repair_Ticket
+        WHERE Status IN ('待处理', '处理中')
+          AND SLA_Level = '普通'
+          AND Deadline < SYSDATE
+          AND Escalation_Time IS NULL   -- 仅首次升级
+        ORDER BY Ticket_ID
+        FOR UPDATE SKIP LOCKED
     ) LOOP
-        -- 找本楼楼长
-        BEGIN
-            SELECT Admin_ID INTO v_Mgr_Admin_ID
-            FROM D_Admin
-            WHERE Role_Level = '楼长' AND Building_ID = ticket_rec.Building_ID
-              AND ROWNUM = 1;
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN CONTINUE;  -- 无楼长则跳过该条
-        END;
-
-        -- 通过 D_User_Account 解析楼长的 Account_ID
-        BEGIN
-            SELECT Account_ID INTO v_Mgr_Account_ID
-            FROM D_User_Account
-            WHERE Admin_ID = v_Mgr_Admin_ID AND Account_Status = '正常'
-              AND ROWNUM = 1;
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN CONTINUE;  -- 楼长无账户则跳过
-        END;
-
-        -- 标记首次升级时间（防二次升级）
+        -- 条件 UPDATE 守门：即使锁已持有，仍以 Escalation_Time IS NULL 为准，
+        -- 与 Escalation_Time IS NOT NULL = 已升级 的语义保持一致
         UPDATE D_Repair_Ticket
         SET Escalation_Time = SYSDATE
         WHERE Ticket_ID = ticket_rec.Ticket_ID
           AND Escalation_Time IS NULL;
 
-        -- 写审计事件
-        SELECT NVL(MAX(Audit_ID), 0) + 1 INTO v_Audit_ID FROM D_Audit_Event;
-        INSERT INTO D_Audit_Event (
-            Audit_ID, Actor_Account_ID, Event_Type, Target_Type, Target_ID, Event_Time
-        ) VALUES (
-            v_Audit_ID, NULL, 'SLA_ESCALATION', 'REPAIR_TICKET',
-            TO_CHAR(ticket_rec.Ticket_ID), SYSDATE
-        );
-
-        -- 通知楼长（Notification_Type='报修'，对齐已冻结枚举）
-        SELECT NVL(MAX(Notification_ID), 0) + 1 INTO v_Notif_ID FROM D_Notification;
-        INSERT INTO D_Notification (
-            Notification_ID, Recipient_Account_ID, Title, Content,
-            Notification_Type, Create_Time
-        ) VALUES (
-            v_Notif_ID, v_Mgr_Account_ID,
-            '报修工单 SLA 超时提醒',
-            '工单#' || ticket_rec.Ticket_ID
-            || '（Room_ID=' || ticket_rec.Room_ID
-            || '）已超过处理时限（' || ticket_rec.SLA_Level || '/'
-            || TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI') || '），请跟进处理。'
-            || '当前负责人：' || NVL(ticket_rec.Assigned_To, '未指派'),
-            '报修',
-            SYSDATE
-        );
+        IF SQL%ROWCOUNT = 1 THEN
+            -- 本会话赢得该工单的升级权，记录 ID（数字列拼接，无注入面）
+            v_Id_List := v_Id_List || ',' || ticket_rec.Ticket_ID;
+        END IF;
     END LOOP;
 
     COMMIT;
+
+    -- 返回本次赢得升级的工单清单（Ticket_ID, Room_ID, Assigned_To, Mgr_Admin_ID）
+    -- Mgr_Admin_ID：本楼楼长（无楼长 → NULL，应用层跳过投递）
+    IF v_Id_List IS NOT NULL THEN
+        OPEN p_Cursor FOR
+            'SELECT t.Ticket_ID, t.Room_ID, t.Assigned_To,
+                    (SELECT Admin_ID FROM D_Admin
+                      WHERE Role_Level = ''楼长''
+                        AND Building_ID = r.Building_ID
+                        AND ROWNUM = 1) AS Mgr_Admin_ID
+               FROM D_Repair_Ticket t
+               JOIN D_Room r ON t.Room_ID = r.Room_ID
+              WHERE t.Ticket_ID IN (' || SUBSTR(v_Id_List, 2) || ')';
+    ELSE
+        -- 本次无可升级工单：返回空结果集（列结构与上一致，供应用层空循环）
+        OPEN p_Cursor FOR
+            SELECT NULL AS Ticket_ID, NULL AS Room_ID, NULL AS Assigned_To,
+                   NULL AS Mgr_Admin_ID
+            FROM DUAL WHERE 1 = 0;
+    END IF;
 END SP_Escalate_SLA;
 /

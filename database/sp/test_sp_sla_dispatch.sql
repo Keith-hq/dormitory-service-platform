@@ -1,17 +1,19 @@
 -- ============================================================
--- 难点⑤ SLA派单 回归测试（一审修复版）
+-- 难点⑤ SLA派单 回归测试（三审修复版）
 -- 测试场景：
 --   1. 基本流程：创建工单→派单(维修员)→被指派维修员接单→完工
---   2. 完工越权：Admin B 尝试完成 Admin A 的工单 → rc=2
+--   2. 完工越权：Admin B 尝试完成 Admin A 的工单 → rc=2（SP 级授权）
 --   3. 未接单不能完工：待处理工单直接完工 → rc=2
 --   4. 幂等：重复派单→rc=2，重复接单→rc=1，重复完工→rc=2
 --   5. 无维修员→rc=3（配置异常，不擅自派楼长）
---   6. 公共抢单拦截：未指派工单不能被随意 Claim → rc=1
---   7. SLA 升级一次：Escalation_Time 非空，二次巡检不重复升级
---   8. 升级不覆盖负责人：Assigned_To 保持原维修员
---   9. 边界：不存在工单的 Assign/Complete → rc=1
---   10. 完工日志 UK 冲突 → rc=3（SAVEPOINT 回滚）
---   11. 清理只删本脚本创建的数据
+--   6. 公共抢单拦截：未指派工单不能被随意 Claim → rc=1（SP 级授权）
+--   7. SLA 升级一次：游标返回升级清单 + Escalation_Time 非空 + 不覆盖负责人/SLA
+--   8. 二次巡检不重复升级：游标不再返回该工单，Escalation_Time 不变
+--   9. DORM-26 查询证据：与 SlaDispatchService 一致的分页 SQL 在 Oracle 实测（总数/页内切片/OFFSET 边界）
+--   10. 边界：不存在工单的 Assign/Complete → rc=1
+--   11. 完工日志 UK 冲突 → rc=3（SAVEPOINT 回滚）
+--   12. 清理只删本脚本创建的数据（不再按标题+时间窗清理共享通知表）
+-- 并发竞态（多实例/双会话）见 test_escalation_race_*.sql
 -- ============================================================
 SET SERVEROUTPUT ON SIZE UNLIMITED
 
@@ -50,7 +52,7 @@ DECLARE
         RETURN v_Id;
     END;
 BEGIN
-    P('========== 难点⑤ SLA派单 回归测试（一审修复版）==========');
+    P('========== 难点⑤ SLA派单 回归测试（三审修复版）==========');
     v_Ts := TO_CHAR(SYSDATE, 'MMDDHH24MI');
     PL('Timestamp: ' || v_Ts);
 
@@ -299,9 +301,9 @@ BEGIN
     IF v_Rc != 1 THEN RAISE_APPLICATION_ERROR(-20022, 'Test 11 FAIL: expected rc=1'); END IF;
 
     -- ================================================================
-    -- TEST 12: SLA 升级——只提醒不转派 + Escalation_Time 防二次升级
+    -- TEST 12: SLA 升级——游标返回升级清单 + Escalation_Time 防二次升级
     -- ================================================================
-    P('--- Test 12: SLA Escalation (notify only, no reassign, once only) ---');
+    P('--- Test 12: SLA Escalation (cursor list, no reassign, once only) ---');
 
     -- 创建过期普通工单（Deadline 在过去，未升级）
     v_Ticket4_ID := NewTicketId;
@@ -317,52 +319,85 @@ BEGIN
        || ' (Deadline=' || TO_CHAR(SYSDATE-1, 'YYYY-MM-DD HH24:MI') || ')');
 
     -- --- 12a: 首次升级 ---
-    SP_Escalate_SLA;
+    DECLARE
+        v_Cur     SYS_REFCURSOR;
+        v_Tid     NUMBER;
+        v_Rid     NUMBER;
+        v_Ato     VARCHAR2(20);
+        v_Mgr     VARCHAR2(20);
+        v_Found   BOOLEAN := FALSE;
+        v_Cnt     NUMBER := 0;
+    BEGIN
+        SP_Escalate_SLA(v_Cur);
+        LOOP
+            FETCH v_Cur INTO v_Tid, v_Rid, v_Ato, v_Mgr;
+            EXIT WHEN v_Cur%NOTFOUND;
+            v_Cnt := v_Cnt + 1;
+            PL('escalated: Ticket_ID=' || v_Tid || ', Room_ID=' || v_Rid
+               || ', Assigned_To=' || NVL(v_Ato, 'NULL') || ', Mgr=' || NVL(v_Mgr, 'NULL'));
+            IF v_Tid = v_Ticket4_ID THEN v_Found := TRUE; END IF;
+        END LOOP;
+        CLOSE v_Cur;
+        PL('cursor rows: ' || v_Cnt || ' (expect >=1)');
+        IF v_Cnt < 1 THEN
+            RAISE_APPLICATION_ERROR(-20023, 'Test 12a FAIL: no rows escalated');
+        END IF;
+        IF NOT v_Found THEN
+            RAISE_APPLICATION_ERROR(-20024, 'Test 12a FAIL: ticket ' || v_Ticket4_ID || ' not in escalation list');
+        END IF;
+    END;
 
     -- 验证 Escalation_Time 已设置
     SELECT Escalation_Time INTO v_Esc_Time
     FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket4_ID;
     PL('Escalation_Time after 1st scan: ' || TO_CHAR(v_Esc_Time, 'YYYY-MM-DD HH24:MI:SS'));
     IF v_Esc_Time IS NULL THEN
-        RAISE_APPLICATION_ERROR(-20023, 'Test 12a FAIL: Escalation_Time still NULL');
+        RAISE_APPLICATION_ERROR(-20025, 'Test 12a FAIL: Escalation_Time still NULL');
     END IF;
 
-    -- 验证 Assigned_To 未被覆盖（仍为原维修员）
+    -- 验证 Assigned_To 未被覆盖（仍为原维修员）、SLA_Level 不变
     SELECT Assigned_To, SLA_Level INTO v_Assigned_To, v_SLA_Level
     FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket4_ID;
     PL('Assigned_To after escalation: ' || v_Assigned_To || ' (expect ' || v_Maint_Admin || ')');
     IF v_Assigned_To != v_Maint_Admin THEN
-        RAISE_APPLICATION_ERROR(-20024, 'Test 12a FAIL: Assigned_To changed to ' || v_Assigned_To);
+        RAISE_APPLICATION_ERROR(-20026, 'Test 12a FAIL: Assigned_To changed to ' || v_Assigned_To);
     END IF;
     PL('SLA_Level after escalation: ' || v_SLA_Level || ' (expect 普通, unchanged)');
     IF v_SLA_Level != '普通' THEN
-        RAISE_APPLICATION_ERROR(-20025, 'Test 12a FAIL: SLA_Level changed to ' || v_SLA_Level);
+        RAISE_APPLICATION_ERROR(-20027, 'Test 12a FAIL: SLA_Level changed to ' || v_SLA_Level);
     END IF;
 
-    -- 验证审计事件
-    SELECT COUNT(*) INTO v_Esc_Count FROM D_Audit_Event
-    WHERE Event_Type = 'SLA_ESCALATION'
-      AND Target_Type = 'REPAIR_TICKET'
-      AND Target_ID = TO_CHAR(v_Ticket4_ID);
-    PL('Audit events: ' || v_Esc_Count || ' (expect >=1)');
-    IF v_Esc_Count < 1 THEN
-        RAISE_APPLICATION_ERROR(-20026, 'Test 12a FAIL: no audit event');
-    END IF;
-
-    -- --- 12b: 二次巡检——Escalation_Time 已非空，不重复升级 ---
+    -- --- 12b: 二次巡检——该工单不再出现在升级清单，Escalation_Time 不变 ---
     SELECT Escalation_Time INTO v_Esc_Time
     FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket4_ID;
 
-    SP_Escalate_SLA;
+    DECLARE
+        v_Cur     SYS_REFCURSOR;
+        v_Tid     NUMBER;
+        v_Rid     NUMBER;
+        v_Ato     VARCHAR2(20);
+        v_Mgr     VARCHAR2(20);
+        v_Found   BOOLEAN := FALSE;
+    BEGIN
+        SP_Escalate_SLA(v_Cur);
+        LOOP
+            FETCH v_Cur INTO v_Tid, v_Rid, v_Ato, v_Mgr;
+            EXIT WHEN v_Cur%NOTFOUND;
+            IF v_Tid = v_Ticket4_ID THEN v_Found := TRUE; END IF;
+        END LOOP;
+        CLOSE v_Cur;
+        IF v_Found THEN
+            RAISE_APPLICATION_ERROR(-20028, 'Test 12b FAIL: ticket escalated twice');
+        END IF;
+    END;
 
-    -- Escalation_Time 不变
     DECLARE v_Esc_Time2 DATE;
     BEGIN
         SELECT Escalation_Time INTO v_Esc_Time2
         FROM D_Repair_Ticket WHERE Ticket_ID = v_Ticket4_ID;
         PL('Escalation_Time after 2nd scan: ' || TO_CHAR(v_Esc_Time2, 'YYYY-MM-DD HH24:MI:SS'));
         IF v_Esc_Time2 != v_Esc_Time THEN
-            RAISE_APPLICATION_ERROR(-20027, 'Test 12b FAIL: Escalation_Time changed on 2nd scan');
+            RAISE_APPLICATION_ERROR(-20029, 'Test 12b FAIL: Escalation_Time changed on 2nd scan');
         END IF;
     END;
     PL('PASS: 二次巡检未重复升级');
@@ -406,15 +441,57 @@ BEGIN
     END IF;
 
     -- ================================================================
-    -- CLEANUP
+    -- TEST 14: DORM-26 查询证据——与 SlaDispatchService.GetPendingTickets 一致的
+    --          分页 SQL（带引号别名 + OFFSET/FETCH 下推）在 Oracle 实测
+    -- ================================================================
+    P('--- Test 14: DORM-26 pagination SQL on Oracle ---');
+    DECLARE
+        v_Total NUMBER;
+        v_Page  NUMBER;
+        v_Rest  NUMBER;
+    BEGIN
+        -- 总数（与 countSql 一致：Assigned_To + 状态过滤）
+        SELECT COUNT(*) INTO v_Total FROM D_Repair_Ticket
+        WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '处理中');
+        PL('total for ' || v_Maint_Admin || ': ' || v_Total || ' (expect >=2)');
+        IF v_Total < 2 THEN
+            RAISE_APPLICATION_ERROR(-20030, 'Test 14 FAIL: expected at least 2 pending tickets for A');
+        END IF;
+
+        -- 第一页（page=1, pageSize=20）：SQL 形状与 GetPendingTickets 一致
+        SELECT COUNT(*) INTO v_Page FROM (
+            SELECT Ticket_ID AS "TicketId", Student_ID AS "StudentId",
+                   Room_ID AS "RoomId", Issue_Desc AS "IssueDesc",
+                   Submit_Time AS "SubmitTime", Status AS "Status",
+                   SLA_Level AS "SlaLevel", Deadline AS "Deadline",
+                   Assigned_To AS "AssignedTo", Escalation_Time AS "EscalationTime"
+            FROM D_Repair_Ticket
+            WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '处理中')
+            ORDER BY CASE SLA_Level WHEN '紧急' THEN 0 ELSE 1 END, Deadline ASC
+            OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY);
+        PL('page rows (page=1,size=20): ' || v_Page || ' (expect total if <=20)');
+        IF v_Page != LEAST(v_Total, 20) THEN
+            RAISE_APPLICATION_ERROR(-20031, 'Test 14 FAIL: page row count mismatch');
+        END IF;
+
+        -- OFFSET 越界 → 空页
+        SELECT COUNT(*) INTO v_Rest FROM (
+            SELECT Ticket_ID AS "TicketId"
+            FROM D_Repair_Ticket
+            WHERE Assigned_To = v_Maint_Admin AND Status IN ('待处理', '处理中')
+            ORDER BY Deadline ASC
+            OFFSET v_Total ROWS FETCH NEXT 20 ROWS ONLY);
+        PL('rows beyond last page: ' || v_Rest || ' (expect 0)');
+        IF v_Rest != 0 THEN
+            RAISE_APPLICATION_ERROR(-20032, 'Test 14 FAIL: offset boundary returned rows');
+        END IF;
+    END;
+    PL('PASS: DORM-26 分页 SQL 在 Oracle 可用');
+
+    -- ================================================================
+    -- CLEANUP（只删本脚本创建的数据；不再触碰共享的 D_Notification/D_Audit_Event）
     -- ================================================================
     P('--- Cleanup (only test-created data) ---');
-    DELETE FROM D_Audit_Event WHERE Target_Type = 'REPAIR_TICKET'
-        AND Target_ID IN (TO_CHAR(v_Ticket1_ID), TO_CHAR(v_Ticket2_ID), TO_CHAR(v_Ticket3_ID),
-                          TO_CHAR(v_Ticket4_ID), TO_CHAR(v_Ticket5_ID));
-
-    DELETE FROM D_Notification WHERE Title = '报修工单 SLA 超时提醒'
-        AND Create_Time >= SYSDATE - INTERVAL '1' HOUR;
 
     DELETE FROM D_Repair_Log WHERE Ticket_ID IN
         (v_Ticket1_ID, v_Ticket2_ID, v_Ticket3_ID, v_Ticket4_ID, v_Ticket5_ID);
@@ -422,7 +499,11 @@ BEGIN
     DELETE FROM D_Repair_Ticket WHERE Ticket_ID IN
         (v_Ticket1_ID, v_Ticket2_ID, v_Ticket3_ID, v_Ticket4_ID, v_Ticket5_ID);
 
-    -- 删除测试创建的 User_Account
+    -- 删除发送给本脚本测试账户的通知（按收件人绑定，而非标题+时间窗）
+    DELETE FROM D_Notification WHERE Recipient_Account_ID IN
+        (SELECT Account_ID FROM D_User_Account WHERE Login_Name = 't5_mgr_' || v_Ts);
+
+    -- 删除测试创建的 User_Account（按本脚本独有的 Login_Name）
     DELETE FROM D_User_Account WHERE Login_Name = 't5_mgr_' || v_Ts;
 
     -- 删除测试 Admin
@@ -432,7 +513,7 @@ BEGIN
     PL('All test data cleaned up');
 
     P('');
-    P('========== 所有 13 个测试全部通过! ==========');
+    P('========== 所有 14 个测试全部通过! ==========');
 
 EXCEPTION
     WHEN OTHERS THEN
@@ -440,17 +521,14 @@ EXCEPTION
         P('');
         P('========== 测试失败! ==========');
         P('Error: ' || SQLERRM || ' (code=' || SQLCODE || ')');
-        -- Attempt cleanup
+        -- Attempt cleanup（同样只删自有数据）
         BEGIN
-            DELETE FROM D_Audit_Event WHERE Target_Type = 'REPAIR_TICKET'
-                AND Target_ID IN (TO_CHAR(v_Ticket1_ID), TO_CHAR(v_Ticket2_ID), TO_CHAR(v_Ticket3_ID),
-                                  TO_CHAR(v_Ticket4_ID), TO_CHAR(v_Ticket5_ID));
-            DELETE FROM D_Notification WHERE Title = '报修工单 SLA 超时提醒'
-                AND Create_Time >= SYSDATE - INTERVAL '1' HOUR;
             DELETE FROM D_Repair_Log WHERE Ticket_ID IN
                 (v_Ticket1_ID, v_Ticket2_ID, v_Ticket3_ID, v_Ticket4_ID, v_Ticket5_ID);
             DELETE FROM D_Repair_Ticket WHERE Ticket_ID IN
                 (v_Ticket1_ID, v_Ticket2_ID, v_Ticket3_ID, v_Ticket4_ID, v_Ticket5_ID);
+            DELETE FROM D_Notification WHERE Recipient_Account_ID IN
+                (SELECT Account_ID FROM D_User_Account WHERE Login_Name = 't5_mgr_' || v_Ts);
             DELETE FROM D_User_Account WHERE Login_Name = 't5_mgr_' || v_Ts;
             DELETE FROM D_Admin WHERE Admin_ID IN (v_Maint_Admin, v_Maint_Admin2, v_Mgr_Admin);
             COMMIT;

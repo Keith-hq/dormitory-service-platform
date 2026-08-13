@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 
 namespace TemplateDormApi.Data;
@@ -23,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<NoticeDisplay> NoticeDisplays => Set<NoticeDisplay>();
     public DbSet<RepairTicket> RepairTickets => Set<RepairTicket>();
     public DbSet<RepairLog> RepairLogs => Set<RepairLog>();
+    public DbSet<PendingRepairTicketDto> PendingRepairTicketDtos => Set<PendingRepairTicketDto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -283,6 +285,12 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ProcessDesc).HasColumnName("PROCESS_DESC").HasMaxLength(500);
             entity.Property(e => e.RepairResult).HasColumnName("REPAIR_RESULT").HasMaxLength(200);
             entity.Property(e => e.ResolveTime).HasColumnName("RESOLVE_TIME").IsRequired();
+        });
+
+        // ===== PendingRepairTicketDto：DORM-26 列表投影（无键，仅供 SqlQueryRaw 查询）=====
+        modelBuilder.Entity<PendingRepairTicketDto>(entity =>
+        {
+            entity.HasNoKey();
         });
     }
 }
