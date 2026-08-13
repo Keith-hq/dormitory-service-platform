@@ -25,9 +25,9 @@ defineProps({
 
 <style scoped>
 .status-tag {
-  --tag-color: #475467;
-  --tag-bg: #f2f4f7;
-  --tag-border: #dfe3e8;
+  --tag-color: var(--color-text-muted);
+  --tag-bg: var(--color-surface-muted);
+  --tag-border: var(--color-line);
 
   display: inline-flex;
   align-items: center;
@@ -36,7 +36,8 @@ defineProps({
   border-radius: 999px;
   background: var(--tag-bg);
   color: var(--tag-color);
-  font-weight: 650;
+  font-weight: 750;
+  letter-spacing: 0.015em;
   line-height: 1;
   white-space: nowrap;
 }
@@ -58,28 +59,28 @@ defineProps({
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
 }
 .status-tag--info {
-  --tag-color: #175cd3;
-  --tag-bg: #eff8ff;
-  --tag-border: #b2ddff;
+  --tag-color: #256a78;
+  --tag-bg: #eaf5f5;
+  --tag-border: #badcde;
 }
 .status-tag--success {
-  --tag-color: #067647;
-  --tag-bg: #ecfdf3;
-  --tag-border: #abefc6;
+  --tag-color: #246b4b;
+  --tag-bg: #eaf5ed;
+  --tag-border: #bdddc7;
 }
 .status-tag--warning {
-  --tag-color: #b54708;
-  --tag-bg: #fffaeb;
-  --tag-border: #fedf89;
+  --tag-color: #9a5d22;
+  --tag-bg: #fff3dc;
+  --tag-border: #efd29e;
 }
 .status-tag--danger {
-  --tag-color: #b42318;
-  --tag-bg: #fef3f2;
-  --tag-border: #fecdca;
+  --tag-color: #a34239;
+  --tag-bg: #fbeae6;
+  --tag-border: #efc4bc;
 }
 .status-tag--rose {
-  --tag-color: #c11574;
-  --tag-bg: #fdf2fa;
-  --tag-border: #fcceee;
+  --tag-color: #9b5265;
+  --tag-bg: #f9edf0;
+  --tag-border: #e9c9d1;
 }
 </style>
