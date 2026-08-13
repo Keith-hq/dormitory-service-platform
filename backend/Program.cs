@@ -75,6 +75,9 @@ builder.Services.AddScoped<StudentReportRepository>();
 builder.Services.AddScoped<AccessRepository>();
 builder.Services.AddScoped<VisitorRegistryRepository>();
 builder.Services.AddScoped<ViolationRepository>();
+builder.Services.AddScoped<LeaveRepository>();
+builder.Services.AddScoped<BedAllocationRepository>();
+builder.Services.AddScoped<CheckoutRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
@@ -96,6 +99,9 @@ builder.Services.AddScoped<IStudentReportService, StudentReportService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
+builder.Services.AddScoped<ILeaveService, LeaveService>();
+builder.Services.AddScoped<IAllocationService, AllocationService>();
+builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
