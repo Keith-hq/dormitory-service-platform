@@ -87,7 +87,6 @@ builder.Services.AddScoped<IFacilityService, FacilityService>();
 builder.Services.AddScoped<INoticeService, NoticeService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();
 builder.Services.AddScoped<IFacilityBookingService, FacilityBookingService>();
-<<<<<<< HEAD
 builder.Services.AddScoped<IStudentProfileService, StudentProfileService>();
 builder.Services.AddScoped<IStudentIdentityService, StudentIdentityService>();
 builder.Services.AddScoped<IRepairService, RepairService>();
@@ -97,9 +96,7 @@ builder.Services.AddScoped<IStudentReportService, StudentReportService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
-=======
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
->>>>>>> e49bffc (feat: 难点④ 共享物品借还与耗材出库)
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
