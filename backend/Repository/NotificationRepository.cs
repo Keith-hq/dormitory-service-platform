@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.Models;
@@ -95,42 +94,9 @@ public class NotificationRepository
 
     public async Task<Notification> AddAsync(Notification notification)
     {
-        await AssignNotificationKeyAsync(notification);
         await _context.Notifications.AddAsync(notification);
         await _context.SaveChangesAsync();
         return notification;
-    }
-
-    /// <summary>
-    /// 四审 P1-3：真实 Oracle 实测——Oracle 提供方对 ValueGeneratedOnAdd 列一律由
-    /// 数据库生成值并用 RETURNING 读回（序列生成器不预取 NEXTVAL），而
-    /// D_Notification.NOTIFICATION_ID 列没有默认值 → ORA-01400。主键改为应用层
-    /// 预取 SEQ_NOTIFICATION.NEXTVAL 显式赋值，EF 会随 INSERT 写入（与 SP 层取值
-    /// 风格一致，序列并发安全；应用层唯一写入方，无 MAX+1 直写共存风险）。
-    /// InMemory 保持 EF 自动生成。
-    /// 预取走连接级裸命令：SingleAsync 会把原始 SQL 组合为子查询，
-    /// NEXTVAL 在子查询中非法（ORA-02287，真实 Oracle 实测）。
-    /// </summary>
-    private async Task AssignNotificationKeyAsync(Notification notification)
-    {
-        if (string.Equals(
-                _context.Database.ProviderName,
-                "Microsoft.EntityFrameworkCore.InMemory",
-                StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        var connection = _context.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            await connection.OpenAsync();
-        }
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT SEQ_NOTIFICATION.NEXTVAL FROM DUAL";
-        var value = await command.ExecuteScalarAsync();
-        notification.NotificationId = Convert.ToInt32(value);
     }
 
     private async Task<int> MarkUnreadAsReadAsync(IQueryable<Notification> query)

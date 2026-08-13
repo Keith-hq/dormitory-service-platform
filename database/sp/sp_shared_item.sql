@@ -17,17 +17,23 @@
 --   1. 归还超期判定分离：p_Is_Overdue（Return_Time > Due_Time 即逾期，
 --      按次扣 2 分）与 p_Overdue_Days（展示用天数，至少 1）分离，
 --      刚超时 1 秒 / 1 小时同样触发扣分；
---   2. Idempotency-Key 补 100 字节边界校验（借出 rc=6 / 耗材 rc=4），
+--   2. Idempotency-Key 补 100 字符边界校验（借出 rc=6 / 耗材 rc=4），
 --      超长键直接拒绝，不再以 ORA-12899 冒泡成接口 500；
 --   3. 逾期提醒移出存储过程：SP_Check_Overdue 已删除，改由应用层
 --      OverdueCheckJob 读候选 → 调通知公共服务（借出行锁互斥 + 同事务
 --      检查插入，同一天每笔只提醒一次），通知失败只记录；
 --      本文件 SP 不再触碰 D_Notification / D_User_Account。
---   4. 信用公共服务集成修复（真实 Oracle 实测发现）：
---      信用分流水主键生成依赖 SEQ_CREDIT_LOG 序列，本文件补齐受保护创建；
---      Oracle 提供方对 ValueGeneratedOnAdd 列一律由数据库生成并用 RETURNING
---      读回（序列生成器不预取），而 LOG_ID / NOTIFICATION_ID 列无默认值会
---      ORA-01400，故由应用层预取 SEQ_XXX.NEXTVAL 显式赋值随 INSERT 写入。
+--
+-- 五审修订：
+--   1. 删除 SEQ_CREDIT_LOG / SEQ_NOTIFICATION 应用层预取序列：主键生成
+--      回归基线触发器路径（迁移 012 TRG_D_NOTIFICATION_ID_BI /
+--      014 TRG_D_CREDIT_LOG_ID_BI，WHEN NEW.xxx IS NULL），本文件不再
+--      创建与基线并存的第二序列，避免双序列并存撞主键；
+--   2. 删除 4 段内联 DDL 补丁（D_Item_Loan / D_Repair_Material_Usage 的
+--      ALTER ADD + 两个唯一索引）：幂等键列与唯一索引由迁移 019 提供
+--      （VARCHAR2(100 CHAR) 字符语义），重建路径只依赖编号迁移；
+--   3. 幂等键校验口径随迁移 019 的 CHAR 语义对齐：LENGTHB（字节）改为
+--      LENGTH（字符），按 100 字符判定。
 
 -- ============================================================
 -- 创建专用序列
@@ -48,61 +54,11 @@ EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
 END;
 /
 
--- 信用分流水主键序列（四审：应用层 EF Core UseSequence 取值）
-DECLARE v_StartVal NUMBER;
-BEGIN
-    SELECT NVL(MAX(Log_ID), 0) + 1 INTO v_StartVal FROM D_Credit_Log;
-    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_CREDIT_LOG START WITH ' || v_StartVal || ' INCREMENT BY 1';
-EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
--- 通知主键序列（四审 P1-3：逾期提醒走通知公共服务，其插入依赖本序列；
--- 应用层唯一写入方，无 MAX+1 直写共存风险）
-DECLARE v_StartVal NUMBER;
-BEGIN
-    SELECT NVL(MAX(Notification_ID), 0) + 1 INTO v_StartVal FROM D_Notification;
-    EXECUTE IMMEDIATE 'CREATE SEQUENCE SEQ_NOTIFICATION START WITH ' || v_StartVal || ' INCREMENT BY 1';
-EXCEPTION WHEN OTHERS THEN IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
--- ============================================================
--- DDL 补丁：为幂等键添加列与唯一索引
--- ============================================================
-BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE D_Item_Loan ADD (Idempotency_Key VARCHAR2(100))';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -1430 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
-BEGIN
-    EXECUTE IMMEDIATE 'CREATE UNIQUE INDEX UK_D_ITEM_LOAN_IDEM ON D_Item_Loan (Idempotency_Key)';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
-BEGIN
-    EXECUTE IMMEDIATE 'ALTER TABLE D_Repair_Material_Usage ADD (Idempotency_Key VARCHAR2(100))';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -1430 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
-BEGIN
-    EXECUTE IMMEDIATE 'CREATE UNIQUE INDEX UK_D_REPAIR_MAT_USE_IDEM ON D_Repair_Material_Usage (Idempotency_Key)';
-EXCEPTION WHEN OTHERS THEN
-    IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
-END;
-/
-
 -- ============================================================
 -- SP_Borrow_Item：借出共享物品
 -- 返回：0=成功, 1=物品不存在, 2=物品停用, 3=库存不足,
 --       4=信用分不足（低于60）, 5=幂等键已使用且请求内容不一致,
---       6=幂等键超过 100 字节（列宽上限，四审新增）
+--       6=幂等键超过 100 字符（迁移 019 列宽 CHAR 语义，五审对齐）
 -- 并发语义（三审 P1-2）：
 --   同 Key 并发：两个会话都通过幂等快路径后，先扣库存者先 INSERT 成功；
 --   后到者的 INSERT 撞唯一索引 UK_D_ITEM_LOAN_IDEM → 回滚库存扣减（SAVEPOINT）
@@ -125,8 +81,9 @@ BEGIN
     p_Result_Code := 0;
     p_Loan_ID := NULL;
 
-    -- 0. 幂等键边界校验（四审）：列宽 100 字节，超长直接拒绝，避免 ORA-12899 变 500
-    IF p_Idempotency_Key IS NOT NULL AND LENGTHB(p_Idempotency_Key) > 100 THEN
+    -- 0. 幂等键边界校验（五审）：列宽 100 字符（迁移 019 CHAR 语义），
+    --    超长直接拒绝，避免 ORA-12899 变 500
+    IF p_Idempotency_Key IS NOT NULL AND LENGTH(p_Idempotency_Key) > 100 THEN
         p_Result_Code := 6;
         RETURN;
     END IF;
@@ -273,7 +230,7 @@ END SP_Return_Item;
 -- ============================================================
 -- SP_Consume_Material：维修耗材出库
 -- 返回：0=成功, 1=耗材不存在, 2=库存不足, 3=幂等键已使用且请求内容不一致,
---       4=幂等键超过 100 字节（列宽上限，四审新增）
+--       4=幂等键超过 100 字符（迁移 019 列宽 CHAR 语义，五审对齐）
 -- 并发语义与 SP_Borrow_Item 相同（SAVEPOINT + 唯一索引兜底 + 内容比对），
 -- 比对内容为 Ticket_ID + Material_ID + Quantity。
 -- ============================================================
@@ -291,8 +248,9 @@ CREATE OR REPLACE PROCEDURE SP_Consume_Material(
 BEGIN
     p_Result_Code := 0;
 
-    -- 0. 幂等键边界校验（四审）：列宽 100 字节，超长直接拒绝，避免 ORA-12899 变 500
-    IF p_Idempotency_Key IS NOT NULL AND LENGTHB(p_Idempotency_Key) > 100 THEN
+    -- 0. 幂等键边界校验（五审）：列宽 100 字符（迁移 019 CHAR 语义），
+    --    超长直接拒绝，避免 ORA-12899 变 500
+    IF p_Idempotency_Key IS NOT NULL AND LENGTH(p_Idempotency_Key) > 100 THEN
         p_Result_Code := 4;
         RETURN;
     END IF;

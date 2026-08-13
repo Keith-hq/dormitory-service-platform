@@ -49,10 +49,13 @@ public class InventoryTxnController : ControllerBase
         return request.Headers[IdempotencyKeyHeader].FirstOrDefault();
     }
 
-    /// <summary>幂等键 100 字节边界校验（四审）：列宽上限，超长在入口拒绝，避免 Oracle 500</summary>
+    /// <summary>
+    /// 幂等键 100 字符边界校验（五审）：迁移 019 列宽为 VARCHAR2(100 CHAR)，
+    /// 校验口径随 CHAR 语义统一为字符数（key.Length），超长在入口拒绝，避免 Oracle 500。
+    /// </summary>
     private static bool IsIdempotencyKeyTooLong(string? key)
     {
-        return !string.IsNullOrEmpty(key) && System.Text.Encoding.UTF8.GetByteCount(key) > 100;
+        return !string.IsNullOrEmpty(key) && key.Length > 100;
     }
 
     // ==================== 学生端 ====================
@@ -80,14 +83,14 @@ public class InventoryTxnController : ControllerBase
             return Ok(ApiResponse.Error(400, "缺少 Idempotency-Key 请求头"));
 
         if (IsIdempotencyKeyTooLong(idempotencyKey))
-            return Ok(ApiResponse.Error(400, "Idempotency-Key 不能超过 100 字节"));
+            return Ok(ApiResponse.Error(400, "Idempotency-Key 不能超过 100 字符"));
 
         var (rc, loanId) = await _service.BorrowItem(req.ItemId, studentId, idempotencyKey);
 
         var msgs = new[]
         {
             "借用成功", "物品不存在", "物品已停用", "库存不足", "信用分不足（低于60）",
-            "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字节"
+            "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字符"
         };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
@@ -144,10 +147,10 @@ public class InventoryTxnController : ControllerBase
             return Ok(ApiResponse.Error(400, "缺少 Idempotency-Key 请求头"));
 
         if (IsIdempotencyKeyTooLong(idempotencyKey))
-            return Ok(ApiResponse.Error(400, "Idempotency-Key 不能超过 100 字节"));
+            return Ok(ApiResponse.Error(400, "Idempotency-Key 不能超过 100 字符"));
 
         var rc = await _service.ConsumeMaterial(req.MaterialId, ticketId, req.Quantity, idempotencyKey);
-        var msgs = new[] { "出库成功", "耗材不存在", "库存不足", "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字节" };
+        var msgs = new[] { "出库成功", "耗材不存在", "库存不足", "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字符" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, msg))

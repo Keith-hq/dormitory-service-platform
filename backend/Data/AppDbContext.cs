@@ -109,10 +109,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.NotificationId);
             entity.Property(e => e.NotificationId)
                 .HasColumnName("NOTIFICATION_ID")
-                // 四审 P1-3：Oracle 提供方对 OnAdd 列走 RETURNING 读回（由数据库
-                // 生成值），而本列无默认值；主键由应用层预取 SEQ_NOTIFICATION.NEXTVAL
-                // 显式赋值（见 NotificationRepository.AssignNotificationKeyAsync）。
-                // 序列由 database/sp/sp_shared_item.sql 受保护创建。
                 .ValueGeneratedOnAdd();
             entity.Property(e => e.RecipientAccountId)
                 .HasColumnName("RECIPIENT_ACCOUNT_ID")
@@ -169,10 +165,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.LogId);
             entity.Property(e => e.LogId)
                 .HasColumnName("LOG_ID")
-                // 四审：Oracle 提供方对 OnAdd 列走 RETURNING 读回（由数据库
-                // 生成值），而本列无默认值；主键由应用层预取 SEQ_CREDIT_LOG.NEXTVAL
-                // 显式赋值（见 CreditRepository.AssignLogKeyAsync）。
-                // 序列由 database/sp/sp_shared_item.sql 受保护创建。
                 .ValueGeneratedOnAdd();
             entity.Property(e => e.StudentId)
                 .HasColumnName("STUDENT_ID")
@@ -279,7 +271,8 @@ public class AppDbContext : DbContext
         });
 
         // ===== ItemLoan 共享物品借还记录实体映射（D_Item_Loan，难点④）=====
-        // 注：Loan_ID 由 SEQ_ITEM_LOAN 生成，同上。
+        // 注：写入必须走存储过程（Loan_ID 由 SEQ_ITEM_LOAN 生成，
+        // Idempotency_Key 由 SP 落库并受唯一索引 UK_D_ITEM_LOAN_IDEM 兜底，迁移 019）。
         modelBuilder.Entity<ItemLoan>(entity =>
         {
             entity.ToTable("D_ITEM_LOAN");
@@ -291,6 +284,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.BorrowTime).HasColumnName("BORROW_TIME").IsRequired();
             entity.Property(e => e.DueTime).HasColumnName("DUE_TIME").IsRequired();
             entity.Property(e => e.ReturnTime).HasColumnName("RETURN_TIME");
+            entity.Property(e => e.IdempotencyKey).HasColumnName("IDEMPOTENCY_KEY").HasMaxLength(100);
         });
 
         // ===== RepairMaterial 维修耗材实体映射（D_Repair_Material，难点④）=====
@@ -306,7 +300,8 @@ public class AppDbContext : DbContext
         });
 
         // ===== RepairMaterialUsage 维修耗材消耗记录实体映射（D_Repair_Material_Usage，难点④）=====
-        // 注：Usage_ID 由 SEQ_MATERIAL_USAGE 生成，同上。
+        // 注：写入必须走存储过程（Usage_ID 由 SEQ_MATERIAL_USAGE 生成，
+        // Idempotency_Key 由 SP 落库并受唯一索引 UK_D_REPAIR_MAT_USE_IDEM 兜底，迁移 019）。
         modelBuilder.Entity<RepairMaterialUsage>(entity =>
         {
             entity.ToTable("D_REPAIR_MATERIAL_USAGE");
@@ -317,6 +312,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.MaterialId).HasColumnName("MATERIAL_ID");
             entity.Property(e => e.Quantity).HasColumnName("QUANTITY");
             entity.Property(e => e.UseTime).HasColumnName("USE_TIME");
+            entity.Property(e => e.IdempotencyKey).HasColumnName("IDEMPOTENCY_KEY").HasMaxLength(100);
         });
     }
 }

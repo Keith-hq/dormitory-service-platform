@@ -2,6 +2,8 @@ namespace TemplateDormApi.Models;
 
 /// <summary>
 /// 共享物品借还记录实体，对应 D_Item_Loan。
+/// 写入必须走存储过程（SP_Borrow_Item / SP_Return_Item）：Loan_ID 由序列生成、
+/// Idempotency_Key 由 SP 落库并受唯一索引 UK_D_ITEM_LOAN_IDEM 兜底（迁移 019）。
 /// </summary>
 public class ItemLoan
 {
@@ -16,4 +18,7 @@ public class ItemLoan
     public DateTime DueTime { get; set; }
 
     public DateTime? ReturnTime { get; set; }
+
+    /// <summary>幂等键（迁移 019，VARCHAR2(100 CHAR)）；SP 层以"键非空"为前提做幂等去重。</summary>
+    public string? IdempotencyKey { get; set; }
 }

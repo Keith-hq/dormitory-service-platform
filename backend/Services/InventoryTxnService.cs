@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Oracle.ManagedDataAccess.Client;
 using System.Data;
+using System.Data.Common;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -182,7 +183,16 @@ public class InventoryTxnService : IInventoryTxnService
             }
             catch (Exception ex)
             {
-                // 通知失败只记录：单个候选失败不影响其余候选，也不影响主业务
+                // 通知失败只记录：单个候选失败不影响其余候选，也不影响主业务。
+                // 五审建议：投递失败后通知实体仍滞留 DbContext Added 状态，
+                // 同上下文后续 SaveChanges 会重放失败插入——此处 Detach 清除跟踪，
+                // 失败留在本笔（事务已随 using 回滚），不污染后续业务。
+                foreach (var entry in _context.ChangeTracker.Entries<Notification>()
+                             .Where(e => e.State == EntityState.Added).ToList())
+                {
+                    entry.State = EntityState.Detached;
+                }
+
                 _logger.LogError(ex, "逾期提醒投递失败 Loan_ID={LoanId}", loan.LoanId);
             }
         }
@@ -190,13 +200,18 @@ public class InventoryTxnService : IInventoryTxnService
 
     /// <summary>
     /// 自愈补扣（四审 P1-2）：归还已提交但信用扣分失败（信用服务临时异常）时，
-    /// 由巡检扫描"已归还逾期、无 OVERDUE-{Loan_ID} 流水"的借出并重试扣分。
-    /// Event_Key 幂等保证已扣分的不重复；封底（FloorAtZero）保证低分学生可扣。
+    /// 由巡检扫描"近 7 天已归还逾期、无 OVERDUE-{Loan_ID} 流水"的借出并重试扣分。
+    /// Event_Key 幂等保证已扣分的不重复。
+    /// 时间窗收窄（五审建议）：只补偿近 7 天归还的借出，更早的补偿窗口视为关闭
+    /// （每 15 分钟全表扫描无限重扫的问题就此收敛）；永久性跳过（40401/分数低于
+    /// 罚分）由 DeductOverdueAsync 内部关闭，不再每轮进入。
     /// </summary>
     private async Task CompensatePendingDeductionsAsync()
     {
+        var windowStart = DateTime.Now.AddDays(-7);
         var returnedOverdue = await _context.ItemLoans
-            .Where(l => l.ReturnTime != null && l.ReturnTime > l.DueTime)
+            .Where(l => l.ReturnTime != null && l.ReturnTime > l.DueTime
+                        && l.ReturnTime >= windowStart)
             .AsNoTracking()
             .ToListAsync();
 
@@ -216,9 +231,9 @@ public class InventoryTxnService : IInventoryTxnService
                 await DeductOverdueAsync(loan.LoanId, loan.StudentId, days);
                 _logger.LogInformation("逾期补扣完成 Loan_ID={LoanId}", loan.LoanId);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is BusinessException || ex is DbException)
             {
-                // 补扣失败只记录：下一轮巡检继续重试
+                // 可重试失败只记录：下一轮巡检继续重试；编程错误向上抛出
                 _logger.LogWarning(ex, "逾期补扣失败 Loan_ID={LoanId}，待下轮巡检重试", loan.LoanId);
             }
         }
@@ -313,8 +328,10 @@ public class InventoryTxnService : IInventoryTxnService
             await DeductOverdueAsync(loanId, studentId, overdueDays);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is BusinessException || ex is DbException)
         {
+            // 只吞业务/数据库类可重试失败：归还已生效，扣分失败标记待补偿交巡检重试；
+            // 编程错误（NRE 等）向上抛出让调用链暴露，避免"捕获一切"掩盖缺陷。
             _logger.LogError(ex,
                 "超期扣分失败（归还已生效，标记待补偿）Loan_ID={LoanId} Student_ID={StudentId}",
                 loanId, studentId);
@@ -326,10 +343,10 @@ public class InventoryTxnService : IInventoryTxnService
     /// 超期归还按次扣 2 分（PRD 规则，组长确认）：统一走信用分公共服务。
     /// Event_Key = OVERDUE-{loanId}：与巡检并发、客户端重试都只产生一次扣分，
     /// 且冻结（跌破 60）通知由信用分服务统一发出，语义不丢失。
-    /// FloorAtZero（四审 P1-2）：低分学生在锁内按 0 封底，扣分不被拒——
-    /// 分数已为 0 时仍会写入名义 -2 分流水（审计轨迹不丢），分数保持 0。
-    /// 仅 40401（账户不存在/停用）为永久性跳过；其余异常向上抛出，
-    /// 由 TryDeductOverdueAsync 捕获后标记待补偿、交巡检自愈重试。
+    /// 永久性跳过：40401（账户不存在/停用）与 400 范围拒绝（当前分数低于罚分，
+    /// 信用分服务的封底能力属公共服务改动，五审要求未获架构负责人确认前不保留，
+    /// 故本库视为不可重试，日志留痕；确认后以独立 PR 恢复封底，此处拒绝自然消失）。
+    /// 其余异常向上抛出，由 TryDeductOverdueAsync 捕获后标记待补偿、交巡检自愈重试。
     /// </summary>
     private async Task DeductOverdueAsync(int loanId, string studentId, int overdueDays)
     {
@@ -340,13 +357,20 @@ public class InventoryTxnService : IInventoryTxnService
                 StudentId = studentId,
                 ScoreChange = -2,
                 Reason = $"共享物品超期归还（Loan_ID={loanId}，逾期{overdueDays}天，按次扣2分）",
-                EventKey = $"OVERDUE-{loanId}",
-                FloorAtZero = true
+                EventKey = $"OVERDUE-{loanId}"
             }, CancellationToken.None);
         }
         catch (BusinessException ex) when (ex.Code == 40401)
         {
             return; // 学生账户不存在或已停用，跳过扣分（自愈巡检不再重试）
+        }
+        catch (BusinessException ex) when (ex.Code == 400 && ex.Message.Contains("0 到 100"))
+        {
+            // 当前分数低于罚分：公共服务封底（FloorAtZero）未获确认前不可重试，
+            // 每轮重试必然失败。记日志关闭该补偿项，待封底独立 PR 合入后由人工核对补扣。
+            _logger.LogWarning(
+                "超期扣分永久跳过（分数低于罚分，封底能力待架构负责人确认）：Loan_ID={LoanId} Student_ID={StudentId}。{Message}",
+                loanId, studentId, ex.Message);
         }
     }
 
