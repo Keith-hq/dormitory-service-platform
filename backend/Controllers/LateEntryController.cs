@@ -54,7 +54,7 @@ public sealed class LateEntryController : ControllerBase
     }
 
     /// <summary>DORM-31 人工登记晚归。</summary>
-    [Authorize(Policy = AuthPolicies.DormAdmin)]
+    [Authorize]
     [HttpPost("late-entries")]
     public async Task<ActionResult<ApiResponse<LateEntryDto>>> Create(
         [FromBody] CreateLateEntryRequest request,

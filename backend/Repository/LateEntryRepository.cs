@@ -64,11 +64,31 @@ public sealed class LateEntryRepository : FrameworkRepositoryBase
         };
     }
 
-    public Task<LateEntryDto> CreateAsync(
+    public async Task<LateEntryDto> CreateAsync(
         CreateLateEntryRequest request,
         CancellationToken cancellationToken)
-        => PendingAsync<LateEntryDto>(
-            "DORM-31",
-            "D_LATE_ENTRY 新增记录的主键生成方案待确认",
-            cancellationToken);
+    {
+        var studentExists = await DbContext.Students.AsNoTracking()
+            .AnyAsync(item => item.StudentId == request.StudentId, cancellationToken);
+        if (!studentExists)
+        {
+            throw new TemplateDormApi.Exceptions.BusinessException(404, "学生不存在", 404);
+        }
+
+        var entry = new LateEntry
+        {
+            StudentId = request.StudentId,
+            ReturnTime = request.RecordTime,
+            Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim()
+        };
+        DbContext.LateEntries.Add(entry);
+        await DbContext.SaveChangesAsync(cancellationToken);
+        return new LateEntryDto
+        {
+            RecordId = entry.RecordId,
+            StudentId = entry.StudentId,
+            RecordTime = entry.ReturnTime,
+            Reason = entry.Reason
+        };
+    }
 }

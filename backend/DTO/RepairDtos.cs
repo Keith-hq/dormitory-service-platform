@@ -14,7 +14,6 @@ public sealed class SubmitRepairTicketRequest
     public string Urgency { get; set; } = string.Empty;
 
     public long? RoomId { get; set; }
-    public string? Category { get; set; }
 }
 
 public sealed class RepairTicketQueryDto
@@ -44,6 +43,15 @@ public sealed class RepairTicketDto
     public string? SlaLevel { get; set; }
     public DateTime? Deadline { get; set; }
     public string? AssignedTo { get; set; }
+    public RepairLogDto? Log { get; set; }
+    public IReadOnlyList<RepairAttachmentDto> Attachments { get; set; } = Array.Empty<RepairAttachmentDto>();
+}
+
+public sealed class RepairLogDto
+{
+    public string? AdminId { get; set; }
+    public string? ProcessDesc { get; set; }
+    public DateTime ResolveTime { get; set; }
 }
 
 public sealed class RepairAttachmentDto
@@ -53,4 +61,6 @@ public sealed class RepairAttachmentDto
     public string OriginalName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public long FileSize { get; set; }
+    public string StorageRef { get; set; } = string.Empty;
+    public DateTime CreateTime { get; set; }
 }

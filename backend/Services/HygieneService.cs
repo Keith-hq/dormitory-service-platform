@@ -12,9 +12,9 @@ public interface IHygieneService
         int? accountId,
         bool isDormAdmin,
         CancellationToken cancellationToken);
-    Task<HygieneRecordDto> CreateAsync(CreateHygieneRecordRequest request, CancellationToken cancellationToken);
+    Task<HygieneRecordDto> CreateAsync(int accountId, CreateHygieneRecordRequest request, CancellationToken cancellationToken);
     Task<HygieneRecordDto> UpdateAsync(long recordId, UpdateHygieneRecordRequest request, CancellationToken cancellationToken);
-    Task<IReadOnlyList<HygieneRankingDto>> GetRankingsAsync(HygieneRankingQueryDto query, CancellationToken cancellationToken);
+    Task<IReadOnlyList<HygieneRankingDto>> GetRankingsAsync(HygieneRankingQueryDto query, int accountId, bool isDormAdmin, CancellationToken cancellationToken);
 }
 
 public sealed class HygieneService : IHygieneService
@@ -65,8 +65,15 @@ public sealed class HygieneService : IHygieneService
         return await _repository.GetRoomRecordsAsync(roomId, cancellationToken);
     }
 
-    public Task<HygieneRecordDto> CreateAsync(CreateHygieneRecordRequest request, CancellationToken cancellationToken)
-        => _repository.CreateAsync(request, cancellationToken);
+    public async Task<HygieneRecordDto> CreateAsync(
+        int accountId,
+        CreateHygieneRecordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var adminId = await _repository.GetAdminIdAsync(accountId, cancellationToken)
+            ?? throw new BusinessException(403, "当前账户未关联宿管身份", StatusCodes.Status403Forbidden);
+        return await _repository.CreateAsync(adminId, request, cancellationToken);
+    }
 
     public async Task<HygieneRecordDto> UpdateAsync(
         long recordId,
@@ -84,8 +91,14 @@ public sealed class HygieneService : IHygieneService
         return await _repository.UpdateAsync(record, request, cancellationToken);
     }
 
-    public Task<IReadOnlyList<HygieneRankingDto>> GetRankingsAsync(
+    public async Task<IReadOnlyList<HygieneRankingDto>> GetRankingsAsync(
         HygieneRankingQueryDto query,
+        int accountId,
+        bool isDormAdmin,
         CancellationToken cancellationToken)
-        => _repository.GetRankingsAsync(query, cancellationToken);
+    {
+        var buildingId = await _repository.GetAccessibleBuildingIdAsync(accountId, isDormAdmin, cancellationToken)
+            ?? throw new BusinessException(403, "当前账户没有可访问的宿舍楼", StatusCodes.Status403Forbidden);
+        return await _repository.GetRankingsAsync(query, buildingId, cancellationToken);
+    }
 }

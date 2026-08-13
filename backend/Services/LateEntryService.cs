@@ -61,6 +61,17 @@ public sealed class LateEntryService : ILateEntryService
         return await _repository.UpdateReasonAsync(entry, reason, cancellationToken);
     }
 
-    public Task<LateEntryDto> CreateAsync(CreateLateEntryRequest request, CancellationToken cancellationToken)
-        => _repository.CreateAsync(request, cancellationToken);
+    public async Task<LateEntryDto> CreateAsync(CreateLateEntryRequest request, CancellationToken cancellationToken)
+    {
+        if (request.RecordTime.TimeOfDay < new TimeSpan(23, 30, 0))
+        {
+            throw new BusinessException(400, "仅登记 23:30 后的晚归记录");
+        }
+        if (request.RecordTime > DateTime.Now.AddMinutes(5))
+        {
+            throw new BusinessException(400, "晚归时间不能晚于当前时间");
+        }
+
+        return await _repository.CreateAsync(request, cancellationToken);
+    }
 }

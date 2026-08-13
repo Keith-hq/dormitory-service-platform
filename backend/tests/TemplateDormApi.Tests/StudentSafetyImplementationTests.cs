@@ -60,7 +60,8 @@ public sealed class StudentSafetyImplementationTests
 
         var service = new RepairService(
             new RepairRepository(context),
-            CreateIdentityService(context));
+            CreateIdentityService(context),
+            new UnusedFileStorageService());
         var result = await service.GetStudentTicketsAsync(
             "20260001",
             101,
@@ -288,4 +289,16 @@ public sealed class StudentSafetyImplementationTests
             Status = "待处理",
             SlaLevel = "普通"
         };
+
+    private sealed class UnusedFileStorageService : IFileStorageService
+    {
+        public Task<FileUploadResultDto> SaveAsync(IFormFile file, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<FileUrlDto> GetUrlAsync(string storageRef, string baseUrl, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<FileDeleteResultDto> DeleteAsync(string storageRef, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+    }
 }

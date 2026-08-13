@@ -14,4 +14,6 @@ public sealed class RepairTicket
     public string SlaLevel { get; set; } = "普通";
     public DateTime? Deadline { get; set; }
     public string? AssignedTo { get; set; }
+    public RepairLog? Log { get; set; }
+    public ICollection<RepairAttachment> Attachments { get; set; } = new List<RepairAttachment>();
 }

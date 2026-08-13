@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Models;
+using TemplateDormApi.Exceptions;
+using Microsoft.AspNetCore.Http;
 
 namespace TemplateDormApi.Repository;
 
@@ -8,13 +11,45 @@ public sealed class RepairRepository : FrameworkRepositoryBase
 {
     public RepairRepository(AppDbContext context) : base(context) { }
 
-    public Task<RepairTicketDto> CreateAsync(
+    public Task<string?> GetStudentIdAsync(int accountId, CancellationToken cancellationToken)
+        => DbContext.UserAccounts.AsNoTracking()
+            .Where(item => item.AccountId == accountId && item.AccountStatus == "正常")
+            .Select(item => item.StudentId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<RepairTicketDto> CreateAsync(
+        string studentId,
         SubmitRepairTicketRequest request,
         CancellationToken cancellationToken)
-        => PendingAsync<RepairTicketDto>(
-            "STU-08",
-            "D_REPAIR_TICKET 缺少 CATEGORY 字段，且新增记录主键生成方案待确认",
-            cancellationToken);
+    {
+        var roomId = request.RoomId ?? await DbContext.BedAllocations
+            .AsNoTracking()
+            .Where(item => item.StudentId == studentId && item.CheckOutDate == null && item.RoomId != null)
+            .OrderByDescending(item => item.CheckInDate)
+            .Select(item => item.RoomId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new BusinessException(409, "当前没有有效住宿，且未指定报修房间", StatusCodes.Status409Conflict);
+
+        var roomExists = await DbContext.Rooms.AsNoTracking()
+            .AnyAsync(item => item.RoomId == roomId, cancellationToken);
+        if (!roomExists)
+        {
+            throw new BusinessException(404, "报修房间不存在", StatusCodes.Status404NotFound);
+        }
+
+        var ticket = new RepairTicket
+        {
+            StudentId = studentId,
+            RoomId = roomId,
+            IssueDescription = request.Description.Trim(),
+            SubmitTime = DateTime.Now,
+            Status = "待处理",
+            SlaLevel = request.Urgency
+        };
+        DbContext.RepairTickets.Add(ticket);
+        await DbContext.SaveChangesAsync(cancellationToken);
+        return ToDto(ticket);
+    }
 
     public async Task<PagedResult<RepairTicketDto>> GetStudentTicketsAsync(
         string studentId,
@@ -54,24 +89,69 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         };
     }
 
-    public Task<RepairTicketDto> GetByIdAsync(long ticketId, CancellationToken cancellationToken)
-        => PendingAsync<RepairTicketDto>(
-            "STU-10",
-            "工单详情与处理日志组合口径待确认",
-            cancellationToken);
+    public Task<RepairTicket?> FindByIdAsync(long ticketId, CancellationToken cancellationToken)
+        => DbContext.RepairTickets
+            .Include(item => item.Log)
+            .Include(item => item.Attachments)
+            .SingleOrDefaultAsync(item => item.TicketId == ticketId, cancellationToken);
 
-    public Task<RepairTicketDto> CancelAsync(long ticketId, CancellationToken cancellationToken)
-        => PendingAsync<RepairTicketDto>(
-            "STU-11",
-            "撤销状态及十分钟 SLA 规则待业务实现",
-            cancellationToken);
+    public async Task<RepairTicketDto> CancelAsync(RepairTicket ticket, CancellationToken cancellationToken)
+    {
+        ticket.Status = "已撤销";
+        await DbContext.SaveChangesAsync(cancellationToken);
+        return ToDto(ticket);
+    }
 
-    public Task<IReadOnlyList<RepairAttachmentDto>> AddAttachmentsAsync(
+    public async Task<RepairAttachmentDto> AddAttachmentAsync(
         long ticketId,
-        UploadRepairAttachmentsRequest request,
+        string storageRef,
+        string originalName,
+        string contentType,
+        long fileSize,
         CancellationToken cancellationToken)
-        => PendingAsync<IReadOnlyList<RepairAttachmentDto>>(
-            "STU-12",
-            "附件记录主键生成方案待确认",
-            cancellationToken);
+    {
+        var attachment = new RepairAttachment
+        {
+            TicketId = ticketId,
+            StorageRef = storageRef,
+            OriginalName = originalName,
+            ContentType = contentType,
+            FileSize = fileSize,
+            CreateTime = DateTime.Now
+        };
+        DbContext.RepairAttachments.Add(attachment);
+        await DbContext.SaveChangesAsync(cancellationToken);
+        return ToDto(attachment);
+    }
+
+    public static RepairTicketDto ToDto(RepairTicket item) => new()
+    {
+        TicketId = item.TicketId,
+        StudentId = item.StudentId ?? string.Empty,
+        RoomId = item.RoomId ?? 0,
+        Description = item.IssueDescription,
+        SubmitTime = item.SubmitTime,
+        Status = item.Status ?? string.Empty,
+        SlaLevel = item.SlaLevel,
+        Deadline = item.Deadline,
+        AssignedTo = item.AssignedTo,
+        Log = item.Log is null ? null : new RepairLogDto
+        {
+            AdminId = item.Log.AdminId,
+            ProcessDesc = item.Log.ProcessDescription,
+            ResolveTime = item.Log.ResolveTime
+        },
+        Attachments = item.Attachments.OrderBy(item => item.CreateTime).Select(ToDto).ToList()
+    };
+
+    private static RepairAttachmentDto ToDto(RepairAttachment item) => new()
+    {
+        AttachmentId = item.AttachmentId,
+        TicketId = item.TicketId,
+        StorageRef = item.StorageRef,
+        OriginalName = item.OriginalName ?? string.Empty,
+        ContentType = item.ContentType ?? string.Empty,
+        FileSize = item.FileSize ?? 0,
+        CreateTime = item.CreateTime
+    };
 }
