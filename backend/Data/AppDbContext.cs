@@ -21,6 +21,10 @@ public class AppDbContext : DbContext
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<Notice> Notices => Set<Notice>();
     public DbSet<NoticeDisplay> NoticeDisplays => Set<NoticeDisplay>();
+    public DbSet<RoomVote> RoomVotes => Set<RoomVote>();
+    public DbSet<RoomVoteResponse> RoomVoteResponses => Set<RoomVoteResponse>();
+    public DbSet<VisitorAuthorization> VisitorAuthorizations => Set<VisitorAuthorization>();
+    public DbSet<ParcelRecord> ParcelRecords => Set<ParcelRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -248,6 +252,104 @@ public class AppDbContext : DbContext
             entity.Property(e => e.NoticeId).HasColumnName("NOTICE_ID");
             entity.Property(e => e.IsPinned).HasColumnName("IS_PINNED").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
+        });
+
+        // ===== RoomVote 房间投票实体映射（D_ROOM_VOTE，主键由序列+触发器生成）=====
+        modelBuilder.Entity<RoomVote>(entity =>
+        {
+            entity.ToTable("D_ROOM_VOTE");
+            entity.HasKey(e => e.VoteId);
+            entity.Property(e => e.VoteId).HasColumnName("VOTE_ID").ValueGeneratedOnAdd();
+            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID").IsRequired();
+            entity.Property(e => e.InitiatorStudentId).HasColumnName("INITIATOR_STUDENT_ID").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Topic).HasColumnName("TOPIC").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").IsRequired();
+            entity.Property(e => e.Deadline).HasColumnName("DEADLINE").IsRequired();
+            entity.Property(e => e.EligibleCount).HasColumnName("ELIGIBLE_COUNT").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
+
+            entity.HasOne<Room>()
+                .WithMany()
+                .HasForeignKey(e => e.RoomId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_ROOM_VOTE_ROOM");
+
+            entity.HasOne<Student>()
+                .WithMany()
+                .HasForeignKey(e => e.InitiatorStudentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_ROOM_VOTE_INIT");
+        });
+
+        // ===== RoomVoteResponse 投票响应（复合主键 Vote_ID + Student_ID，天然一人一票）=====
+        modelBuilder.Entity<RoomVoteResponse>(entity =>
+        {
+            entity.ToTable("D_ROOM_VOTE_RESPONSE");
+            entity.HasKey(e => new { e.VoteId, e.StudentId });
+            entity.Property(e => e.VoteId).HasColumnName("VOTE_ID");
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.Choice).HasColumnName("CHOICE").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.VoteTime).HasColumnName("VOTE_TIME").IsRequired();
+
+            entity.HasOne<RoomVote>()
+                .WithMany()
+                .HasForeignKey(e => e.VoteId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_ROOM_VOTE_RESP_VOTE");
+
+            entity.HasOne<Student>()
+                .WithMany()
+                .HasForeignKey(e => e.StudentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_ROOM_VOTE_RESP_STU");
+        });
+
+        // ===== VisitorAuthorization 访客授权实体映射（D_VISITOR_AUTHORIZATION）=====
+        modelBuilder.Entity<VisitorAuthorization>(entity =>
+        {
+            entity.ToTable("D_VISITOR_AUTHORIZATION");
+            entity.HasKey(e => e.AuthorizationId);
+            entity.Property(e => e.AuthorizationId).HasColumnName("AUTHORIZATION_ID").ValueGeneratedOnAdd();
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID").IsRequired();
+            entity.Property(e => e.VisitorName).HasColumnName("VISITOR_NAME").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.VisitReason).HasColumnName("VISIT_REASON").HasMaxLength(200);
+            entity.Property(e => e.AuthorizationToken).HasColumnName("AUTHORIZATION_TOKEN").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ExpiresTime).HasColumnName("EXPIRES_TIME").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").IsRequired();
+
+            entity.HasIndex(e => e.AuthorizationToken).IsUnique();
+
+            entity.HasOne<Student>()
+                .WithMany()
+                .HasForeignKey(e => e.StudentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_VISITOR_AUTH_STU");
+
+            entity.HasOne<Room>()
+                .WithMany()
+                .HasForeignKey(e => e.RoomId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_VISITOR_AUTH_ROOM");
+        });
+
+        // ===== ParcelRecord 快递记录实体映射（D_PARCEL_RECORD）=====
+        modelBuilder.Entity<ParcelRecord>(entity =>
+        {
+            entity.ToTable("D_PARCEL_RECORD");
+            entity.HasKey(e => e.ParcelId);
+            entity.Property(e => e.ParcelId).HasColumnName("PARCEL_ID").ValueGeneratedOnAdd();
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.ArriveTime).HasColumnName("ARRIVE_TIME").IsRequired();
+            entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
+            entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
+
+            entity.HasOne<Student>()
+                .WithMany()
+                .HasForeignKey(e => e.StudentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_PARCEL_RECORD_STUDENT");
         });
     }
 }
