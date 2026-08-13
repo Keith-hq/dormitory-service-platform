@@ -13,13 +13,17 @@ public interface IInventoryTxnService
     /// <summary>借用共享物品，返回 (resultCode, loanId)。idempotencyKey 用于幂等防重。</summary>
     Task<(int resultCode, int loanId)> BorrowItem(int itemId, string studentId, string? idempotencyKey);
 
-    /// <summary>归还共享物品，校验 studentId 归属；超期归还经信用分统一入口按次扣 2 分。</summary>
-    Task<int> ReturnItem(int loanId, string studentId);
+    /// <summary>
+    /// 归还共享物品，校验 studentId 归属；超期归还经信用分统一入口按次扣 2 分。
+    /// 返回 (ResultCode, CreditPending)：CreditPending=true 表示归还已生效但
+    /// 超期扣分未完成（信用服务临时失败），由巡检自愈补扣。
+    /// </summary>
+    Task<(int ResultCode, bool CreditPending)> ReturnItem(int loanId, string studentId);
 
     /// <summary>维修耗材出库，idempotencyKey 用于幂等防重，返回 resultCode</summary>
     Task<int> ConsumeMaterial(int materialId, int ticketId, int quantity, string? idempotencyKey);
 
-    /// <summary>逾期巡检（定时任务调用，仅发逾期提醒，不扣信用分）</summary>
+    /// <summary>逾期巡检（定时任务调用）：发逾期提醒（通知公共服务）+ 自愈补扣待补偿扣分</summary>
     Task CheckOverdue();
 
     /// <summary>查询可借共享物品列表</summary>

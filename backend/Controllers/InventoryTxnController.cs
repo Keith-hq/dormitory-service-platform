@@ -49,6 +49,12 @@ public class InventoryTxnController : ControllerBase
         return request.Headers[IdempotencyKeyHeader].FirstOrDefault();
     }
 
+    /// <summary>幂等键 100 字节边界校验（四审）：列宽上限，超长在入口拒绝，避免 Oracle 500</summary>
+    private static bool IsIdempotencyKeyTooLong(string? key)
+    {
+        return !string.IsNullOrEmpty(key) && System.Text.Encoding.UTF8.GetByteCount(key) > 100;
+    }
+
     // ==================== 学生端 ====================
 
     /// <summary>STU-24：查询可借共享物品列表</summary>
@@ -73,12 +79,15 @@ public class InventoryTxnController : ControllerBase
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Ok(ApiResponse.Error(400, "缺少 Idempotency-Key 请求头"));
 
+        if (IsIdempotencyKeyTooLong(idempotencyKey))
+            return Ok(ApiResponse.Error(400, "Idempotency-Key 不能超过 100 字节"));
+
         var (rc, loanId) = await _service.BorrowItem(req.ItemId, studentId, idempotencyKey);
 
         var msgs = new[]
         {
             "借用成功", "物品不存在", "物品已停用", "库存不足", "信用分不足（低于60）",
-            "Idempotency-Key 已被使用且请求内容不一致"
+            "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字节"
         };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
@@ -92,10 +101,14 @@ public class InventoryTxnController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Return(int loanId)
     {
         var studentId = await ResolveStudentId();
-        var rc = await _service.ReturnItem(loanId, studentId);
+        var (rc, creditPending) = await _service.ReturnItem(loanId, studentId);
+
+        // 四审 P1-2：归还已生效但扣分未完成时，归还结果必须如实成功，
+        // 只透出"待补偿"状态（巡检自愈重试），不能伪装成归还失败
+        var suffix = creditPending ? "；超期扣分待补偿，系统将自动重试" : "";
         return rc == 0
-            ? Ok(ApiResponse.Ok(new { }, "归还成功"))
-            : Ok(ApiResponse.Error(400, "借出记录不存在、已归还或非本人操作"));
+            ? Ok(ApiResponse.Ok(new { creditPending }, "归还成功" + suffix))
+            : Ok(ApiResponse.Error(400, "借出记录不存在、已归还或非本人操作" + suffix));
     }
 
     /// <summary>STU-27：查询学生借还记录（分页，仅本人可见）</summary>
@@ -130,8 +143,11 @@ public class InventoryTxnController : ControllerBase
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return Ok(ApiResponse.Error(400, "缺少 Idempotency-Key 请求头"));
 
+        if (IsIdempotencyKeyTooLong(idempotencyKey))
+            return Ok(ApiResponse.Error(400, "Idempotency-Key 不能超过 100 字节"));
+
         var rc = await _service.ConsumeMaterial(req.MaterialId, ticketId, req.Quantity, idempotencyKey);
-        var msgs = new[] { "出库成功", "耗材不存在", "库存不足", "Idempotency-Key 已被使用且请求内容不一致" };
+        var msgs = new[] { "出库成功", "耗材不存在", "库存不足", "Idempotency-Key 已被使用且请求内容不一致", "Idempotency-Key 不能超过 100 字节" };
         var msg = rc >= 0 && rc < msgs.Length ? msgs[rc] : "未知错误";
         return rc == 0
             ? Ok(ApiResponse.Ok(new { }, msg))

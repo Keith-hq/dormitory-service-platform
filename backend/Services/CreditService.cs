@@ -69,6 +69,14 @@ public class CreditService : ICreditService
 
             var oldScore = account.CurrentScore;
             var newScore = oldScore + dto.ScoreChange;
+            // 四审 P1-2：按次罚分封底——FloorAtZero 时在锁内按当前分数封底到 0，
+            // 低分学生（如 1 分）不再因"结果低于 0"被拒，消除"已归还但扣分失败"窗口。
+            // 流水仍记录请求的名义分值（ScoreChange），幂等内容比对保持一致。
+            if (newScore < 0 && dto.FloorAtZero)
+            {
+                newScore = 0;
+            }
+
             if (newScore is < 0 or > InitialScore)
             {
                 throw new BusinessException(400, "信用分变更后超出 0 到 100 范围");
@@ -76,13 +84,15 @@ public class CreditService : ICreditService
 
             account.CurrentScore = newScore;
             account.UpdatedTime = DateTime.Now;
-            _creditRepository.AddLog(new CreditLog
+            var creditLog = new CreditLog
             {
                 StudentId = dto.StudentId,
                 ScoreChange = dto.ScoreChange,
                 Reason = dto.Reason,
                 EventKey = dto.EventKey
-            });
+            };
+            await _creditRepository.AssignLogKeyAsync(creditLog, cancellationToken);
+            _creditRepository.AddLog(creditLog);
 
             await _creditRepository.SaveChangesAsync(cancellationToken);
             if (transaction is not null)
@@ -230,13 +240,15 @@ public class CreditService : ICreditService
                 var oldScore = account.CurrentScore;
                 account.CurrentScore = InitialScore;
                 account.UpdatedTime = DateTime.Now;
-                _creditRepository.AddLog(new CreditLog
+                var resetCreditLog = new CreditLog
                 {
                     StudentId = studentId,
                     ScoreChange = InitialScore - oldScore,
                     Reason = "月度重置",
                     EventKey = eventKey
-                });
+                };
+                await _creditRepository.AssignLogKeyAsync(resetCreditLog, cancellationToken);
+                _creditRepository.AddLog(resetCreditLog);
                 await _creditRepository.SaveChangesAsync(cancellationToken);
                 if (transaction is not null)
                 {

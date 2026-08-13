@@ -109,6 +109,10 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.NotificationId);
             entity.Property(e => e.NotificationId)
                 .HasColumnName("NOTIFICATION_ID")
+                // 四审 P1-3：Oracle 提供方对 OnAdd 列走 RETURNING 读回（由数据库
+                // 生成值），而本列无默认值；主键由应用层预取 SEQ_NOTIFICATION.NEXTVAL
+                // 显式赋值（见 NotificationRepository.AssignNotificationKeyAsync）。
+                // 序列由 database/sp/sp_shared_item.sql 受保护创建。
                 .ValueGeneratedOnAdd();
             entity.Property(e => e.RecipientAccountId)
                 .HasColumnName("RECIPIENT_ACCOUNT_ID")
@@ -165,6 +169,10 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.LogId);
             entity.Property(e => e.LogId)
                 .HasColumnName("LOG_ID")
+                // 四审：Oracle 提供方对 OnAdd 列走 RETURNING 读回（由数据库
+                // 生成值），而本列无默认值；主键由应用层预取 SEQ_CREDIT_LOG.NEXTVAL
+                // 显式赋值（见 CreditRepository.AssignLogKeyAsync）。
+                // 序列由 database/sp/sp_shared_item.sql 受保护创建。
                 .ValueGeneratedOnAdd();
             entity.Property(e => e.StudentId)
                 .HasColumnName("STUDENT_ID")

@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using TemplateDormApi.Data;
@@ -50,13 +51,13 @@ public class CreditRepository
             return;
         }
 
-        var query = _context.Students
-            .FromSqlInterpolated($"SELECT * FROM D_STUDENT WHERE STUDENT_ID = {studentId} FOR UPDATE WAIT 5");
-
-        await foreach (var _ in query.AsAsyncEnumerable().WithCancellation(cancellationToken))
-        {
-            return;
-        }
+        // 行锁只需锁定行，不物化实体：避免 SELECT * 与模型列不一致导致物化失败。
+        // 真实 Oracle 实测：D_STUDENT 无 EMAIL 列，而 Student 模型映射了 EMAIL，
+        // FromSql 物化直接抛 "required column 'EMAIL' was not present"，信用扣分链路全断。
+        // 改用 ExecuteSql 直接执行，行锁语义不变（事务内 FOR UPDATE WAIT 5）。
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT STUDENT_ID FROM D_STUDENT WHERE STUDENT_ID = {studentId} FOR UPDATE WAIT 5",
+            cancellationToken);
     }
 
     public async Task<CreditAccount?> GetAccountForUpdateAsync(
@@ -89,6 +90,34 @@ public class CreditRepository
     public void AddLog(CreditLog log)
     {
         _context.CreditLogs.Add(log);
+    }
+
+    /// <summary>
+    /// 四审：真实 Oracle 实测——Oracle 提供方对 ValueGeneratedOnAdd 列一律由
+    /// 数据库生成值并用 RETURNING 读回（序列生成器不预取 NEXTVAL），而
+    /// D_Credit_Log.LOG_ID 列没有默认值 → ORA-01400。主键改为应用层预取
+    /// SEQ_CREDIT_LOG.NEXTVAL 显式赋值，EF 会随 INSERT 写入（与 SP 层取值风格
+    /// 一致，序列并发安全）。InMemory 保持 EF 自动生成。
+    /// 预取走连接级裸命令：SingleAsync 会把原始 SQL 组合为子查询，
+    /// NEXTVAL 在子查询中非法（ORA-02287，真实 Oracle 实测）。
+    /// </summary>
+    public async Task AssignLogKeyAsync(CreditLog log, CancellationToken cancellationToken)
+    {
+        if (IsInMemory)
+        {
+            return;
+        }
+
+        var connection = _context.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT SEQ_CREDIT_LOG.NEXTVAL FROM DUAL";
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        log.LogId = Convert.ToInt32(value);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)
