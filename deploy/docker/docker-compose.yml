@@ -26,11 +26,16 @@ services:
     environment:
       ORACLE_DATABASE: DORMPDB
       ORACLE_PASSWORD: ${ORACLE_PASSWORD:?Set ORACLE_PASSWORD in .env}
+      # 首次启动自动在 PDB（DORMPDB）内创建业务用户
+      APP_USER: DORM_OPER
+      APP_USER_PASSWORD: ${ORACLE_PASSWORD:?Set ORACLE_PASSWORD in .env}
       ORACLE_CHARACTERSET: AL32UTF8
       TZ: Asia/Shanghai
     volumes:
       - oracle-data:/opt/oracle/oradata       # 数据持久化
-      - ../database/ddl:/docker-entrypoint-initdb.d:ro  # 初始化脚本（可选）
+      # 不挂载 initdb 目录：gvenzl 的初始化脚本以 SYS 执行，
+      # 会把表建进 SYS schema。DDL/SP 统一由 deploy/scripts/init-db.sh
+      # 以 DORM_OPER 身份执行（唯一初始化路径）。
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
@@ -61,6 +66,8 @@ services:
       Jwt__Audience: DormitoryClient
       ServiceKey__Shared: ${SERVICE_KEY:?Set SERVICE_KEY in .env}
       Storage__RootPath: /app/uploads
+    volumes:
+      - uploads-data:/app/uploads             # 上传文件持久化（重建容器不丢失）
     depends_on:
       oracle-db:
         condition: service_healthy
@@ -87,6 +94,8 @@ services:
 volumes:
   oracle-data:
     name: dorm-oracle-data
+  uploads-data:
+    name: dorm-uploads-data
 
 networks:
   dorm-net:

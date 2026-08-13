@@ -152,7 +152,7 @@ builder.Services.AddQuartz(q =>
         .WithCronSchedule("0 * * * * ?"));
 
     // --- 难点③ 设施预约巡检：每15秒（北京时间）---
-    var tz = TimeZoneInfo.FindSystemTimeZoneById("China Standard Time");
+    var tz = GetBusinessTimeZone();
     var expireKey = new JobKey("ExpireBookingJob");
     q.AddJob<ExpireBookingJob>(opts => opts.WithIdentity(expireKey));
     q.AddTrigger(opts => opts.ForJob(expireKey).WithIdentity("ExpireTrigger")
