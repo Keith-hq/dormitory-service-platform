@@ -50,7 +50,7 @@ public class CreditRepository
             return;
         }
 
-        var query = _context.Set<CreditStudentLock>()
+        var query = _context.Students
             .FromSqlInterpolated($"SELECT * FROM D_STUDENT WHERE STUDENT_ID = {studentId} FOR UPDATE WAIT 5");
 
         await foreach (var _ in query.AsAsyncEnumerable().WithCancellation(cancellationToken))

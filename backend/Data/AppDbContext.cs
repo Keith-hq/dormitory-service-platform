@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<WalletLog> WalletLogs => Set<WalletLog>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+    public DbSet<Student> Students => Set<Student>();
     public DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
     public DbSet<CreditLog> CreditLogs => Set<CreditLog>();
     public DbSet<Facility> Facilities => Set<Facility>();
@@ -83,6 +84,18 @@ public class AppDbContext : DbContext
             entity.Property(e => e.AccountStatus).HasColumnName("ACCOUNT_STATUS").HasMaxLength(10).IsRequired();
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
             entity.Property(e => e.AdminId).HasColumnName("ADMIN_ID").HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<Student>(entity =>
+        {
+            entity.ToTable("D_STUDENT");
+            entity.HasKey(e => e.StudentId);
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.Name).HasColumnName("NAME").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Gender).HasColumnName("GENDER").HasMaxLength(10);
+            entity.Property(e => e.MajorId).HasColumnName("MAJOR_ID");
+            entity.Property(e => e.Phone).HasColumnName("PHONE").HasMaxLength(20);
+            entity.Property(e => e.Email).HasColumnName("EMAIL").HasMaxLength(200);
         });
 
         // ===== Notification 通知实体映射 =====
@@ -175,16 +188,6 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.StudentId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("FK_D_CREDIT_LOG_ACCOUNT");
-        });
-
-        // 仅供 SELECT FOR UPDATE 锁定父行，不参与增删改。
-        modelBuilder.Entity<CreditStudentLock>(entity =>
-        {
-            entity.ToTable("D_STUDENT");
-            entity.HasKey(e => e.StudentId);
-            entity.Property(e => e.StudentId)
-                .HasColumnName("STUDENT_ID")
-                .HasMaxLength(20);
         });
 
         // ===== Facility 公共设施实体映射（D_FACILITY，主键由序列+触发器生成）=====
