@@ -43,7 +43,7 @@ public class VisitorService : IVisitorService
         var auth = new VisitorAuthorization
         {
             StudentId = studentId,
-            RoomId = roomId,
+            RoomId = (int)roomId,
             VisitorName = dto.VisitorName,
             VisitReason = dto.VisitReason,
             AuthorizationToken = "VSR_" + Guid.NewGuid().ToString("N").ToUpper().Substring(0, 12),

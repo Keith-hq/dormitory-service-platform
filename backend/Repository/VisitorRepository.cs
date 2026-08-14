@@ -27,7 +27,7 @@ public class VisitorRepository : BaseRepository<VisitorAuthorization>
     }
 
     /// <summary>只读查询当前学生在住房间（D_Bed_Allocation 中 CheckOut_Date 为空）。</summary>
-    public async Task<int?> GetActiveRoomIdAsync(string studentId)
+    public async Task<long?> GetActiveRoomIdAsync(string studentId)
         => await _context.Set<BedAllocation>()
             .AsNoTracking()
             .Where(b => b.StudentId == studentId && b.CheckOutDate == null)
