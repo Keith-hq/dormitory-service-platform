@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
@@ -17,10 +19,12 @@ public class FeeSharingController : ControllerBase
     private static readonly Regex YearMonthRegex = new(@"^\d{4}-(0[1-9]|1[0-2])$", RegexOptions.Compiled);
 
     private readonly IFeeSharingService _service;
+    private readonly AppDbContext _context;
 
-    public FeeSharingController(IFeeSharingService service)
+    public FeeSharingController(IFeeSharingService service, AppDbContext context)
     {
         _service = service;
+        _context = context;
     }
 
     /// <summary>
@@ -55,7 +59,13 @@ public class FeeSharingController : ControllerBase
         if (allocationId < 1)
             return BadRequest(ApiResponse.Error(400, "allocationId 必须大于等于 1"));
 
+        // 一审 R1：事务从服务方法移到接口入口——服务方法保持无事务，
+        // 供退宿流程（PR #49）在其自身外层事务内直接调用同一方法。
+        // 本接口作为独立入口，在此显式提交（SP 内部不 COMMIT）。
+        await using var tx = await _context.Database.BeginTransactionAsync();
         await _service.CalcCheckoutFee(studentId, allocationId);
+        await tx.CommitAsync();
+
         return Ok(ApiResponse.Ok(new { studentId, allocationId }, $"退宿分摊完成：Student={studentId}, Allocation={allocationId}"));
     }
 
