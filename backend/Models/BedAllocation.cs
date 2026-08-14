@@ -7,7 +7,7 @@ public sealed class BedAllocation
 {
     public long AllocationId { get; set; }
     public string? StudentId { get; set; }
-    public long? RoomId { get; set; }
+    public int? RoomId { get; set; }
     public int BedNo { get; set; }
     public DateTime CheckInDate { get; set; }
     public DateTime? CheckOutDate { get; set; }

@@ -295,7 +295,7 @@ public sealed class StudentSafetyApprovedImplementationTests
                 : null
         };
 
-    private static HygieneRecord CreateHygieneRecord(long roomId, decimal score)
+    private static HygieneRecord CreateHygieneRecord(int roomId, decimal score)
         => new()
         {
             RoomId = roomId,
@@ -306,7 +306,7 @@ public sealed class StudentSafetyApprovedImplementationTests
 
     private static FeeDetail CreateFeeDetail(
         int detailId,
-        int feeId,
+        long feeId,
         string studentId,
         string billType,
         string isPaid,

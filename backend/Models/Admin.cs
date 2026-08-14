@@ -6,5 +6,5 @@ public sealed class Admin
     public string AdminName { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string RoleLevel { get; set; } = string.Empty;
-    public long? BuildingId { get; set; }
+    public int? BuildingId { get; set; }
 }

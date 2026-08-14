@@ -2,7 +2,7 @@
 
 public class CreateVoteRequest
 {
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
     public string InitiatorStudentId { get; set; }
     public string Topic { get; set; }
     public int DurationDays { get; set; } // 投票持续天数

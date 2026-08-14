@@ -9,6 +9,7 @@ using Quartz;
 using System.Text;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Filters;
 using TemplateDormApi.Jobs;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Security;
@@ -21,12 +22,16 @@ static TimeZoneInfo GetBusinessTimeZone()
 var builder = WebApplication.CreateBuilder(args);
 
 // ===== 1. 注册 Controller（三层架构入口）=====
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        // 首字母小写驼峰（与前端对齐）
-        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-    });
+builder.Services.AddControllers(options =>
+{
+    // 添加全局审计日志过滤器
+    options.Filters.Add<AuditEventFilter>();
+})
+.AddJsonOptions(options =>
+{
+    // 首字母小写驼峰（与前端对齐）
+    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
@@ -59,7 +64,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseOracle(connectionString);
 });
 
-// ===== 4. 注册 Repository 层 =====
+// ===== 4. 内存缓存与 HTTPContext 访问器 =====
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpContextAccessor();
+
+// ===== 5. 注册 Repository 层 =====
 builder.Services.AddScoped<BuildingRepository>();
 builder.Services.AddScoped<RoomRepository>();
 builder.Services.AddScoped<UserAccountRepository>();
@@ -77,7 +86,7 @@ builder.Services.AddScoped<VisitorRegistryRepository>();
 builder.Services.AddScoped<ViolationRepository>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 
-// ===== 5. 注册 Service 层 =====
+// ===== 6. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
@@ -98,9 +107,10 @@ builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddHttpContextAccessor();
 
-// ===== 6. 注册 Quartz 定时任务 =====
-
+// ===== 7. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
 {
     // --- 难点① 水电分摊：每月1日凌晨 ---
@@ -173,7 +183,6 @@ builder.Services.AddQuartz(q =>
         .WithCronSchedule("0 0/15 * * * ?", x => x.InTimeZone(tz)));
 });
 
-
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
 // ===== 文件存储服务 =====
@@ -183,7 +192,7 @@ var storageMaxBytes = builder.Configuration.GetValue<long?>("Storage:MaxSizeByte
 builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = storageMaxBytes);
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 
-// ===== 7. CORS 配置（允许前端跨域）=====
+// ===== 8. CORS 配置（允许前端跨域）=====
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>

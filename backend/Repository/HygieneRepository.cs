@@ -68,7 +68,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
     }
 
     public async Task<IReadOnlyList<HygieneRecordDto>> GetRoomRecordsAsync(
-        long roomId,
+        int roomId,
         CancellationToken cancellationToken)
     {
         return await DbContext.HygieneRecords

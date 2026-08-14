@@ -15,7 +15,7 @@ public class VisitorAuthorization
     public string StudentId { get; set; }
 
     [Column("Room_ID")]
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
 
     [Column("Visitor_Name")]
     public string VisitorName { get; set; }

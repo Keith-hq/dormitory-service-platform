@@ -14,7 +14,7 @@ public class FeeDetail
     public int DetailId { get; set; }
 
     [Column("Fee_ID")]
-    public int FeeId { get; set; }
+    public long FeeId { get; set; }
 
     [Column("Student_ID")]
     public string StudentId { get; set; } = string.Empty;

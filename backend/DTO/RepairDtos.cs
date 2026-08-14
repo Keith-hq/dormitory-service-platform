@@ -13,7 +13,7 @@ public sealed class SubmitRepairTicketRequest
     [RegularExpression("^(普通|紧急)$", ErrorMessage = "紧急程度只能为普通或紧急")]
     public string Urgency { get; set; } = string.Empty;
 
-    public long? RoomId { get; set; }
+    public int? RoomId { get; set; }
 }
 
 public sealed class RepairTicketQueryDto
@@ -36,7 +36,7 @@ public sealed class RepairTicketDto
 {
     public long TicketId { get; set; }
     public string StudentId { get; set; } = string.Empty;
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
     public string Description { get; set; } = string.Empty;
     public DateTime SubmitTime { get; set; }
     public string Status { get; set; } = string.Empty;
