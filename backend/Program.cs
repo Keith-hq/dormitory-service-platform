@@ -75,6 +75,7 @@ builder.Services.AddScoped<StudentReportRepository>();
 builder.Services.AddScoped<AccessRepository>();
 builder.Services.AddScoped<VisitorRegistryRepository>();
 builder.Services.AddScoped<ViolationRepository>();
+builder.Services.AddScoped<IJwtService, JwtService>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
@@ -99,6 +100,7 @@ builder.Services.AddScoped<IViolationService, ViolationService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
+
 builder.Services.AddQuartz(q =>
 {
     // --- 难点① 水电分摊：每月1日凌晨 ---
@@ -170,6 +172,7 @@ builder.Services.AddQuartz(q =>
     q.AddTrigger(opts => opts.ForJob(overdueKey).WithIdentity("OverdueCheckTrigger")
         .WithCronSchedule("0 0/15 * * * ?", x => x.InTimeZone(tz)));
 });
+
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 

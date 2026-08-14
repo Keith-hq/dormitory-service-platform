@@ -7,6 +7,18 @@ namespace TemplateDormApi.Security;
 /// </summary>
 public static class AuthPolicies
 {
+    /// <summary>学生角色（student），对应学生端所有接口。</summary>
+    public const string Student = "student";
+
+    /// <summary>宿管角色（admin），对应宿管端读写接口。</summary>
+    public const string Admin = "admin";
+
+    /// <summary>辅导员角色（counselor），对应辅导员端接口。</summary>
+    public const string Counselor = "counselor";
+
+    /// <summary>超级管理员角色（super_admin），拥有全部管理权限。</summary>
+    public const string SuperAdmin = "super_admin";
+
     /// <summary>宿管端写操作策略：要求已登录且角色为宿管/超级管理员。</summary>
     public const string DormAdmin = "DormAdmin";
 

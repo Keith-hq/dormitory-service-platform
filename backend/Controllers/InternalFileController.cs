@@ -43,6 +43,7 @@ public class InternalFileController : ControllerBase
     /// </summary>
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> Upload(
         [FromForm] IFormFile file,
         [FromForm] string? module,
