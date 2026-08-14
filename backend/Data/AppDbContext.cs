@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<RoomVoteResponse> RoomVoteResponses => Set<RoomVoteResponse>();
     public DbSet<VisitorAuthorization> VisitorAuthorizations => Set<VisitorAuthorization>();
     public DbSet<ParcelRecord> ParcelRecords => Set<ParcelRecord>();
+    public DbSet<BedAllocation> BedAllocations => Set<BedAllocation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -350,6 +351,31 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.StudentId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("FK_D_PARCEL_RECORD_STUDENT");
+        });
+
+        // ===== BedAllocation 住宿分配实体映射（D_BED_ALLOCATION，仅只读查询）=====
+        modelBuilder.Entity<BedAllocation>(entity =>
+        {
+            entity.ToTable("D_BED_ALLOCATION");
+            entity.HasKey(e => e.AllocationId);
+            entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID");
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
+            entity.Property(e => e.BedNo).HasColumnName("BED_NO").IsRequired();
+            entity.Property(e => e.CheckInDate).HasColumnName("CHECK_IN_DATE").IsRequired();
+            entity.Property(e => e.CheckOutDate).HasColumnName("CHECK_OUT_DATE");
+
+            entity.HasOne<Student>()
+                .WithMany()
+                .HasForeignKey(e => e.StudentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_BED_ALLOCATION_STUDENT");
+
+            entity.HasOne<Room>()
+                .WithMany()
+                .HasForeignKey(e => e.RoomId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_D_BED_ALLOCATION_ROOM");
         });
     }
 }

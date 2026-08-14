@@ -76,6 +76,8 @@ builder.Services.AddScoped<AccessRepository>();
 builder.Services.AddScoped<VisitorRegistryRepository>();
 builder.Services.AddScoped<ViolationRepository>();
 builder.Services.AddScoped<VoteRepository>();
+builder.Services.AddScoped<VisitorRepository>();
+builder.Services.AddScoped<ParcelRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
@@ -98,6 +100,8 @@ builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
 builder.Services.AddScoped<IVoteService, VoteService>();
+builder.Services.AddScoped<IVisitorService, VisitorService>();
+builder.Services.AddScoped<IParcelService, ParcelService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
@@ -217,7 +221,6 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthPolicies.DormAdmin, policy =>
         policy.RequireAuthenticatedUser().RequireRole("admin", "super_admin"));
 });
-builder.Services.AddScoped<VisitorService>();
 var app = builder.Build();
 
 // ===== 中间件管道 =====
