@@ -9,4 +9,5 @@ public sealed class UtilityFee
     public decimal? PowerFee { get; set; }
     public string? IsPaid { get; set; }
     public string PublishStatus { get; set; } = string.Empty;
+    public Room? Room { get; set; }
 }

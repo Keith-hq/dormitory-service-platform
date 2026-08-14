@@ -16,5 +16,6 @@ public class Major
     [MaxLength(100)]
     public string MajorName { get; set; } = string.Empty;
 
+    [ForeignKey(nameof(CollegeId))]
     public College? College { get; set; }
 }

@@ -22,4 +22,6 @@ public class ParcelRecord
     [Column("COURIER_COMPANY")]
     [MaxLength(50)]
     public string? CourierCompany { get; set; }
+
+    public Student? Student { get; set; }
 }

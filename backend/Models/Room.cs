@@ -30,4 +30,7 @@ public class Room
 
     /// <summary>供电状态（正常 / 断电）</summary>
     public string PowerStatus { get; set; } = "正常";
+
+    /// <summary>导航至楼栋 </summary>
+    public Building? Building { get; set; }
 }

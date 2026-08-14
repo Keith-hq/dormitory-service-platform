@@ -11,10 +11,10 @@ public class RoomVote
     public long VoteId { get; set; }
 
     [Column("Initiator_Student_ID")]
-    public string InitiatorStudentId { get; set; }
+    public string? InitiatorStudentId { get; set; }
 
     [Column("Topic")]
-    public string Topic { get; set; }
+    public string? Topic { get; set; }
 
     [Column("Create_Time")]
     public DateTime CreateTime { get; set; } = DateTime.Now;

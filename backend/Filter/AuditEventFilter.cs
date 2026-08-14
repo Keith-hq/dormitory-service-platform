@@ -28,9 +28,6 @@ public class AuditEventFilter : IAsyncActionFilter
         var userId = int.TryParse(userIdClaim, out var id) ? id : (int?)null;
         var userName = user.Identity?.Name;
 
-        var status = resultContext.Exception == null ? "SUCCESS" : "FAILURE";
-        var details = resultContext.Exception?.Message ?? "执行成功";
-
         await _auditService.LogEventAsync(
             eventType: $"{method} {context.HttpContext.Request.Path}",
             targetType: "Api",

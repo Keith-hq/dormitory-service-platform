@@ -44,8 +44,8 @@ public class InternalFileController : ControllerBase
     [HttpPost]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> Upload(
-        [FromForm] IFormFile file,
-        [FromForm] string? module,
+        IFormFile file,
+        string? module,
         CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(module) && !AllowedModules.Contains(module))

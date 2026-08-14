@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace TemplateDormApi.Models;
 
 public sealed class Student
@@ -8,4 +10,7 @@ public sealed class Student
     public int? MajorId { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }
+
+    [ForeignKey(nameof(MajorId))]
+    public Major? Major { get; set; }
 }

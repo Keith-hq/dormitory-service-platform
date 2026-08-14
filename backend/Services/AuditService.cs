@@ -21,7 +21,8 @@ public class AuditService : IAuditService
         string? targetType = null,
         string? targetId = null,
         int? actorAccountId = null,
-        DateTime? eventTime = null)
+        DateTime? eventTime = null,
+        string? details = null)  // 新增参数
     {
         // 如果未提供操作人，从当前 HttpContext 获取
         if (actorAccountId == null)
@@ -38,7 +39,8 @@ public class AuditService : IAuditService
             EventType = eventType,
             TargetType = targetType,
             TargetId = targetId,
-            EventTime = eventTime ?? DateTime.Now
+            EventTime = eventTime ?? DateTime.Now,
+            Details = details  // 赋值 details
         };
 
         _context.AuditEvents.Add(auditEvent);

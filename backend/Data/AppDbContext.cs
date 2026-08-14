@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 
 namespace TemplateDormApi.Data;
@@ -40,6 +42,7 @@ public class AppDbContext : DbContext
     public DbSet<CreditLog> CreditLogs => Set<CreditLog>();
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<FacilityBooking> FacilityBookings => Set<FacilityBooking>();
+    public DbSet<PendingRepairTicketDto> PendingRepairTicketDtos => Set<PendingRepairTicketDto>();
     public DbSet<SharedItem> SharedItems => Set<SharedItem>();
     public DbSet<ItemLoan> ItemLoans => Set<ItemLoan>();
     public DbSet<RepairMaterial> RepairMaterials => Set<RepairMaterial>();
@@ -61,7 +64,7 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_COLLEGE");
             entity.HasKey(e => e.CollegeId);
-            entity.Property(e => e.CollegeId).HasColumnName("COLLEGE_ID");
+            entity.Property(e => e.CollegeId).HasColumnName("COLLEGE_ID").ValueGeneratedOnAdd(); ;
             entity.Property(e => e.CollegeName).HasColumnName("COLLEGE_NAME").HasMaxLength(100).IsRequired();
             entity.Property(e => e.CounselorName).HasColumnName("COUNSELOR_NAME").HasMaxLength(50);
             entity.Property(e => e.ContactPhone).HasColumnName("CONTACT_PHONE").HasMaxLength(20);
@@ -88,11 +91,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Phone).HasColumnName("PHONE").HasMaxLength(20);
             entity.Property(e => e.RoleLevel).HasColumnName("ROLE_LEVEL").HasMaxLength(20).IsRequired();
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
-
-            entity.HasOne<Building>()
-                  .WithMany()
-                  .HasForeignKey(e => e.BuildingId)
-                  .HasConstraintName("FK_D_ADMIN_BUILDING");
         });
 
         // ---- Major 专业 ----
@@ -103,17 +101,12 @@ public class AppDbContext : DbContext
             entity.Property(e => e.MajorId).HasColumnName("MAJOR_ID");
             entity.Property(e => e.CollegeId).HasColumnName("COLLEGE_ID");
             entity.Property(e => e.MajorName).HasColumnName("MAJOR_NAME").HasMaxLength(100).IsRequired();
-
-            entity.HasOne<College>()
-                  .WithMany()
-                  .HasForeignKey(e => e.CollegeId)
-                  .HasConstraintName("FK_D_MAJOR_COLLEGE");
         });
 
         // ---- Room 房间 ----
         modelBuilder.Entity<Room>(entity =>
         {
-            entity.ToTable("D_ROOM");
+            entity.ToTable("D_ROOM", t => t.HasCheckConstraint("CK_D_ROOM_POWER_STATUS", "POWER_STATUS IN ('正常', '断电')"));
             entity.HasKey(e => e.RoomId);
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
@@ -128,8 +121,6 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.BuildingId)
                   .HasConstraintName("FK_D_ROOM_BUILDING");
-
-            entity.HasCheckConstraint("CK_D_ROOM_POWER_STATUS", "POWER_STATUS IN ('正常', '断电')");
         });
 
         // ---- Student 学生 ----
@@ -143,11 +134,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.MajorId).HasColumnName("MAJOR_ID");
             entity.Property(e => e.Phone).HasColumnName("PHONE").HasMaxLength(20);
             entity.Property(e => e.Email).HasColumnName("EMAIL").HasMaxLength(200);
-
-            entity.HasOne<Major>()
-                  .WithMany()
-                  .HasForeignKey(e => e.MajorId)
-                  .HasConstraintName("FK_D_STUDENT_MAJOR");
         });
 
         // ---- Asset 资产 ----
@@ -220,7 +206,7 @@ public class AppDbContext : DbContext
         // ---- UtilityFee 水电费 ----
         modelBuilder.Entity<UtilityFee>(entity =>
         {
-            entity.ToTable("D_UTILITY_FEE");
+            entity.ToTable("D_UTILITY_FEE", b => b.HasCheckConstraint("CK_D_UTILITY_FEE_PUB", "PUBLISH_STATUS IN ('未发布', '已发布')"));
             entity.HasKey(e => e.FeeId);
             entity.Property(e => e.FeeId).HasColumnName("FEE_ID");
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID").IsRequired();
@@ -238,8 +224,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.RoomId, e.YearMonth })
                   .IsUnique()
                   .HasDatabaseName("UK_D_UTILITY_FEE_ROOM_MONTH");
-
-            entity.HasCheckConstraint("CK_D_UTILITY_FEE_PUB", "PUBLISH_STATUS IN ('未发布', '已发布')");
         });
 
         // ---- HygieneRecord 卫生检查 ----
@@ -300,7 +284,7 @@ public class AppDbContext : DbContext
         // ---- BedAllocation 床位分配 ----
         modelBuilder.Entity<BedAllocation>(entity =>
         {
-            entity.ToTable("D_BED_ALLOCATION");
+            entity.ToTable("D_BED_ALLOCATION", b => b.HasCheckConstraint("CK_D_BED_ALLOC_BED", "BED_NO >= 1"));
             entity.HasKey(e => e.AllocationId);
             entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID");
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
@@ -319,15 +303,13 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.RoomId)
                   .HasConstraintName("FK_D_BED_ALLOCATION_ROOM");
 
-            entity.HasCheckConstraint("CK_D_BED_ALLOC_BED", "BED_NO >= 1");
-
             // 唯一索引 UK_D_BED_ALLOC_ACTIVE 在 DDL 中已创建，EF 无法表达，但无需映射。
         });
 
         // ---- RepairTicket 报修单 ----
         modelBuilder.Entity<RepairTicket>(entity =>
         {
-            entity.ToTable("D_REPAIR_TICKET");
+            entity.ToTable("D_REPAIR_TICKET", b => b.HasCheckConstraint("CK_D_REPAIR_TICKET_SLA_LEVEL", "SLA_LEVEL IN ('普通', '紧急')"));
             entity.HasKey(e => e.TicketId);
             entity.Property(e => e.TicketId).HasColumnName("TICKET_ID");
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
@@ -338,6 +320,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SlaLevel).HasColumnName("SLA_LEVEL").HasMaxLength(10).IsRequired();
             entity.Property(e => e.Deadline).HasColumnName("DEADLINE");
             entity.Property(e => e.AssignedTo).HasColumnName("ASSIGNED_TO").HasMaxLength(20);
+            // 难点⑤ 迁移 021 新增列：SLA 首次升级标记（NULL=未升级）
+            entity.Property(e => e.EscalationTime).HasColumnName("ESCALATION_TIME");
 
             entity.HasOne<Student>()
                   .WithMany()
@@ -353,8 +337,6 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.AssignedTo)
                   .HasConstraintName("FK_D_REPAIR_TICKET_ASSIGNED_ADMIN");
-
-            entity.HasCheckConstraint("CK_D_REPAIR_TICKET_SLA_LEVEL", "SLA_LEVEL IN ('普通', '紧急')");
         });
 
         // ---- RepairLog 报修处理日志 ----
@@ -366,6 +348,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TicketId).HasColumnName("TICKET_ID");
             entity.Property(e => e.AdminId).HasColumnName("ADMIN_ID").HasMaxLength(20);
             entity.Property(e => e.ProcessDescription).HasColumnName("PROCESS_DESC").HasMaxLength(500);
+            // 难点⑤ 迁移 021 新增列：完工结果（对齐契约 result 字段）
+            entity.Property(e => e.RepairResult).HasColumnName("REPAIR_RESULT").HasMaxLength(200);
             entity.Property(e => e.ResolveTime).HasColumnName("RESOLVE_TIME").IsRequired();
 
             entity.HasOne<RepairTicket>()
@@ -505,7 +489,7 @@ public class AppDbContext : DbContext
         // ---- UserAccount 用户账号 ----
         modelBuilder.Entity<UserAccount>(entity =>
         {
-            entity.ToTable("D_USER_ACCOUNT");
+            entity.ToTable("D_USER_ACCOUNT", b => b.HasCheckConstraint("CK_D_USER_STATUS", "ACCOUNT_STATUS IN ('ACTIVE', 'INACTIVE', 'LOCKED')"));
             entity.HasKey(e => e.AccountId);
             entity.Property(e => e.AccountId).HasColumnName("ACCOUNT_ID");
             entity.Property(e => e.LoginName).HasColumnName("LOGIN_NAME").HasMaxLength(50).IsRequired();
@@ -518,7 +502,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.LoginName).IsUnique().HasDatabaseName("UK_D_USER_LOGIN");
             entity.HasIndex(e => e.StudentId).IsUnique().HasDatabaseName("UK_D_USER_STUDENT");
             entity.HasIndex(e => e.AdminId).IsUnique().HasDatabaseName("UK_D_USER_ADMIN");
-            entity.HasCheckConstraint("CK_D_USER_STATUS", "ACCOUNT_STATUS IN ('ACTIVE', 'INACTIVE', 'LOCKED')");
 
             // 外键关系（DDL 未定义，但为完整可加，但不强制）
             // entity.HasOne<Student>().WithMany().HasForeignKey(e => e.StudentId);
@@ -528,7 +511,7 @@ public class AppDbContext : DbContext
         // ---- Notification 通知 ----
         modelBuilder.Entity<Notification>(entity =>
         {
-            entity.ToTable("D_NOTIFICATION");
+            entity.ToTable("D_NOTIFICATION", b => b.HasCheckConstraint("CK_D_NOTIFICATION_TYPE", "NOTIFICATION_TYPE IN ('SYSTEM', 'BILL', 'REPAIR', 'CREDIT')"));
             entity.HasKey(e => e.NotificationId);
             entity.Property(e => e.NotificationId).HasColumnName("NOTIFICATION_ID");
             entity.Property(e => e.RecipientAccountId).HasColumnName("RECIPIENT_ACCOUNT_ID").IsRequired();
@@ -543,8 +526,6 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.RecipientAccountId)
                   .HasConstraintName("FK_D_NOTIFICATION_ACCOUNT")
                   .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasCheckConstraint("CK_D_NOTIFICATION_TYPE", "NOTIFICATION_TYPE IN ('SYSTEM', 'BILL', 'REPAIR', 'CREDIT')");
         });
 
         // ---- CreditAccount 信用分账户 ----
@@ -606,7 +587,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.BookingId).HasColumnName("BOOKING_ID");
             entity.Property(e => e.FacilityId).HasColumnName("FACILITY_ID").IsRequired();
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20).IsRequired();
-            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").IsRequired();
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
             entity.Property(e => e.StartTime).HasColumnName("START_TIME");
             entity.Property(e => e.EndTime).HasColumnName("END_TIME");
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
@@ -617,7 +598,15 @@ public class AppDbContext : DbContext
                   .HasConstraintName("FK_D_FACILITY_BOOKING_FACILITY");
         });
 
-        // ---- SharedItem 共享物品 ----
+        // ===== PendingRepairTicketDto：DORM-26 列表投影（无键，仅供 SqlQueryRaw 查询）=====
+        modelBuilder.Entity<PendingRepairTicketDto>(entity =>
+        {
+            entity.HasNoKey();
+        });
+
+        // ===== SharedItem 共享物品实体映射（D_Shared_Item，难点④）=====
+        // 注：Item_ID 实际由 SP 内部 SEQ_ITEM_LOAN 生成，非 IDENTITY；
+        // ValueGeneratedOnAdd 仅用于 EF 不主动发送该列，写入全走 SP 不受影响。
         modelBuilder.Entity<SharedItem>(entity =>
         {
             entity.ToTable("D_SHARED_ITEM");
@@ -767,11 +756,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TargetType).HasColumnName("TARGET_TYPE").HasMaxLength(50);
             entity.Property(e => e.TargetId).HasColumnName("TARGET_ID").HasMaxLength(50);
             entity.Property(e => e.EventTime).HasColumnName("EVENT_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
-
-            entity.HasOne<UserAccount>()
-                  .WithMany()
-                  .HasForeignKey(e => e.ActorAccountId)
-                  .HasConstraintName("FK_D_AUDIT_ACCOUNT");
         });
     }
 }

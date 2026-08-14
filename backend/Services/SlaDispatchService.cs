@@ -74,7 +74,7 @@ public class SlaDispatchService : ISlaDispatchService
                 cmd.CommandType = CommandType.StoredProcedure;
                 var cursor = new OracleParameter("p_Cursor", OracleDbType.RefCursor, ParameterDirection.Output);
                 cmd.Parameters.Add(cursor);
-                await cmd.ExecuteNonQueryAsync();
+               await cmd.ExecuteNonQueryAsync();
 
                 escalated = new List<(int, int, string?, string?)>();
                 using var reader = ((OracleRefCursor)cursor.Value).GetDataReader();

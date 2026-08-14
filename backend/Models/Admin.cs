@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace TemplateDormApi.Models;
 
 public sealed class Admin
@@ -7,4 +9,7 @@ public sealed class Admin
     public string? Phone { get; set; }
     public string RoleLevel { get; set; } = string.Empty;
     public int? BuildingId { get; set; }
+
+    [ForeignKey(nameof(BuildingId))]
+    public Building? Building { get; set; }
 }

@@ -3,10 +3,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Quartz;
 using System.Text;
+using OfficeOpenXml;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Filters;
@@ -20,6 +23,9 @@ static TimeZoneInfo GetBusinessTimeZone()
     => TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "China Standard Time" : "Asia/Shanghai");
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 使用 EPPlus 5+ 包需要设置非商业用途授权，名称可以随意变动
+ExcelPackage.License.SetNonCommercialOrganization("DormitoryPlatform");
 
 // ===== 1. 注册 Controller（三层架构入口）=====
 builder.Services.AddControllers(options =>
@@ -51,6 +57,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "TemplateDormApi - 样板间接口", Version = "v1" });
+    c.MapType<IFormFile>(() => new OpenApiSchema { Type = "string", Format = "binary" });
+    c.OperationFilter<FormFileOperationFilter>();
 });
 
 // ===== 3. 注册 Oracle EF Core DbContext =====
@@ -109,7 +117,6 @@ builder.Services.AddScoped<IViolationService, ViolationService>();
 builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
-builder.Services.AddHttpContextAccessor();
 
 // ===== 7. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>

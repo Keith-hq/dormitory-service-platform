@@ -12,25 +12,25 @@ public class VisitorAuthorization
     public long AuthorizationId { get; set; }
 
     [Column("Student_ID")]
-    public string StudentId { get; set; }
+    public string? StudentId { get; set; }
 
     [Column("Room_ID")]
     public int RoomId { get; set; }
 
     [Column("Visitor_Name")]
-    public string VisitorName { get; set; }
+    public string? VisitorName { get; set; }
 
     [Column("Visit_Reason")]
     public string? VisitReason { get; set; }
 
     [Column("Authorization_Token")]
-    public string AuthorizationToken { get; set; }
+    public string? AuthorizationToken { get; set; }
 
     [Column("Expires_Time")]
     public DateTime ExpiresTime { get; set; }
 
     [Column("Status")]
-    public string Status { get; set; } = "有效";
+    public string? Status { get; set; } = "有效";
 
     [Column("Create_Time")]
     public DateTime CreateTime { get; set; } = DateTime.Now;

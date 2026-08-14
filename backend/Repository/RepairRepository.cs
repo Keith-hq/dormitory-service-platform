@@ -30,9 +30,9 @@ public sealed class RepairRepository : FrameworkRepositoryBase
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new BusinessException(409, "当前没有有效住宿，且未指定报修房间", StatusCodes.Status409Conflict);
 
-        var roomExists = await DbContext.Rooms.AsNoTracking()
-            .AnyAsync(item => item.RoomId == roomId, cancellationToken);
-        if (!roomExists)
+        var roomNum = await DbContext.Rooms.AsNoTracking()
+            .CountAsync(item => item.RoomId == roomId, cancellationToken);
+        if (roomNum == 0)
         {
             throw new BusinessException(404, "报修房间不存在", StatusCodes.Status404NotFound);
         }

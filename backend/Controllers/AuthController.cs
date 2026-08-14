@@ -2,13 +2,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using System.Drawing;
-using System.Drawing.Imaging;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
+using SkiaSharp;
+using System.Linq;
 
 namespace TemplateDormApi.Controllers;
 
@@ -20,13 +20,15 @@ public class AuthController : ControllerBase
     private readonly IJwtService _jwtService;
     private readonly IMemoryCache _cache;
     private readonly ILogger<AuthController> _logger;
+    private readonly IAuditService _auditService;
 
-    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger)
+    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService)
     {
         _context = context;
         _jwtService = jwtService;
         _cache = cache;
         _logger = logger;
+        _auditService = auditService;
     }
 
     /// <summary>
@@ -58,7 +60,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    // 修改密码请求 DTO
+    /// 修改密码请求 DTO
     /// </summary>
     public class ChangePasswordRequest
     {
@@ -72,39 +74,46 @@ public class AuthController : ControllerBase
     [HttpGet("captcha")]
     public IActionResult GetCaptcha()
     {
-        // 1. 生成 4 位数字验证码
         var code = new Random().Next(1000, 9999).ToString();
         var captchaId = Guid.NewGuid().ToString("N");
-
-        // 2. 存储到内存缓存（有效期 5 分钟）
         _cache.Set(captchaId, code, TimeSpan.FromMinutes(5));
 
-        // 3. 创建图片并绘制验证码
-        using var bitmap = new Bitmap(200, 80);
-        using var g = Graphics.FromImage(bitmap);
-        g.Clear(Color.White);
+        using var bitmap = new SKBitmap(200, 80);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.White);
 
-        // 使用系统字体（Windows 下可用）
-        using var font = new Font("Arial", 36, FontStyle.Bold);
-        using var brush = new SolidBrush(Color.Black);
-        g.DrawString(code, font, brush, 20, 20);
+        // 创建字体和画笔
+        using var typeface = SKTypeface.FromFamilyName("Arial", SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+        using var font = new SKFont(typeface, 36f);  // 字体大小
+        using var paint = new SKPaint
+        {
+            Color = SKColors.Black,
+            IsAntialias = true
+        };
+
+        // 绘制验证码文字 (坐标 x=20, y=55)
+        canvas.DrawText(code, 20, 55, SKTextAlign.Left, font, paint);
 
         // 添加干扰线
         var rand = new Random();
         for (int i = 0; i < 3; i++)
         {
-            using var pen = new Pen(Color.FromArgb(rand.Next(100, 200), rand.Next(100, 200), rand.Next(100, 200)), 2);
-            g.DrawLine(pen, rand.Next(0, 200), rand.Next(0, 80), rand.Next(0, 200), rand.Next(0, 80));
+            using var linePaint = new SKPaint
+            {
+                Color = new SKColor((byte)rand.Next(100, 200), (byte)rand.Next(100, 200), (byte)rand.Next(100, 200)),
+                StrokeWidth = 2,
+                IsAntialias = true
+            };
+            canvas.DrawLine(rand.Next(0, 200), rand.Next(0, 80), rand.Next(0, 200), rand.Next(0, 80), linePaint);
         }
 
-        // 4. 输出 PNG 流
-        using var ms = new MemoryStream();
-        bitmap.Save(ms, ImageFormat.Png);
-        ms.Seek(0, SeekOrigin.Begin);
+        // 输出 PNG
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        var bytes = data.ToArray();
 
-        // 5. 返回 CaptchaId 和图片
-        Response.Headers.Add("X-Captcha-Id", captchaId);
-        return File(ms.ToArray(), "image/png");
+        Response.Headers["X-Captcha-Id"] = captchaId;
+        return File(bytes, "image/png");
     }
 
     /// <summary>
@@ -113,37 +122,53 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        // 1. 验证码校验
-        if (string.IsNullOrEmpty(request.CaptchaId) || string.IsNullOrEmpty(request.CaptchaCode))
-        {
-            return BadRequest(ApiResponse.Error(400, "请提供验证码"));
-        }
-
-        var storedCode = _cache.Get<string>(request.CaptchaId);
-        if (storedCode == null || !storedCode.Equals(request.CaptchaCode, StringComparison.OrdinalIgnoreCase))
-        {
-            return BadRequest(ApiResponse.Error(400, "验证码错误或已过期"));
-        }
-
-        _cache.Remove(request.CaptchaId);
-
-        // 2. 用户验证
+        // 1. 查找用户
         var user = await _context.UserAccounts
             .FirstOrDefaultAsync(u => u.LoginName == request.LoginName);
 
         if (user == null)
             return Unauthorized(ApiResponse.Error(401, "用户名或密码错误"));
 
-        // 3. 检查 AccountStatus
-        if (user.AccountStatus != "正常")
+        // 2. 检查账号状态
+        if (user.AccountStatus != "ACTIVE" && user.AccountStatus != "正常")
             return Unauthorized(ApiResponse.Error(401, "账号已停用，请联系管理员"));
+
+        // 3. 从内存缓存获取失败计数
+        var cacheKey = $"login_fail_{request.LoginName}";
+        var failCount = _cache.Get<int?>(cacheKey) ?? 0;
+
+        // 判断是否需要验证码（连续失败 ≥3 次）
+        bool requireCaptcha = failCount >= 3;
+
+        if (requireCaptcha)
+        {
+            if (string.IsNullOrEmpty(request.CaptchaId) || string.IsNullOrEmpty(request.CaptchaCode))
+                return BadRequest(ApiResponse.Error(400, "请提供验证码"));
+
+            var storedCode = _cache.Get<string>(request.CaptchaId);
+            if (storedCode == null || !storedCode.Equals(request.CaptchaCode, StringComparison.OrdinalIgnoreCase))
+            {
+                // 验证码错误：增加失败计数，不直接判登录失败
+                _cache.Set(cacheKey, failCount + 1, TimeSpan.FromHours(1));
+                return BadRequest(ApiResponse.Error(400, "验证码错误或已过期"));
+            }
+
+            _cache.Remove(request.CaptchaId);
+        }
 
         // 4. 密码验证
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            // 密码错误：增加失败计数
+            _cache.Set(cacheKey, failCount + 1, TimeSpan.FromHours(1));
             return Unauthorized(ApiResponse.Error(401, "用户名或密码错误"));
+        }
 
-        // 5. 角色映射（按 C-038 裁决）
-        string role;
+        // 5. 登录成功：重置失败计数
+        _cache.Remove(cacheKey);
+
+        // 6. 角色映射（按 C-038 裁决，同时修复问题4：维修员映射为 repairman）
+        string? role;
         if (!string.IsNullOrEmpty(user.StudentId))
         {
             role = "student";
@@ -158,7 +183,7 @@ public class AuthController : ControllerBase
             {
                 "超级管理员" => "super_admin",
                 "楼长" => "admin",
-                "维修员" => "repair_staff",
+                "维修员" => "repairman",   // 与 develop 策略一致
                 _ => null
             };
 
@@ -170,19 +195,17 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse.Error(401, "用户身份异常"));
         }
 
-        // 6. 生成 Token
+        // 7. 生成 Token
         var token = _jwtService.GenerateToken(user, role);
 
-        // 7. 返回统一 ApiResponse
-        var responseData = new
+        // 8. 返回统一 ApiResponse
+        return Ok(ApiResponse.Ok(new
         {
             token,
             role,
             accountId = user.AccountId,
             loginName = user.LoginName
-        };
-
-        return Ok(ApiResponse.Ok(responseData, "登录成功"));
+        }, "登录成功"));
     }
 
     /// <summary>
@@ -316,9 +339,27 @@ public class AuthController : ControllerBase
         if (!BCrypt.Net.BCrypt.Verify(request.OldPassword, user.PasswordHash))
             return BadRequest(ApiResponse.Error(400, "旧密码错误"));
 
+        // ---- 新密码强度校验 ----
+        if (request.NewPassword.Length < 8)
+            return BadRequest(ApiResponse.Error(400, "新密码长度至少8位"));
+
+        if (!request.NewPassword.Any(char.IsLetter) || !request.NewPassword.Any(char.IsDigit))
+            return BadRequest(ApiResponse.Error(400, "新密码必须包含字母和数字"));
+
+        // 可选：禁止连续字符、禁止常见密码等，可后续扩展
+
         // 更新密码
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         await _context.SaveChangesAsync();
+
+        // 审计日志（可选）
+        await _auditService.LogEventAsync(
+            eventType: "PUT /auth/password",
+            targetType: "UserAccount",
+            targetId: accountId.ToString(),
+            actorAccountId: accountId,
+            details: "用户修改密码"
+        );
 
         return Ok(ApiResponse.Ok(new { message = "密码修改成功" }));
     }

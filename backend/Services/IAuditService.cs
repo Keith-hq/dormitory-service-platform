@@ -7,5 +7,6 @@ public interface IAuditService
         string? targetType = null,
         string? targetId = null,
         int? actorAccountId = null,
-        DateTime? eventTime = null);
+        DateTime? eventTime = null,
+        string? details = null);
 }
