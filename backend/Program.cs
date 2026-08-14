@@ -106,6 +106,7 @@ builder.Services.AddScoped<IStudentReportService, StudentReportService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
+builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddHttpContextAccessor();
@@ -176,6 +177,18 @@ builder.Services.AddQuartz(q =>
     q.AddTrigger(opts => opts.ForJob(autoKey).WithIdentity("AutoCompleteTrigger")
         .WithCronSchedule("0/15 * * * * ?", x => x.InTimeZone(tz)));
 
+    // --- 难点⑤ SLA派单补齐：每 30 秒兜底扫描未指派工单 ---
+    var assignKey = new JobKey("TicketAssignJob");
+    q.AddJob<TicketAssignJob>(opts => opts.WithIdentity(assignKey));
+    q.AddTrigger(opts => opts.ForJob(assignKey).WithIdentity("TicketAssignTrigger")
+        .WithCronSchedule("0/30 * * * * ?", x => x.InTimeZone(tz)));
+
+    // --- 难点⑤ SLA升级巡检：每 15 分钟扫描普通超时工单 ---
+    var escalateKey = new JobKey("SlaEscalationJob");
+    q.AddJob<SlaEscalationJob>(opts => opts.WithIdentity(escalateKey));
+    q.AddTrigger(opts => opts.ForJob(escalateKey).WithIdentity("SlaEscalateTrigger")
+        .WithCronSchedule("0 0/15 * * * ?", x => x.InTimeZone(tz)));
+
     // --- 难点④ 共享物品逾期巡检：每15分钟（北京时间）---
     var overdueKey = new JobKey("OverdueCheckJob");
     q.AddJob<OverdueCheckJob>(opts => opts.WithIdentity(overdueKey));
@@ -228,12 +241,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    // 宿管端写操作策略（B6/S2）：要求已登录且 role claim 属于宿管/超级管理员
-    options.AddPolicy(AuthPolicies.DormAdmin, policy =>
-        policy.RequireAuthenticatedUser().RequireRole("admin", "super_admin"));
-});
+builder.Services.AddAuthorization(AuthPolicies.Register);
 builder.Services.AddScoped<VisitorService>();
 builder.Services.AddScoped<VoteService>();
 var app = builder.Build();
