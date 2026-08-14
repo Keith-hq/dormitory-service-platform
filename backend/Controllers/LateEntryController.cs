@@ -43,18 +43,30 @@ public sealed class LateEntryController : ControllerBase
         [FromBody] UpdateLateEntryReasonRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.UpdateReasonAsync(recordId, request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.UpdateReasonAsync(recordId, accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "晚归说明更新成功"));
     }
 
     /// <summary>DORM-31 人工登记晚归。</summary>
-    [Authorize(Policy = AuthPolicies.DormAdmin)]
+    [Authorize]
     [HttpPost("late-entries")]
     public async Task<ActionResult<ApiResponse<LateEntryDto>>> Create(
         [FromBody] CreateLateEntryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.CreateAsync(request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.CreateAsync(accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "晚归登记成功"));
     }
 }

@@ -18,6 +18,7 @@ public sealed class MonthlyFeeReportDto
 {
     public string YearMonth { get; set; } = string.Empty;
     public decimal UtilityTotal { get; set; }
+    public decimal PaidTotal { get; set; }
 }
 
 public sealed class FacilityUsageReportDto
