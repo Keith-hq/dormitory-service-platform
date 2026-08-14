@@ -2,7 +2,7 @@ const DEFAULT_AUTH_REDIRECT = '/building'
 const INTERNAL_ORIGIN = 'https://dormitory.local'
 
 // 维护要求：新增 meta.requiresAuth 业务路由时，必须同步登记其静态 path。
-const ALLOWED_REDIRECT_PATHS = new Set(['/building'])
+const ALLOWED_REDIRECT_PATHS = new Set(['/building', '/reports/annual'])
 
 export const getSafeAuthRedirect = (value) => {
   if (

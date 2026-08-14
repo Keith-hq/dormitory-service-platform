@@ -35,6 +35,10 @@ const logout = async () => {
             <span class="nav-dot" aria-hidden="true"></span>
             楼栋档案
           </router-link>
+          <router-link to="/reports/annual">
+            <span class="nav-dot" aria-hidden="true"></span>
+            年度报告
+          </router-link>
         </nav>
 
         <div class="user-actions">
