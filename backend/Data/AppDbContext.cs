@@ -25,6 +25,10 @@ public class AppDbContext : DbContext
     public DbSet<RepairTicket> RepairTickets => Set<RepairTicket>();
     public DbSet<RepairLog> RepairLogs => Set<RepairLog>();
     public DbSet<PendingRepairTicketDto> PendingRepairTicketDtos => Set<PendingRepairTicketDto>();
+    public DbSet<SharedItem> SharedItems => Set<SharedItem>();
+    public DbSet<ItemLoan> ItemLoans => Set<ItemLoan>();
+    public DbSet<RepairMaterial> RepairMaterials => Set<RepairMaterial>();
+    public DbSet<RepairMaterialUsage> RepairMaterialUsages => Set<RepairMaterialUsage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -291,6 +295,67 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<PendingRepairTicketDto>(entity =>
         {
             entity.HasNoKey();
+        });
+
+        // ===== SharedItem 共享物品实体映射（D_Shared_Item，难点④）=====
+        // 注：Item_ID 实际由 SP 内部 SEQ_ITEM_LOAN 生成，非 IDENTITY；
+        // ValueGeneratedOnAdd 仅用于 EF 不主动发送该列，写入全走 SP 不受影响。
+        modelBuilder.Entity<SharedItem>(entity =>
+        {
+            entity.ToTable("D_SHARED_ITEM");
+            entity.HasKey(e => e.ItemId);
+            entity.Property(e => e.ItemId).HasColumnName("ITEM_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.ItemName).HasColumnName("ITEM_NAME").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
+            entity.Property(e => e.TotalQty).HasColumnName("TOTAL_QTY");
+            entity.Property(e => e.AvailableQty).HasColumnName("AVAILABLE_QTY");
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
+        });
+
+        // ===== ItemLoan 共享物品借还记录实体映射（D_Item_Loan，难点④）=====
+        // 注：写入必须走存储过程（Loan_ID 由 SEQ_ITEM_LOAN 生成，
+        // Idempotency_Key 由 SP 落库并受唯一索引 UK_D_ITEM_LOAN_IDEM 兜底，迁移 019）。
+        modelBuilder.Entity<ItemLoan>(entity =>
+        {
+            entity.ToTable("D_ITEM_LOAN");
+            entity.HasKey(e => e.LoanId);
+            entity.Property(e => e.LoanId).HasColumnName("LOAN_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.ItemId).HasColumnName("ITEM_ID");
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.BorrowTime).HasColumnName("BORROW_TIME").IsRequired();
+            entity.Property(e => e.DueTime).HasColumnName("DUE_TIME").IsRequired();
+            entity.Property(e => e.ReturnTime).HasColumnName("RETURN_TIME");
+            entity.Property(e => e.IdempotencyKey).HasColumnName("IDEMPOTENCY_KEY").HasMaxLength(100);
+        });
+
+        // ===== RepairMaterial 维修耗材实体映射（D_Repair_Material，难点④）=====
+        modelBuilder.Entity<RepairMaterial>(entity =>
+        {
+            entity.ToTable("D_REPAIR_MATERIAL");
+            entity.HasKey(e => e.MaterialId);
+            entity.Property(e => e.MaterialId).HasColumnName("MATERIAL_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.MaterialName).HasColumnName("MATERIAL_NAME").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Unit).HasColumnName("UNIT").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.StockQty).HasColumnName("STOCK_QTY");
+        });
+
+        // ===== RepairMaterialUsage 维修耗材消耗记录实体映射（D_Repair_Material_Usage，难点④）=====
+        // 注：写入必须走存储过程（Usage_ID 由 SEQ_MATERIAL_USAGE 生成，
+        // Idempotency_Key 由 SP 落库并受唯一索引 UK_D_REPAIR_MAT_USE_IDEM 兜底，迁移 019）。
+        modelBuilder.Entity<RepairMaterialUsage>(entity =>
+        {
+            entity.ToTable("D_REPAIR_MATERIAL_USAGE");
+            entity.HasKey(e => e.UsageId);
+            entity.Property(e => e.UsageId).HasColumnName("USAGE_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.TicketId).HasColumnName("TICKET_ID");
+            entity.Property(e => e.MaterialId).HasColumnName("MATERIAL_ID");
+            entity.Property(e => e.Quantity).HasColumnName("QUANTITY");
+            entity.Property(e => e.UseTime).HasColumnName("USE_TIME");
+            entity.Property(e => e.IdempotencyKey).HasColumnName("IDEMPOTENCY_KEY").HasMaxLength(100);
         });
     }
 }
