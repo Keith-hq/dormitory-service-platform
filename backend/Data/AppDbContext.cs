@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 
 namespace TemplateDormApi.Data;
@@ -31,6 +32,7 @@ public class AppDbContext : DbContext
     public DbSet<UtilityFee> UtilityFees => Set<UtilityFee>();
     public DbSet<FacilityBooking> FacilityBookings => Set<FacilityBooking>();
     public DbSet<Admin> Admins => Set<Admin>();
+    public DbSet<PendingRepairTicketDto> PendingRepairTicketDtos => Set<PendingRepairTicketDto>();
     public DbSet<SharedItem> SharedItems => Set<SharedItem>();
     public DbSet<ItemLoan> ItemLoans => Set<ItemLoan>();
     public DbSet<RepairMaterial> RepairMaterials => Set<RepairMaterial>();
@@ -148,6 +150,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SlaLevel).HasColumnName("SLA_LEVEL").HasMaxLength(10).IsRequired();
             entity.Property(e => e.Deadline).HasColumnName("DEADLINE");
             entity.Property(e => e.AssignedTo).HasColumnName("ASSIGNED_TO").HasMaxLength(20);
+            // 难点⑤ 迁移 021 新增列：SLA 首次升级标记（NULL=未升级）
+            entity.Property(e => e.EscalationTime).HasColumnName("ESCALATION_TIME");
 
             entity.HasOne(e => e.Log)
                 .WithOne()
@@ -165,6 +169,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TicketId).HasColumnName("TICKET_ID");
             entity.Property(e => e.AdminId).HasColumnName("ADMIN_ID").HasMaxLength(20);
             entity.Property(e => e.ProcessDescription).HasColumnName("PROCESS_DESC").HasMaxLength(500);
+            // 难点⑤ 迁移 021 新增列：完工结果（对齐契约 result 字段）
+            entity.Property(e => e.RepairResult).HasColumnName("REPAIR_RESULT").HasMaxLength(200);
             entity.Property(e => e.ResolveTime).HasColumnName("RESOLVE_TIME").IsRequired();
         });
 
@@ -390,6 +396,12 @@ public class AppDbContext : DbContext
             entity.Property(e => e.NoticeId).HasColumnName("NOTICE_ID");
             entity.Property(e => e.IsPinned).HasColumnName("IS_PINNED").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
+        });
+
+        // ===== PendingRepairTicketDto：DORM-26 列表投影（无键，仅供 SqlQueryRaw 查询）=====
+        modelBuilder.Entity<PendingRepairTicketDto>(entity =>
+        {
+            entity.HasNoKey();
         });
 
         // ===== SharedItem 共享物品实体映射（D_Shared_Item，难点④）=====
