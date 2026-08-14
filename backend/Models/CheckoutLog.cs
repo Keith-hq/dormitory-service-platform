@@ -11,8 +11,8 @@ public class CheckoutLog
     /// <summary>清算记录ID（LOG_ID）</summary>
     public int LogId { get; set; }
 
-    /// <summary>住宿分配ID（ALLOCATION_ID，FK → D_Bed_Allocation）</summary>
-    public int AllocationId { get; set; }
+    /// <summary>住宿分配ID（ALLOCATION_ID，FK → D_Bed_Allocation；与 BedAllocation.AllocationId 同为 long，保证 Find 主键类型一致）</summary>
+    public long AllocationId { get; set; }
 
     /// <summary>登记时间（REQUEST_TIME，DDL DEFAULT SYSDATE，代码侧显式赋值）</summary>
     public DateTime RequestTime { get; set; }

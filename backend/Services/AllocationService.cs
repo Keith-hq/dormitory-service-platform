@@ -58,7 +58,7 @@ public class AllocationService : IAllocationService
 
                     var alloc = new BedAllocation
                     {
-                        AllocationId = (int)id,
+                        AllocationId = id,
                         StudentId = studentId,
                         RoomId = dto.RoomId,
                         BedNo = dto.BedNo,
@@ -100,7 +100,8 @@ public class AllocationService : IAllocationService
             Room? oldRoom = null;
             if (!sameRoom)
             {
-                oldRoom = await _context.Rooms.FindAsync(current.RoomId.Value)
+                // Room 主键为 int，Find 需精确类型（BedAllocation.RoomId 为 long）
+                oldRoom = await _context.Rooms.FindAsync((int)current.RoomId.Value)
                     ?? throw new BusinessException(404, "原房间不存在", 404);
                 if ((oldRoom.Occupancy ?? 0) <= 0)
                     throw new BusinessException(400, "原房间占用数异常，无法调寝");
@@ -111,7 +112,7 @@ public class AllocationService : IAllocationService
 
             var moved = new BedAllocation
             {
-                AllocationId = (int)await _allocRepo.NextAllocationIdAsync(),
+                AllocationId = await _allocRepo.NextAllocationIdAsync(),
                 StudentId = current.StudentId,
                 RoomId = dto.TargetRoomId,
                 BedNo = dto.TargetBedNo,

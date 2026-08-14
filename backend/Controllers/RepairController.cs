@@ -24,7 +24,13 @@ public sealed class RepairController : ControllerBase
         [FromBody] SubmitRepairTicketRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.CreateAsync(request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.CreateAsync(accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "报修工单提交成功"));
     }
 
@@ -51,7 +57,13 @@ public sealed class RepairController : ControllerBase
         long ticketId,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetByIdAsync(ticketId, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetByIdAsync(ticketId, accountId.Value, cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
 
@@ -61,7 +73,13 @@ public sealed class RepairController : ControllerBase
         long ticketId,
         CancellationToken cancellationToken)
     {
-        var result = await _service.CancelAsync(ticketId, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.CancelAsync(ticketId, accountId.Value, cancellationToken);
         return Ok(ApiResponse.Ok(result, "工单撤销成功"));
     }
 
@@ -73,7 +91,13 @@ public sealed class RepairController : ControllerBase
         [FromForm] UploadRepairAttachmentsRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.AddAttachmentsAsync(ticketId, request, cancellationToken);
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.AddAttachmentsAsync(ticketId, accountId.Value, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, "附件上传成功"));
     }
 }

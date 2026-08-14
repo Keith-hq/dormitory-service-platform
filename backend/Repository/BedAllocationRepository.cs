@@ -8,6 +8,10 @@ public class BedAllocationRepository : BaseRepository<BedAllocation>
 {
     public BedAllocationRepository(AppDbContext context) : base(context) { }
 
+    /// <summary>主键为 long，覆盖基类 int 版（EF Find 对主键类型严格匹配，int 会抛 ArgumentException）</summary>
+    public new Task<BedAllocation?> GetByIdAsync(long id)
+        => _dbSet.FindAsync(id).AsTask();
+
     /// <summary>主键生成：MAX+1（表无序列，DDL 冻结不改；并发撞号由 DbSaveRetry 重试兜底）</summary>
     public async Task<long> NextAllocationIdAsync()
         => await _dbSet.AnyAsync() ? await _dbSet.MaxAsync(a => a.AllocationId) + 1L : 1L;

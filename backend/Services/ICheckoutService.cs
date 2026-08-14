@@ -25,7 +25,7 @@ public static class CheckoutStatuses
 public interface ICheckoutService
 {
     /// <summary>DORM-11 退宿登记：创建「待清算」记录（同一分配唯一，UK_D_CHECKOUT_ACTIVE）</summary>
-    Task<object> RegisterAsync(int allocationId, CheckoutRegisterDto dto);
+    Task<object> RegisterAsync(long allocationId, CheckoutRegisterDto dto);
 
     /// <summary>DORM-35 清算状态查询（含床位/房间快照）</summary>
     Task<object> GetAsync(int checkoutId);

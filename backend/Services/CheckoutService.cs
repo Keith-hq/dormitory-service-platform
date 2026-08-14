@@ -32,7 +32,7 @@ public class CheckoutService : ICheckoutService
         _feeSharing = feeSharing;
     }
 
-    public async Task<object> RegisterAsync(int allocationId, CheckoutRegisterDto dto)
+    public async Task<object> RegisterAsync(long allocationId, CheckoutRegisterDto dto)
     {
         var alloc = await _context.BedAllocations.FindAsync(allocationId)
             ?? throw new BusinessException(404, "住宿分配不存在", 404);
@@ -142,10 +142,10 @@ public class CheckoutService : ICheckoutService
                 alloc.CheckOutDate = DateTime.Now; // SP 按实际退宿日期折算（v1.1）
             await _context.SaveChangesAsync();
 
-            // SP_Calc_Checkout_Fee（李昂，金额唯一来源；幂等由 Fee_ID+Student_ID+Bill_Type
-            // 唯一索引兜底）。⚠️ SP 内部 COMMIT 尚未移除（李昂 8/14 联调前改），
-            // 移除后本事务才真正原子（床位/房间/费用全成或全不成）。
-            await _feeSharing.CalcCheckoutFee(alloc.StudentId, log.AllocationId);
+            // SP_Calc_Checkout_Fee（李昂，金额唯一来源）。v1.3 已按分工对齐：过程内不
+            // COMMIT、由本事务统一提交（床位/房间/费用原子）；两入口防重由迁移 022
+            // 收紧后的 UK_D_FEE_DETAIL (Fee_ID, Student_ID) 唯一性兜底（DUP_VAL_ON_INDEX 跳过）。
+            await _feeSharing.CalcCheckoutFee(alloc.StudentId, (int)log.AllocationId);
 
             if (tx != null) await tx.CommitAsync();
         }
@@ -190,7 +190,8 @@ public class CheckoutService : ICheckoutService
         if (!alloc.RoomId.HasValue)
             throw new BusinessException(400, "住宿分配缺少房间信息");
 
-        var room = await _context.Rooms.FindAsync(alloc.RoomId.Value)
+        // Room 主键为 int，Find 需精确类型（BedAllocation.RoomId 为 long）
+        var room = await _context.Rooms.FindAsync((int)alloc.RoomId.Value)
             ?? throw new BusinessException(404, "房间不存在", 404);
 
         log.Status = CheckoutStatuses.Confirmed; // Status 并发令牌：并发 confirm 仅一个生效

@@ -16,7 +16,7 @@ public class CheckoutController : ControllerBase
 
     /// <summary>DORM-11 退宿登记 — 契约 POST /allocations/{allocationId}/checkout-register {reason, checkoutDate}</summary>
     [HttpPost("api/allocations/{allocationId}/checkout-register")]
-    public async Task<ActionResult<ApiResponse<object>>> Register(int allocationId, [FromBody] CheckoutRegisterDto dto)
+    public async Task<ActionResult<ApiResponse<object>>> Register(long allocationId, [FromBody] CheckoutRegisterDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "参数校验失败"));
         var log = await _service.RegisterAsync(allocationId, dto);

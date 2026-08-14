@@ -99,7 +99,7 @@ public class CheckoutServiceTests
         var f = new Fixture();
         await using var _ = f.Context;
 
-        var alloc = await f.Context.BedAllocations.FindAsync(1);
+        var alloc = await f.Context.BedAllocations.FindAsync(1L);
         alloc!.CheckOutDate = new DateTime(2026, 8, 10);
         await f.Context.SaveChangesAsync();
 
@@ -182,7 +182,7 @@ public class CheckoutServiceTests
         Assert.Equal("通过", log.FeeCheck);
         Assert.Equal("通过", log.ItemCheck);
 
-        var alloc = await f.Context.BedAllocations.FindAsync(1);
+        var alloc = await f.Context.BedAllocations.FindAsync(1L);
         Assert.NotNull(alloc!.CheckOutDate); // v0.4.1：settle 先写退宿日期
 
         Assert.Equal(1, f.FeeSharing.CalcCheckoutCalls); // 调了 calc SP
@@ -242,7 +242,7 @@ public class CheckoutServiceTests
         Assert.Contains("已取消", json);
 
         // 床位恢复在住（IT-C2-005 ②）
-        var alloc = await f.Context.BedAllocations.FindAsync(1);
+        var alloc = await f.Context.BedAllocations.FindAsync(1L);
         Assert.Null(alloc!.CheckOutDate);
 
         // 审计事件（IT-C2-005 ③）

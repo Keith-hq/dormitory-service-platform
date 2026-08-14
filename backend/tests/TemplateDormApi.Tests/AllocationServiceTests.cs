@@ -137,7 +137,7 @@ public class AllocationServiceTests
         Assert.Equal(201, moved.RoomId);
         Assert.Equal(1, moved.BedNo);
 
-        var old = await context.BedAllocations.FindAsync(1);
+        var old = await context.BedAllocations.FindAsync(1L);
         Assert.NotNull(old!.CheckOutDate); // 旧分配关闭
 
         var oldRoom = await context.Rooms.FindAsync(101);
