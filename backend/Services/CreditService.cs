@@ -69,6 +69,15 @@ public class CreditService : ICreditService
 
             var oldScore = account.CurrentScore;
             var newScore = oldScore + dto.ScoreChange;
+            // 按次罚分封底：FloorAtZero 时在锁内按当前分数封底到 0，
+            // 低分学生（如 1 分扣 2 分）不再因"结果低于 0"被拒，消除"已归还但扣分失败"窗口；
+            // 流水仍记录请求的名义分值（ScoreChange），幂等内容比对保持一致。
+            // 其他扣款场景（如账单扣款）不传 FloorAtZero，结果低于 0 仍拒绝（语义不回退）。
+            if (newScore < 0 && dto.FloorAtZero)
+            {
+                newScore = 0;
+            }
+
             if (newScore is < 0 or > InitialScore)
             {
                 throw new BusinessException(400, "信用分变更后超出 0 到 100 范围");
