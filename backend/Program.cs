@@ -96,6 +96,7 @@ builder.Services.AddScoped<IStudentReportService, StudentReportService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
+builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 
 // ===== 6. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
@@ -162,6 +163,12 @@ builder.Services.AddQuartz(q =>
     q.AddJob<AutoCompleteJob>(opts => opts.WithIdentity(autoKey));
     q.AddTrigger(opts => opts.ForJob(autoKey).WithIdentity("AutoCompleteTrigger")
         .WithCronSchedule("0/15 * * * * ?", x => x.InTimeZone(tz)));
+
+    // --- 难点④ 共享物品逾期巡检：每15分钟（北京时间）---
+    var overdueKey = new JobKey("OverdueCheckJob");
+    q.AddJob<OverdueCheckJob>(opts => opts.WithIdentity(overdueKey));
+    q.AddTrigger(opts => opts.ForJob(overdueKey).WithIdentity("OverdueCheckTrigger")
+        .WithCronSchedule("0 0/15 * * * ?", x => x.InTimeZone(tz)));
 });
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
