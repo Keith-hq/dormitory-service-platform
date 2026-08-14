@@ -1,32 +1,25 @@
 namespace TemplateDormApi.Models;
 
 /// <summary>
-/// 报修工单实体，对应 D_Repair_Ticket。
+/// 报修工单，对应 D_REPAIR_TICKET。
 /// 学生报修=辛泓毅（STU-08~12），派单/SLA/接单/完工=李昂（难点⑤ DORM-26~28）。
+/// EscalationTime 为难点⑤ 迁移 021 新增列（SLA 首次升级标记）。
 /// </summary>
-public class RepairTicket
+public sealed class RepairTicket
 {
-    public int TicketId { get; set; }
-
-    public string StudentId { get; set; } = string.Empty;
-
-    public int RoomId { get; set; }
-
-    public string IssueDesc { get; set; } = string.Empty;
-
+    public long TicketId { get; set; }
+    public string? StudentId { get; set; }
+    public long? RoomId { get; set; }
+    public string IssueDescription { get; set; } = string.Empty;
     public DateTime SubmitTime { get; set; }
-
-    public string Status { get; set; } = "待处理";
-
-    /// <summary>SLA 级别：普通（24h）/ 紧急（12h）</summary>
+    public string? Status { get; set; }
     public string SlaLevel { get; set; } = "普通";
-
-    /// <summary>最晚处理时间</summary>
     public DateTime? Deadline { get; set; }
-
-    /// <summary>指派管理员 ID</summary>
     public string? AssignedTo { get; set; }
 
-    /// <summary>SLA 首次升级时间（NULL=未升级，NOT NULL=已升级，防二次升级）</summary>
+    /// <summary>SLA 首次升级时间（NULL=未升级，NOT NULL=已升级，防二次升级，难点⑤）</summary>
     public DateTime? EscalationTime { get; set; }
+
+    public RepairLog? Log { get; set; }
+    public ICollection<RepairAttachment> Attachments { get; set; } = new List<RepairAttachment>();
 }

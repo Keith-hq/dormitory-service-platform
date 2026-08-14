@@ -1,20 +1,18 @@
 namespace TemplateDormApi.Models;
 
 /// <summary>
-/// 维修日志实体，对应 D_Repair_Log。
+/// 维修日志，对应 D_REPAIR_LOG。
 /// UK_D_REPAIR_LOG_TICKET：一工单仅一条完工日志。
+/// RepairResult 为难点⑤ 迁移 021 新增列（完工结果，对齐契约 result 字段）。
 /// </summary>
-public class RepairLog
+public sealed class RepairLog
 {
-    public int LogId { get; set; }
+    public long LogId { get; set; }
+    public long? TicketId { get; set; }
+    public string? AdminId { get; set; }
+    public string? ProcessDescription { get; set; }
 
-    public int TicketId { get; set; }
-
-    public string AdminId { get; set; } = string.Empty;
-
-    public string ProcessDesc { get; set; } = string.Empty;
-
-    /// <summary>维修结果（对齐契约 result 字段）</summary>
+    /// <summary>维修结果（对齐契约 result 字段，难点⑤）</summary>
     public string? RepairResult { get; set; }
 
     public DateTime ResolveTime { get; set; }

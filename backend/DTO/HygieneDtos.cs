@@ -34,7 +34,7 @@ public sealed class HygieneRecordDto
     public long RecordId { get; set; }
     public long RoomId { get; set; }
     public DateTime CheckDate { get; set; }
-    public int Score { get; set; }
+    public decimal Score { get; set; }
     public string? InspectorId { get; set; }
     public string? Comment { get; set; }
 }
