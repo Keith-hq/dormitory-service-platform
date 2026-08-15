@@ -91,6 +91,36 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
   },
   {
+    path: '/repairman',
+    name: 'RepairmanHome',
+    component: () => import('@/views/admin/AdminRepairView.vue'),
+    meta: { requiresAuth: true, roles: ['repairman'], title: '我的维修工单' }
+  },
+  {
+    path: '/counselor',
+    name: 'CounselorHome',
+    component: () => import('@/views/counselor/CounselorApprovalView.vue'),
+    meta: { requiresAuth: true, roles: ['counselor'] }
+  },
+  {
+    path: '/super-admin',
+    name: 'SuperAdminHome',
+    component: () => import('@/views/superadmin/SuperAdminView.vue'),
+    meta: { requiresAuth: true, roles: ['super_admin'], section: 'overview' }
+  },
+  {
+    path: '/super-admin/people',
+    name: 'SuperAdminPeople',
+    component: () => import('@/views/superadmin/SuperAdminView.vue'),
+    meta: { requiresAuth: true, roles: ['super_admin'], section: 'people' }
+  },
+  {
+    path: '/super-admin/audit',
+    name: 'SuperAdminAudit',
+    component: () => import('@/views/superadmin/SuperAdminView.vue'),
+    meta: { requiresAuth: true, roles: ['super_admin'], section: 'audit' }
+  },
+  {
     path: '/building',
     name: 'Building',
     component: () => import('@/views/BuildingList.vue'),

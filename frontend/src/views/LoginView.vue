@@ -13,7 +13,10 @@ const mockEnabled = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'tr
 const mockAccounts = import.meta.env.DEV
   ? [
       { label: '学生', loginName: 'student001', password: '123456' },
-      { label: '宿管', loginName: 'admin001', password: '123456' }
+      { label: '宿管', loginName: 'admin001', password: '123456' },
+      { label: '维修员', loginName: 'repair001', password: '123456' },
+      { label: '辅导员', loginName: 'counselor001', password: '123456' },
+      { label: '超级管理员', loginName: 'super001', password: '123456' }
     ]
   : []
 

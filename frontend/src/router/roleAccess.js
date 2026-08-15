@@ -1,12 +1,16 @@
 export const ROLE_HOME = Object.freeze({
   student: '/student',
   admin: '/admin',
-  super_admin: '/admin'
+  repairman: '/repairman',
+  counselor: '/counselor',
+  super_admin: '/super-admin'
 })
 
 export const ROLE_LABEL = Object.freeze({
   student: '学生',
   admin: '宿管',
+  repairman: '维修员',
+  counselor: '辅导员',
   super_admin: '超级管理员'
 })
 

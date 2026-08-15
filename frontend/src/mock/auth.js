@@ -19,6 +19,21 @@ const MOCK_ACCOUNTS = [
       role: 'admin',
       buildingName: '桂苑 A 栋'
     }
+  },
+  {
+    loginName: 'repair001',
+    password: '123456',
+    userInfo: { id: 'A2026002', name: '陈维修', role: 'repairman', buildingName: '桂苑 A 栋' }
+  },
+  {
+    loginName: 'counselor001',
+    password: '123456',
+    userInfo: { id: 'C2026001', name: '李老师', role: 'counselor' }
+  },
+  {
+    loginName: 'super001',
+    password: '123456',
+    userInfo: { id: 'A2026000', name: '平台管理员', role: 'super_admin' }
   }
 ]
 

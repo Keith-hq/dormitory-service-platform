@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 const TOKEN_KEY = 'token'
 const USER_INFO_KEY = 'userInfo'
-const SUPPORTED_ROLES = new Set(['student', 'admin', 'super_admin'])
+const SUPPORTED_ROLES = new Set(['student', 'admin', 'repairman', 'counselor', 'super_admin'])
 
 const getLocalStorage = () => {
   try {
