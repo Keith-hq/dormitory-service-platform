@@ -33,7 +33,7 @@
 --   Part 2 / Part 3 为匿名块，整段复制执行（幂等写法：已存在的 sequence /
 --     trigger 被跳过，重复执行无害）。
 --
--- 验证：重跑 database/verify/extension_schema_checks.sql，确认新增第 20 部分
+-- 验证：重跑 database/verify/extension_schema_checks.sql，确认新增第 25 部分
 --   三段 SELECT 分别返回 1 行（DETAILS 列）、2 行（序列）、2 行（触发器）。
 
 
@@ -90,6 +90,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 
 -- =====================================================================
@@ -138,3 +139,4 @@ BEGIN
             'END;';
     END IF;
 END;
+/
