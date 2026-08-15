@@ -44,16 +44,15 @@ public class RoomController : ControllerBase
         return Ok(ApiResponse.Created(room));
     }
 
-    /// <summary>DORM-06 批量初始化房间 — 契约 POST /rooms/batch-init（幂等）</summary>
+    /// <summary>DORM-06 批量初始化房间 — 契约 POST /rooms/batch-init（Idempotency-Key 幂等）</summary>
     [HttpPost("batch-init")]
-    public ActionResult<ApiResponse<object>> BatchInit(
+    public async Task<ActionResult<ApiResponse<object>>> BatchInit(
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         [FromBody] RoomBatchInitDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "参数校验失败"));
-        // TODO: 幂等检查 idempotencyKey → Redis/DB 去重
-        // TODO: 按 floor/startRoomNo/count 生成房间
-        return Ok(ApiResponse.Ok(new { idempotencyKey }));
+        var result = await _service.BatchInitAsync(dto, idempotencyKey);
+        return Ok(ApiResponse.Ok(result));
     }
 
     /// <summary>DORM-07 修改/停用房间 — 契约 PUT /rooms/{roomId}</summary>

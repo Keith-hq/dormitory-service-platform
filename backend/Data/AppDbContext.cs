@@ -38,6 +38,14 @@ public class AppDbContext : DbContext
     public DbSet<RepairMaterial> RepairMaterials => Set<RepairMaterial>();
     public DbSet<RepairMaterialUsage> RepairMaterialUsages => Set<RepairMaterialUsage>();
 
+    // ===== 住宿全生命周期（刘润东）：离校报备 / 退宿清算 =====
+    // 注：BedAllocation、ItemLoan 的 DbSet 由住宿/共享物品模块声明，此处不重复声明。
+    public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
+    public DbSet<CheckoutLog> CheckoutLogs => Set<CheckoutLog>();
+
+    // ===== 退宿三步校验只读数据源（写入方分别为快递/共享物品模块）=====
+    public DbSet<ParcelRecord> ParcelRecords => Set<ParcelRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -129,12 +137,17 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_BED_ALLOCATION");
             entity.HasKey(e => e.AllocationId);
-            entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID");
+            // 迁移 023：主键由序列 SEQ_D_BED_ALLOCATION_ID + 触发器（WHEN NEW IS NULL，显式值兼容）生成
+            entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID")
+                  .ValueGeneratedOnAdd();
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
             entity.Property(e => e.BedNo).HasColumnName("BED_NO").IsRequired();
             entity.Property(e => e.CheckInDate).HasColumnName("CHECKIN_DATE").IsRequired();
-            entity.Property(e => e.CheckOutDate).HasColumnName("CHECKOUT_DATE");
+            // CheckOut_Date 作并发令牌（退宿/调寝模块）：同一分配只能被一个事务写入退宿日期，
+            // 保证调寝并发"仅一次生效"与退宿幂等（配合 UK_D_BED_ALLOC_ACTIVE 房间床位唯一）。
+            entity.Property(e => e.CheckOutDate).HasColumnName("CHECKOUT_DATE")
+                  .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<RepairTicket>(entity =>
@@ -399,6 +412,52 @@ public class AppDbContext : DbContext
             entity.Property(e => e.NoticeId).HasColumnName("NOTICE_ID");
             entity.Property(e => e.IsPinned).HasColumnName("IS_PINNED").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
+        });
+
+        // ===== LeaveApplication 离校报备（D_LEAVE_APPLICATION，迁移 017 加 REASON 列）=====
+        modelBuilder.Entity<LeaveApplication>(entity =>
+        {
+            entity.ToTable("D_LEAVE_APPLICATION");
+            entity.HasKey(e => e.ApplyId);
+            // 迁移 023：主键由序列 SEQ_D_LEAVE_APPLICATION_ID + 触发器（WHEN NEW IS NULL，显式值兼容）生成
+            entity.Property(e => e.ApplyId).HasColumnName("APPLY_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.LeaveDate).HasColumnName("LEAVE_DATE").IsRequired();
+            entity.Property(e => e.ReturnDate).HasColumnName("RETURN_DATE").IsRequired();
+            entity.Property(e => e.Destination).HasColumnName("DESTINATION").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired().HasDefaultValue("待批");
+            entity.Property(e => e.Reason).HasColumnName("REASON").HasMaxLength(200);
+        });
+
+        // ===== CheckoutLog 退宿清算（D_CHECKOUT_LOG）=====
+        // Status 作并发令牌：并发 confirm/cancel 只有一个生效，另一个重读后按幂等语义返回。
+        modelBuilder.Entity<CheckoutLog>(entity =>
+        {
+            entity.ToTable("D_CHECKOUT_LOG");
+            entity.HasKey(e => e.LogId);
+            // 迁移 023：主键由序列 SEQ_D_CHECKOUT_LOG_ID + 触发器（WHEN NEW IS NULL，显式值兼容）生成
+            entity.Property(e => e.LogId).HasColumnName("LOG_ID")
+                  .ValueGeneratedOnAdd();
+            entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID").IsRequired();
+            entity.Property(e => e.RequestTime).HasColumnName("REQUEST_TIME").IsRequired();
+            entity.Property(e => e.ResultTime).HasColumnName("RESULT_TIME");
+            entity.Property(e => e.FeeCheck).HasColumnName("FEE_CHECK").HasMaxLength(10);
+            entity.Property(e => e.ItemCheck).HasColumnName("ITEM_CHECK").HasMaxLength(10);
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired().IsConcurrencyToken();
+            entity.Property(e => e.RejectReason).HasColumnName("REJECT_REASON").HasMaxLength(500);
+        });
+
+        // ===== 三步校验只读数据源（不配置导航/外键，仅按列读写）=====
+        modelBuilder.Entity<ParcelRecord>(entity =>
+        {
+            entity.ToTable("D_PARCEL_RECORD");
+            entity.HasKey(e => e.ParcelId);
+            entity.Property(e => e.ParcelId).HasColumnName("PARCEL_ID");
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.ArriveTime).HasColumnName("ARRIVE_TIME");
+            entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
+            entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
         });
 
         // ===== PendingRepairTicketDto：DORM-26 列表投影（无键，仅供 SqlQueryRaw 查询）=====
