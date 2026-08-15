@@ -71,13 +71,23 @@ const routes = [
   {
     path: '/admin',
     name: 'AdminHome',
-    component: () => import('@/views/RoleDashboard.vue'),
+    component: () => import('@/views/admin/AdminHomeView.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
   },
   {
     path: '/admin/operations',
-    name: 'AdminOperations',
-    component: () => import('@/views/AdminOperationsView.vue'),
+    redirect: '/admin/duty'
+  },
+  {
+    path: '/admin/duty',
+    name: 'AdminDuty',
+    component: () => import('@/views/admin/AdminDutyView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
+  },
+  {
+    path: '/admin/repair',
+    name: 'AdminRepair',
+    component: () => import('@/views/admin/AdminRepairView.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
   },
   {
