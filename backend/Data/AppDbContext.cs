@@ -517,7 +517,7 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_USER_ACCOUNT", b => b.HasCheckConstraint("CK_D_USER_STATUS", "ACCOUNT_STATUS IN ('正常', '停用')"));
             entity.HasKey(e => e.AccountId);
-            entity.Property(e => e.AccountId).HasColumnName("ACCOUNT_ID");
+            entity.Property(e => e.AccountId).HasColumnName("ACCOUNT_ID").ValueGeneratedOnAdd();
             entity.Property(e => e.LoginName).HasColumnName("LOGIN_NAME").HasMaxLength(50).IsRequired();
             entity.Property(e => e.PasswordHash).HasColumnName("PASSWORD_HASH").HasMaxLength(255).IsRequired();
             entity.Property(e => e.AccountStatus).HasColumnName("ACCOUNT_STATUS").HasMaxLength(10).IsRequired();

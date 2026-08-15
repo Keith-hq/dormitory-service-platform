@@ -5,6 +5,7 @@ using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
+using System.Security.Cryptography;
 
 namespace TemplateDormApi.Controllers;
 
@@ -31,19 +32,40 @@ public class AdminsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAdmins()
     {
-        var admins = await _context.Admins
-            .Include(a => a.Building)
-            .OrderBy(a => a.AdminId)
-            .Select(a => new
+        var rows = await (
+            from admin in _context.Admins
+            join account in _context.UserAccounts on admin.AdminId equals account.AdminId into accountGroup
+            from account in accountGroup.DefaultIfEmpty()
+            join building in _context.Buildings on admin.BuildingId equals building.BuildingId into buildingGroup
+            from building in buildingGroup.DefaultIfEmpty()
+            orderby admin.AdminId
+            select new
             {
-                a.AdminId,
-                a.AdminName,
-                a.Phone,
-                a.RoleLevel,
-                BuildingId = a.BuildingId,
-                BuildingName = a.Building != null ? a.Building.BuildingName : null
-            })
-            .ToListAsync();
+                admin.AdminId,
+                admin.AdminName,
+                admin.Phone,
+                admin.RoleLevel,
+                admin.Post,
+                admin.BuildingId,
+                BuildingName = building != null ? building.BuildingName : null,
+                LoginName = account != null ? account.LoginName : null,
+                AccountStatus = account != null ? account.AccountStatus : null
+            }).ToListAsync();
+
+        // Oracle 的 VARCHAR2 列与 EF 生成的 NVARCHAR2 中文常量混用会触发
+        // ORA-12704，因此缺省状态在查询完成后补齐。
+        var admins = rows.Select(admin => new
+        {
+            admin.AdminId,
+            admin.AdminName,
+            admin.Phone,
+            admin.RoleLevel,
+            admin.Post,
+            admin.BuildingId,
+            admin.BuildingName,
+            admin.LoginName,
+            AccountStatus = admin.AccountStatus ?? "未开户"
+        }).ToList();
 
         await _auditService.LogEventAsync(
             eventType: "GET /admins",
@@ -68,9 +90,13 @@ public class AdminsController : ControllerBase
             return BadRequest(ApiResponse.Error(400, "姓名不能为空"));
 
         // 检查角色是否合法（中文值）
-        var validRoles = new[] { "超级管理员", "楼长", "维修员" };
+        var validRoles = new[] { "超级管理员", "楼长", "维修员", "辅导员" };
         if (!validRoles.Contains(request.RoleLevel))
-            return BadRequest(ApiResponse.Error(400, "角色必须是：超级管理员、楼长、维修员"));
+            return BadRequest(ApiResponse.Error(400, "角色必须是：超级管理员、楼长、维修员、辅导员"));
+
+        if (admin.RoleLevel == "超级管理员" && request.RoleLevel != "超级管理员" &&
+            !await HasAnotherActiveSuperAdminAsync(id))
+            return BadRequest(ApiResponse.Error(400, "系统必须至少保留一个正常的超级管理员"));
 
         // 如果指定了楼栋，检查是否存在
         if (request.BuildingId.HasValue)
@@ -86,6 +112,7 @@ public class AdminsController : ControllerBase
         admin.Phone = request.Phone?.Trim();
         admin.RoleLevel = request.RoleLevel;
         admin.BuildingId = request.BuildingId;
+        admin.Post = request.Post?.Trim();
 
         await _context.SaveChangesAsync();
 
@@ -104,7 +131,8 @@ public class AdminsController : ControllerBase
             admin.AdminName,
             admin.Phone,
             admin.RoleLevel,
-            admin.BuildingId
+            admin.BuildingId,
+            admin.Post
         }));
     }
 
@@ -125,6 +153,17 @@ public class AdminsController : ControllerBase
         var admin = await _context.Admins.FindAsync(id);
         if (admin == null)
             return NotFound(ApiResponse.Error(404, "宿管不存在"));
+
+        var currentAccountId = GetCurrentUserId();
+        var currentAdminId = currentAccountId.HasValue
+            ? await _context.UserAccounts.Where(account => account.AccountId == currentAccountId.Value)
+                .Select(account => account.AdminId).FirstOrDefaultAsync()
+            : null;
+        if (string.Equals(currentAdminId, id, StringComparison.Ordinal))
+            return BadRequest(ApiResponse.Error(400, "不能停用当前登录账号"));
+
+        if (admin.RoleLevel == "超级管理员" && !await HasAnotherActiveSuperAdminAsync(id))
+            return BadRequest(ApiResponse.Error(400, "系统必须至少保留一个正常的超级管理员"));
 
         // 3. 如果是楼长，检查是否有在办事项（已分配未完成的工单）
         if (admin.RoleLevel == "楼长")
@@ -210,6 +249,7 @@ public class AdminsController : ControllerBase
         public string? Phone { get; set; }
         public string RoleLevel { get; set; } = string.Empty; // 中文值：超级管理员、楼长、维修员
         public int? BuildingId { get; set; }
+        public string? Post { get; set; }
     }
 
     public class DisableAdminRequest
@@ -224,11 +264,17 @@ public class AdminsController : ControllerBase
         return int.TryParse(claim, out var id) ? id : null;
     }
 
-    private string GenerateRandomPassword(int length)
+    private async Task<bool> HasAnotherActiveSuperAdminAsync(string excludedAdminId)
+        => await (
+            from admin in _context.Admins
+            join account in _context.UserAccounts on admin.AdminId equals account.AdminId
+            where admin.AdminId != excludedAdminId && admin.RoleLevel == "超级管理员" && account.AccountStatus == "正常"
+            select admin.AdminId).AnyAsync();
+
+    private static string GenerateRandomPassword(int length)
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        var random = new Random();
         return new string(Enumerable.Repeat(chars, length)
-            .Select(s => s[random.Next(s.Length)]).ToArray());
+            .Select(s => s[RandomNumberGenerator.GetInt32(s.Length)]).ToArray());
     }
 }

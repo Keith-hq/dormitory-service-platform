@@ -36,4 +36,18 @@ public sealed class OracleModelMappingTests
 
         Assert.Equal("DETAILS", entity!.FindProperty(nameof(AuditEvent.Details))!.GetColumnName(table));
     }
+
+    [Fact]
+    public void UserAccount_IdIsGeneratedByOracle()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseOracle("User Id=test;Password=test;Data Source=localhost:1521/test")
+            .Options;
+
+        using var context = new AppDbContext(options);
+        var accountId = context.Model.FindEntityType(typeof(UserAccount))!
+            .FindProperty(nameof(UserAccount.AccountId));
+
+        Assert.Equal(ValueGenerated.OnAdd, accountId!.ValueGenerated);
+    }
 }
