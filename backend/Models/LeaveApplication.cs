@@ -3,7 +3,7 @@ namespace TemplateDormApi.Models;
 /// <summary>
 /// 离校报备实体（映射 D_Leave_Application）
 /// 状态机：待批 → 已通过 / 已驳回 / 已撤回；修改与撤销仅在「待批」可用。
-/// 主键无序列（DDL 冻结不改），由应用层 MAX+1 生成，见 LeaveRepository.NextApplyIdAsync。
+/// 主键由序列 SEQ_D_LEAVE_APPLICATION_ID + 触发器生成（迁移 023），EF 侧配置 ValueGeneratedOnAdd。
 /// </summary>
 public class LeaveApplication
 {

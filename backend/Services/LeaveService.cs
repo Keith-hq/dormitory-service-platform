@@ -13,8 +13,6 @@ namespace TemplateDormApi.Services;
 /// </summary>
 public class LeaveService : ILeaveService
 {
-    private const string PkConstraint = "PK_D_LEAVE_APPLICATION";
-
     private readonly LeaveRepository _repo;
     private readonly AppDbContext _context;
 
@@ -32,22 +30,15 @@ public class LeaveService : ILeaveService
         if (!await _context.Students.AnyAsync(s => s.StudentId == dto.StudentId))
             throw new BusinessException(404, "学生不存在", 404);
 
-        return await DbSaveRetry.InsertWithPkRetryAsync(
-            _context, PkConstraint, _repo.NextApplyIdAsync,
-            async id =>
-            {
-                var app = new LeaveApplication
-                {
-                    ApplyId = (int)id,
-                    StudentId = dto.StudentId,
-                    LeaveDate = dto.LeaveDate,
-                    ReturnDate = dto.ReturnDate,
-                    Destination = dto.Destination,
-                    Status = LeaveStatuses.Pending
-                };
-                await _repo.AddAsync(app);
-                return app;
-            });
+        return await _repo.AddAsync(new LeaveApplication
+        {
+            // 主键由序列 SEQ_D_LEAVE_APPLICATION_ID + 触发器生成（迁移 023，WHEN NEW IS NULL），不再 MAX+1
+            StudentId = dto.StudentId,
+            LeaveDate = dto.LeaveDate,
+            ReturnDate = dto.ReturnDate,
+            Destination = dto.Destination,
+            Status = LeaveStatuses.Pending
+        });
     }
 
     public async Task<PagedResult<LeaveApplication>> GetPagedAsync(int page, int pageSize, string? status = null)

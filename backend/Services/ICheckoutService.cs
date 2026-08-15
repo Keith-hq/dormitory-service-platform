@@ -40,6 +40,6 @@ public interface ICheckoutService
     /// <summary>DORM-37 确认退宿：释放床位（房间占用-1），幂等（重复调用不报错、不重复释放）</summary>
     Task<object> ConfirmAsync(int checkoutId, CheckoutConfirmDto dto);
 
-    /// <summary>DORM-38 取消清算：回滚 settle 写入的退宿日期，床位恢复在住，写审计事件</summary>
+    /// <summary>DORM-38 取消清算：回滚 settle 写入的退宿日期，床位恢复在住；审计留痕待审计公共服务接入后记录（IT-C2-005 ③）</summary>
     Task<object> CancelAsync(int checkoutId);
 }

@@ -4,7 +4,7 @@ namespace TemplateDormApi.Models;
 /// 退宿清算记录（映射 D_Checkout_Log）
 /// 状态机：待清算 →（settle 三步校验失败）已拒绝 /（confirm）已通过 /（cancel）已取消。
 /// UK_D_CHECKOUT_ACTIVE：同一分配最多一条「待清算」记录，防重复提交。
-/// 主键无序列（DDL 冻结不改），由应用层 MAX+1 生成，见 CheckoutRepository.NextLogIdAsync。
+/// 主键由序列 SEQ_D_CHECKOUT_LOG_ID + 触发器生成（迁移 023），EF 侧配置 ValueGeneratedOnAdd。
 /// </summary>
 public class CheckoutLog
 {

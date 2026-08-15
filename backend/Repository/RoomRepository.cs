@@ -38,5 +38,8 @@ public class RoomRepository : BaseRepository<Room>
     /// <summary>DORM-06 批量初始化：批量登记新房间（最后统一 SaveChanges，保持原子）</summary>
     public void TrackNew(Room room) => _context.Rooms.Add(room);
 
+    /// <summary>DORM-06 批量初始化：UK 冲突兜底时清空跟踪（冲突房间按跳过语义重挂）</summary>
+    public void ClearTracker() => _context.ChangeTracker.Clear();
+
     public Task SaveAsync() => _context.SaveChangesAsync();
 }

@@ -14,8 +14,8 @@ namespace TemplateDormApi.Services;
 /// </summary>
 public class AllocationService : IAllocationService
 {
-    private const string PkConstraint = "PK_D_BED_ALLOCATION";
     private const string UkActiveConstraint = "UK_D_BED_ALLOC_ACTIVE";
+    private const int MaxConcurrencyRetries = 3;
 
     private readonly AppDbContext _context;
     private readonly BedAllocationRepository _allocRepo;
@@ -45,40 +45,31 @@ public class AllocationService : IAllocationService
         if (await _allocRepo.GetActiveByRoomBedAsync(dto.RoomId, dto.BedNo) != null)
             throw new BusinessException(409, "床位已占用", 409);
 
+        room.Occupancy = (room.Occupancy ?? 0) + 1; // 占用+1 与插入同一次 SaveChanges 原子提交
+
         try
         {
-            return await DbSaveRetry.InsertWithPkRetryAsync(
-                _context, PkConstraint, _allocRepo.NextAllocationIdAsync,
-                async id =>
-                {
-                    // 重试时实体已随 ChangeTracker.Clear() 脱离跟踪，须在委托内重取
-                    var currentRoom = await _context.Rooms.FindAsync(dto.RoomId)
-                        ?? throw new BusinessException(404, "房间不存在", 404);
-                    currentRoom.Occupancy = (currentRoom.Occupancy ?? 0) + 1;
-
-                    var alloc = new BedAllocation
-                    {
-                        AllocationId = id,
-                        StudentId = studentId,
-                        RoomId = dto.RoomId,
-                        BedNo = dto.BedNo,
-                        CheckInDate = dto.CheckInDate
-                    };
-                    await _allocRepo.AddAsync(alloc);
-                    return alloc;
-                });
+            return await _allocRepo.AddAsync(new BedAllocation
+            {
+                // 主键由序列 SEQ_D_BED_ALLOCATION_ID + 触发器生成（迁移 023，WHEN NEW IS NULL），不再 MAX+1
+                StudentId = studentId,
+                RoomId = dto.RoomId,
+                BedNo = dto.BedNo,
+                CheckInDate = dto.CheckInDate
+            });
         }
         catch (DbUpdateException ex)
-            when (DbSaveRetry.TryGetUniqueConstraintName(ex) == UkActiveConstraint)
+            when (OracleConstraintParser.TryGetUniqueConstraintName(ex) == UkActiveConstraint)
         {
             // 并发抢占同一床位：数据库唯一索引兜底（IT-C2-002 ① 仅一人成功）
+            _context.ChangeTracker.Clear(); // 丢弃未落库的占用改动，避免影响调用方后续复用
             throw new BusinessException(409, "床位已占用", 409);
         }
     }
 
     public async Task<BedAllocation> TransferAsync(int allocationId, AllocationTransferDto dto)
     {
-        for (var attempt = 1; attempt <= DbSaveRetry.MaxAttempts; attempt++)
+        for (var attempt = 1; attempt <= MaxConcurrencyRetries; attempt++)
         {
             // 每次尝试取最新数据（重试时前次改动已被 ChangeTracker.Clear() 丢弃）
             var current = await _allocRepo.GetByIdAsync(allocationId)
@@ -110,9 +101,9 @@ public class AllocationService : IAllocationService
             var now = DateTime.Now;
             current.CheckOutDate = now; // 并发令牌：并发调寝同一分配仅一个事务能写入成功
 
+            // 主键由序列 SEQ_D_BED_ALLOCATION_ID + 触发器生成（迁移 023），不再 MAX+1
             var moved = new BedAllocation
             {
-                AllocationId = await _allocRepo.NextAllocationIdAsync(),
                 StudentId = current.StudentId,
                 RoomId = dto.TargetRoomId,
                 BedNo = dto.TargetBedNo,
@@ -140,16 +131,10 @@ public class AllocationService : IAllocationService
                 continue;
             }
             catch (DbUpdateException ex)
+                when (OracleConstraintParser.TryGetUniqueConstraintName(ex) == UkActiveConstraint)
             {
-                var constraint = DbSaveRetry.TryGetUniqueConstraintName(ex);
-                if (constraint == UkActiveConstraint)
-                    throw new BusinessException(409, "目标床位已占用", 409);
-                if (constraint == PkConstraint)
-                {
-                    _context.ChangeTracker.Clear(); // 主键撞号，重取 MAX 重试
-                    continue;
-                }
-                throw;
+                // 目标床位被并发抢占：数据库唯一索引兜底
+                throw new BusinessException(409, "目标床位已占用", 409);
             }
         }
 

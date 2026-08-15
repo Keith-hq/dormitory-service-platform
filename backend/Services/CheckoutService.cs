@@ -15,7 +15,6 @@ namespace TemplateDormApi.Services;
 /// </summary>
 public class CheckoutService : ICheckoutService
 {
-    private const string PkConstraint = "PK_D_CHECKOUT_LOG";
     private const string UkActiveConstraint = "UK_D_CHECKOUT_ACTIVE";
 
     private readonly AppDbContext _context;
@@ -49,23 +48,16 @@ public class CheckoutService : ICheckoutService
         CheckoutLog log;
         try
         {
-            log = await DbSaveRetry.InsertWithPkRetryAsync(
-                _context, PkConstraint, _checkoutRepo.NextLogIdAsync,
-                async id =>
-                {
-                    var l = new CheckoutLog
-                    {
-                        LogId = (int)id,
-                        AllocationId = allocationId,
-                        RequestTime = DateTime.Now,
-                        Status = CheckoutStatuses.Pending
-                    };
-                    await _checkoutRepo.AddAsync(l);
-                    return l;
-                });
+            log = await _checkoutRepo.AddAsync(new CheckoutLog
+            {
+                // 主键由序列 SEQ_D_CHECKOUT_LOG_ID + 触发器生成（迁移 023，WHEN NEW IS NULL），不再 MAX+1
+                AllocationId = allocationId,
+                RequestTime = DateTime.Now,
+                Status = CheckoutStatuses.Pending
+            });
         }
         catch (DbUpdateException ex)
-            when (DbSaveRetry.TryGetUniqueConstraintName(ex) == UkActiveConstraint)
+            when (OracleConstraintParser.TryGetUniqueConstraintName(ex) == UkActiveConstraint)
         {
             // 并发重复登记：数据库唯一索引兜底
             throw new BusinessException(409, "已有进行中的退宿申请", 409);

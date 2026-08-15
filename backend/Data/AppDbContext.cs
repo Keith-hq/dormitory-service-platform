@@ -137,7 +137,9 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_BED_ALLOCATION");
             entity.HasKey(e => e.AllocationId);
-            entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID");
+            // 迁移 023：主键由序列 SEQ_D_BED_ALLOCATION_ID + 触发器（WHEN NEW IS NULL，显式值兼容）生成
+            entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID")
+                  .ValueGeneratedOnAdd();
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
             entity.Property(e => e.BedNo).HasColumnName("BED_NO").IsRequired();
@@ -414,7 +416,9 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_LEAVE_APPLICATION");
             entity.HasKey(e => e.ApplyId);
-            entity.Property(e => e.ApplyId).HasColumnName("APPLY_ID");
+            // 迁移 023：主键由序列 SEQ_D_LEAVE_APPLICATION_ID + 触发器（WHEN NEW IS NULL，显式值兼容）生成
+            entity.Property(e => e.ApplyId).HasColumnName("APPLY_ID")
+                  .ValueGeneratedOnAdd();
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
             entity.Property(e => e.LeaveDate).HasColumnName("LEAVE_DATE").IsRequired();
             entity.Property(e => e.ReturnDate).HasColumnName("RETURN_DATE").IsRequired();
@@ -429,7 +433,9 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_CHECKOUT_LOG");
             entity.HasKey(e => e.LogId);
-            entity.Property(e => e.LogId).HasColumnName("LOG_ID");
+            // 迁移 023：主键由序列 SEQ_D_CHECKOUT_LOG_ID + 触发器（WHEN NEW IS NULL，显式值兼容）生成
+            entity.Property(e => e.LogId).HasColumnName("LOG_ID")
+                  .ValueGeneratedOnAdd();
             entity.Property(e => e.AllocationId).HasColumnName("ALLOCATION_ID").IsRequired();
             entity.Property(e => e.RequestTime).HasColumnName("REQUEST_TIME").IsRequired();
             entity.Property(e => e.ResultTime).HasColumnName("RESULT_TIME");
