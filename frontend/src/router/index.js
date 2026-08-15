@@ -25,14 +25,48 @@ const routes = [
   {
     path: '/student',
     name: 'StudentHome',
-    component: () => import('@/views/RoleDashboard.vue'),
+    component: () => import('@/views/student/StudentHomeView.vue'),
     meta: { requiresAuth: true, roles: ['student'] }
   },
   {
     path: '/student/services',
-    name: 'StudentServices',
-    component: () => import('@/views/StudentServicesView.vue'),
+    redirect: '/student/finance'
+  },
+  {
+    path: '/student/profile',
+    name: 'StudentProfile',
+    component: () => import('@/views/student/StudentProfileView.vue'),
+    meta: { requiresAuth: true, roles: ['student'], title: '个人与住宿档案' }
+  },
+  {
+    path: '/student/finance',
+    name: 'StudentFinance',
+    component: () => import('@/views/student/StudentFinanceView.vue'),
     meta: { requiresAuth: true, roles: ['student'] }
+  },
+  {
+    path: '/student/repair',
+    name: 'StudentRepair',
+    component: () => import('@/views/student/StudentRepairView.vue'),
+    meta: { requiresAuth: true, roles: ['student'], title: '报修流程' }
+  },
+  {
+    path: '/student/facilities',
+    name: 'StudentFacilities',
+    component: () => import('@/views/student/StudentFacilitiesView.vue'),
+    meta: { requiresAuth: true, roles: ['student'], title: '设施与共享物品' }
+  },
+  {
+    path: '/student/community',
+    name: 'StudentCommunity',
+    component: () => import('@/views/student/StudentCommunityView.vue'),
+    meta: { requiresAuth: true, roles: ['student'], title: '安全与社区' }
+  },
+  {
+    path: '/student/report',
+    name: 'StudentReport',
+    component: () => import('@/views/student/StudentReportView.vue'),
+    meta: { requiresAuth: true, roles: ['student'], title: '年度生活报告' }
   },
   {
     path: '/admin',

@@ -1,7 +1,12 @@
 export const APP_NAVIGATION = Object.freeze({
   student: [
     { index: '01', to: '/student', label: '生活首页', eyebrow: 'HOME' },
-    { index: '02', to: '/student/services', label: '服务记录', eyebrow: 'SERVICES' }
+    { index: '02', to: '/student/profile', label: '我的档案', eyebrow: 'DOSSIER' },
+    { index: '03', to: '/student/finance', label: '费用钱包', eyebrow: 'FINANCE' },
+    { index: '04', to: '/student/repair', label: '报修流程', eyebrow: 'REPAIR' },
+    { index: '05', to: '/student/facilities', label: '设施共享', eyebrow: 'FACILITIES' },
+    { index: '06', to: '/student/community', label: '安全社区', eyebrow: 'COMMUNITY' },
+    { index: '07', to: '/student/report', label: '生活报告', eyebrow: 'REPORT' }
   ],
   admin: [
     { index: '01', to: '/admin', label: '运营首页', eyebrow: 'OVERVIEW' },

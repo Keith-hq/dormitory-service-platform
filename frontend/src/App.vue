@@ -16,9 +16,13 @@ const userRole = computed(() => userStore.userInfo?.role || '')
 const roleHome = computed(() => getRoleHome(userRole.value))
 const roleLabel = computed(() => ROLE_LABEL[userRole.value] || '平台用户')
 const navigation = computed(() => getNavigation(userRole.value))
-const currentNav = computed(() =>
-  navigation.value.find((item) => route.path === item.to || route.path.startsWith(`${item.to}/`))
-)
+const currentNav = computed(() => {
+  const exact = navigation.value.find((item) => route.path === item.to)
+  if (exact) return exact
+  return [...navigation.value]
+    .sort((first, second) => second.to.length - first.to.length)
+    .find((item) => route.path.startsWith(`${item.to}/`))
+})
 
 const logout = async () => {
   await clearSession()
