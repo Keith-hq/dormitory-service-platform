@@ -83,6 +83,10 @@ services:
     container_name: dorm-web
     ports:
       - "80:80"
+      - "443:443"
+    # 自签名证书挂载（deploy/scripts/ssl-gen.sh 生成到宿主机 nginx/certs/）
+    volumes:
+      - ../nginx/certs:/etc/nginx/certs:ro
     environment:
       TZ: Asia/Shanghai
     depends_on:

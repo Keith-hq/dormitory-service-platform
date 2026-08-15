@@ -249,11 +249,9 @@ var app = builder.Build();
 // 健康检查端点（不经过认证中间件，所有环境可用）
 app.MapHealthChecks("/health");
 app.UseMiddleware<ExceptionMiddleware>();
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Swagger 全环境可用：云端部署后团队/评审需通过 nginx /swagger/ 反代访问接口文档
+app.UseSwagger();
+app.UseSwaggerUI();
 
 //认证与授权
 app.UseAuthentication();

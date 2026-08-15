@@ -25,6 +25,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DB_DIR="$SCRIPT_DIR/../../database"
+# 兼容两种目录布局：
+#   a) 仓库布局 deploy/scripts/ → ../../database（仓库根下的 database/）
+#   b) 服务器扁平布局 scripts/ → ../database（setup-server.sh 上传 docker/ scripts/ database/ 的约定）
+if [ ! -d "$DB_DIR" ] && [ -d "$SCRIPT_DIR/../database" ]; then
+    DB_DIR="$SCRIPT_DIR/../database"
+fi
 # 容器名可用环境变量覆盖（本地验证时避免与开发实例冲突）
 CONTAINER="${DB_CONTAINER:-dorm-oracle-db}"
 # 服务名参数化：gvenzl 监听注册的服务名随实例配置大小写不同
