@@ -51,7 +51,7 @@ public class AuthController : ControllerBase
     {
         public string StudentId { get; set; } = string.Empty;
         public string? LoginName { get; set; }
-        public string Password { get; set; }
+        public string? Password { get; set; }
     }
 
     public class CreateAdminAccountRequest
