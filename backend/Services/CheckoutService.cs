@@ -43,7 +43,9 @@ public class CheckoutService : ICheckoutService
         if (await _checkoutRepo.GetActiveByAllocationAsync(allocationId) != null)
             throw new BusinessException(409, "已有进行中的退宿申请", 409);
 
-        // dto.Reason / dto.CheckoutDate：D_Checkout_Log 无对应列（DDL 冻结不改），接收不落库（挂账）
+        // dto.Reason / dto.CheckoutDate：D_Checkout_Log 无对应列（DDL 冻结不改）。接口继续兼容接收；
+        // 已向 PM 提契约修订（8/14 联调裁决）：checkoutDate 由 DORM-37 confirm 写入 D_Bed_Allocation 覆盖，
+        // reason 无对应存储位且无业务价值，建议从契约删除。
         CheckoutLog log;
         try
         {
@@ -239,19 +241,9 @@ public class CheckoutService : ICheckoutService
         if (alloc.CheckOutDate != null)
             alloc.CheckOutDate = null; // 回滚 settle 写入的退宿日期，床位恢复在住（IT-C2-005 ②）
 
-        // 审计事件（IT-C2-005 ③）：D_Audit_Event 属审计域（徐亦尘），其对外接口未就绪前
-        // 按追加写入直接落表；8/14 联调核对后应改为调用审计模块接口/公共服务。
-        var auditMax = await _context.AuditEvents.AnyAsync()
-            ? await _context.AuditEvents.MaxAsync(e => e.AuditId)
-            : 0;
-        await _context.AuditEvents.AddAsync(new AuditEvent
-        {
-            AuditId = auditMax + 1,
-            EventType = "退宿清算取消",
-            TargetType = "D_CHECKOUT_LOG",
-            TargetId = log.LogId.ToString(),
-            EventTime = DateTime.Now
-        });
+        // 审计留痕（IT-C2-005 ③）：D_Audit_Event 属审计域（FP5-4 徐亦尘），跨模块写入必须走
+        // 其对外接口/公共服务（架构红线）。复审要求：服务未合入前不得直接落表，先移除。
+        // TODO(审计模块接口就绪后): 调用审计公共服务记录"退宿清算取消"（D_CHECKOUT_LOG / LogId）
 
         try
         {
@@ -280,7 +272,9 @@ public class CheckoutService : ICheckoutService
         {
             checkoutId = log.LogId,
             allocationId = log.AllocationId,
-            status = log.Status,
+            // 响应层口径：DB CHECK 约束仅允许"已通过"，对外契约（IT-C2-001 ④）要求终态"已清算"，
+            // 查询响应统一映射；落库值不变（8/14 联调与前端确认取数口径）。
+            status = log.Status == CheckoutStatuses.Confirmed ? "已清算" : log.Status,
             feeCheck = log.FeeCheck,
             itemCheck = log.ItemCheck,
             rejectReason = log.RejectReason,

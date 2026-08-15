@@ -4,8 +4,9 @@ namespace TemplateDormApi.Services;
 
 /// <summary>
 /// 退宿清算状态词表（D_Checkout_Log.STATUS 有 CHECK 约束，取值固定）。
-/// 注：IT-C2-001 ④ 期望终态"已清算"为业务措辞，DB 侧对应 Status='已通过'（CHECK 无"已清算"），
-/// 8/14 联调核对两处口径。
+/// 注：IT-C2-001 ④ 期望终态"已清算"为业务措辞，DB 侧 CHECK 约束只允许 Status='已通过'；
+/// 查询响应层统一映射"已通过"→"已清算"（CheckoutService.BuildSummaryAsync），落库值不变，
+/// 8/14 联调与前端确认取数口径后如有变更再调整。
 /// </summary>
 public static class CheckoutStatuses
 {

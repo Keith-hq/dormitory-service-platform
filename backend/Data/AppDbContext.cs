@@ -43,9 +43,8 @@ public class AppDbContext : DbContext
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
     public DbSet<CheckoutLog> CheckoutLogs => Set<CheckoutLog>();
 
-    // ===== 退宿三步校验只读数据源 + 审计事件（写入方分别为快递/共享物品/审计模块）=====
+    // ===== 退宿三步校验只读数据源（写入方分别为快递/共享物品模块）=====
     public DbSet<ParcelRecord> ParcelRecords => Set<ParcelRecord>();
-    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -489,20 +488,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.DueTime).HasColumnName("DUE_TIME").IsRequired();
             entity.Property(e => e.ReturnTime).HasColumnName("RETURN_TIME");
             entity.Property(e => e.IdempotencyKey).HasColumnName("IDEMPOTENCY_KEY").HasMaxLength(100);
-        });
-
-        // ===== AuditEvent 审计事件（D_AUDIT_EVENT，审计域归徐亦尘）=====
-        // 退宿取消需留痕；其模块对外接口未就绪前按追加写入落表（8/14 联调核对后改走接口）。
-        modelBuilder.Entity<AuditEvent>(entity =>
-        {
-            entity.ToTable("D_AUDIT_EVENT");
-            entity.HasKey(e => e.AuditId);
-            entity.Property(e => e.AuditId).HasColumnName("AUDIT_ID");
-            entity.Property(e => e.ActorAccountId).HasColumnName("ACTOR_ACCOUNT_ID");
-            entity.Property(e => e.EventType).HasColumnName("EVENT_TYPE").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.TargetType).HasColumnName("TARGET_TYPE").HasMaxLength(50);
-            entity.Property(e => e.TargetId).HasColumnName("TARGET_ID").HasMaxLength(50);
-            entity.Property(e => e.EventTime).HasColumnName("EVENT_TIME").IsRequired();
         });
 
         // ===== RepairMaterial 维修耗材实体映射（D_Repair_Material，难点④）=====
