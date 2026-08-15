@@ -1,33 +1,24 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getNavigation } from '@/config/navigation'
+import { getRoleHome, ROLE_LABEL } from '@/router/roleAccess'
 import { clearSession } from '@/store/session'
 import { useUserStore } from '@/store/user'
-import { getRoleHome, ROLE_LABEL } from '@/router/roleAccess'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const showAppShell = computed(() => route.meta.layout !== 'auth')
+const showAppShell = computed(() => !['auth', 'prototype'].includes(route.meta.layout))
 const userInitial = computed(() => userStore.userName?.trim().slice(0, 1) || '用')
 const userRole = computed(() => userStore.userInfo?.role || '')
 const roleHome = computed(() => getRoleHome(userRole.value))
 const roleLabel = computed(() => ROLE_LABEL[userRole.value] || '平台用户')
-const navigation = computed(() => {
-  if (userRole.value === 'student') {
-    return [
-      { to: '/student', label: '生活首页' },
-      { to: '/student/services', label: '我的服务' }
-    ]
-  }
-
-  return [
-    { to: '/admin', label: '运营首页' },
-    { to: '/admin/operations', label: '值班工作台' },
-    { to: '/building', label: '楼栋档案' }
-  ]
-})
+const navigation = computed(() => getNavigation(userRole.value))
+const currentNav = computed(() =>
+  navigation.value.find((item) => route.path === item.to || route.path.startsWith(`${item.to}/`))
+)
 
 const logout = async () => {
   await clearSession()
@@ -38,41 +29,65 @@ const logout = async () => {
 <template>
   <router-view v-if="!showAppShell" />
   <div v-else class="app-shell">
-    <header class="app-header">
-      <div class="app-header__inner">
-        <router-link class="brand" :to="roleHome" aria-label="返回宿舍服务台首页">
-          <span class="brand__mark" aria-hidden="true">舍</span>
-          <span class="brand__copy">
-            <strong>宿舍服务台</strong>
-            <small>Campus Living Operations</small>
-          </span>
-        </router-link>
+    <aside class="app-sidebar">
+      <router-link class="brand" :to="roleHome" aria-label="返回宿舍服务台首页">
+        <span class="brand__mark" aria-hidden="true">舍</span>
+        <span class="brand__copy">
+          <strong>住校誌</strong>
+          <small>CAMPUS LIVING</small>
+        </span>
+      </router-link>
 
-        <nav class="primary-nav" aria-label="主导航">
-          <router-link v-for="item in navigation" :key="item.to" :to="item.to">
-            <span class="nav-dot" aria-hidden="true"></span>
-            {{ item.label }}
-          </router-link>
-        </nav>
-
-        <div class="user-actions">
-          <span class="user-avatar" aria-hidden="true">{{ userInitial }}</span>
-          <span class="user-copy">
-            <strong>{{ userStore.userName || '已登录用户' }}</strong>
-            <small>{{ roleLabel }}</small>
-          </span>
-          <button type="button" class="btn btn-ghost logout-button" @click="logout">退出</button>
-        </div>
+      <div class="sidebar-context">
+        <span>当前空间</span>
+        <strong>{{ roleLabel }}工作区</strong>
       </div>
-    </header>
 
-    <main class="app-main">
-      <router-view v-slot="{ Component }">
-        <transition name="page" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
-    </main>
+      <nav class="primary-nav" aria-label="主导航">
+        <router-link v-for="item in navigation" :key="item.to" :to="item.to">
+          <span>{{ item.index }}</span>
+          <div>
+            <b>{{ item.label }}</b
+            ><small>{{ item.eyebrow }}</small>
+          </div>
+        </router-link>
+      </nav>
+
+      <div class="sidebar-status">
+        <i aria-hidden="true"></i>
+        <div><b>服务运行正常</b><span>API CHANNEL / ONLINE</span></div>
+      </div>
+
+      <div class="sidebar-profile">
+        <span class="user-avatar" aria-hidden="true">{{ userInitial }}</span>
+        <span class="user-copy">
+          <strong>{{ userStore.userName || '已登录用户' }}</strong>
+          <small>{{ roleLabel }}</small>
+        </span>
+        <button type="button" aria-label="退出登录" @click="logout">退出</button>
+      </div>
+    </aside>
+
+    <div class="app-frame">
+      <header class="app-topbar">
+        <div class="topbar-route">
+          <span>{{ currentNav?.eyebrow || 'WORKSPACE' }}</span>
+          <b>{{ currentNav?.label || route.meta.title || '宿舍服务平台' }}</b>
+        </div>
+        <div class="topbar-meta">
+          <span><i></i> 数据通道已连接</span>
+          <time>2026 · 08 · 15</time>
+        </div>
+      </header>
+
+      <main class="app-main">
+        <router-view v-slot="{ Component }">
+          <transition name="page" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -80,222 +95,281 @@ const logout = async () => {
 .app-shell {
   min-height: 100svh;
 }
-
-.app-header {
-  position: sticky;
-  z-index: 40;
-  top: 0;
-  border-bottom: 1px solid rgba(208, 216, 208, 0.88);
-  background: rgba(250, 248, 242, 0.9);
-  backdrop-filter: blur(18px);
-}
-
-.app-header__inner {
+.app-sidebar {
+  position: fixed;
+  z-index: 50;
+  inset: 0 auto 0 0;
   display: flex;
-  align-items: center;
-  width: min(100% - 40px, var(--content-max));
-  min-height: 72px;
-  margin: 0 auto;
-  gap: var(--space-8);
+  width: 244px;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 30px 22px 22px;
+  background: var(--color-ink);
+  color: var(--color-paper);
 }
-
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  color: var(--color-ink);
+  gap: 12px;
+  color: inherit;
   text-decoration: none;
 }
-
 .brand__mark {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   place-items: center;
-  border-radius: 12px 4px 12px 4px;
-  background: var(--color-ink);
-  color: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
   font-family: var(--font-display);
   font-size: 20px;
-  font-weight: 700;
-  box-shadow: 5px 5px 0 var(--color-brand-soft);
+  transform: rotate(-3deg);
 }
-
 .brand__copy {
   display: grid;
   gap: 1px;
-  text-align: left;
 }
-
 .brand__copy strong {
   font-family: var(--font-display);
-  font-size: 17px;
-  letter-spacing: 0.03em;
+  font-size: 20px;
+  letter-spacing: 0.11em;
 }
-
 .brand__copy small {
-  color: var(--color-text-soft);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  color: #92a198;
+  font-size: 8px;
+  letter-spacing: 0.18em;
 }
-
-.primary-nav {
-  display: flex;
-  align-items: center;
-  align-self: stretch;
+.sidebar-context {
+  display: grid;
+  margin: 48px 9px 12px;
+  gap: 4px;
 }
-
-.primary-nav a {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  height: 100%;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  color: var(--color-text-muted);
+.sidebar-context span {
+  color: #718278;
+  font-size: 8px;
+  letter-spacing: 0.15em;
+}
+.sidebar-context strong {
+  color: #dfe3d9;
+  font-family: var(--font-display);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
+}
+.primary-nav {
+  display: grid;
+  gap: 3px;
+}
+.primary-nav a {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-left: 2px solid transparent;
+  color: #89988f;
   text-decoration: none;
+  transition: 0.16s ease;
 }
-
-.primary-nav a::after {
-  content: '';
-  position: absolute;
-  right: var(--space-3);
-  bottom: -1px;
-  left: var(--space-3);
-  height: 2px;
-  border-radius: 999px 999px 0 0;
-  background: var(--color-brand);
-  opacity: 0;
-  transform: scaleX(0.4);
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
+.primary-nav > a > span {
+  color: #56685e;
+  font: 8px var(--font-mono);
 }
-
-.primary-nav a:hover,
+.primary-nav a div {
+  display: grid;
+  gap: 3px;
+}
+.primary-nav a b {
+  font-size: 12px;
+  font-weight: 600;
+}
+.primary-nav a small {
+  color: #506157;
+  font-size: 7px;
+  letter-spacing: 0.13em;
+}
+.primary-nav a:hover {
+  background: rgba(255, 255, 255, 0.035);
+  color: #f1eadc;
+}
 .primary-nav a.router-link-active {
-  color: var(--color-brand-strong);
+  border-color: var(--color-accent);
+  background: rgba(255, 255, 255, 0.045);
+  color: #fff7e8;
 }
-
-.primary-nav a.router-link-active::after {
-  opacity: 1;
-  transform: scaleX(1);
+.primary-nav a.router-link-active span {
+  color: var(--color-accent);
 }
-
-.nav-dot {
-  width: 6px;
-  height: 6px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-}
-
-.router-link-active .nav-dot {
-  border-color: var(--color-brand);
-  background: var(--color-brand);
-  box-shadow: 0 0 0 4px var(--color-brand-soft);
-}
-
-.user-actions {
+.sidebar-status {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  margin-left: auto;
+  margin-top: auto;
+  padding: 14px 10px;
+  border: 1px solid #3a4d43;
+  gap: 10px;
 }
-
+.sidebar-status > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #70a785;
+  box-shadow: 0 0 0 4px rgba(112, 167, 133, 0.12);
+}
+.sidebar-status div {
+  display: grid;
+  gap: 2px;
+}
+.sidebar-status b {
+  font-size: 9px;
+}
+.sidebar-status span {
+  color: #63776c;
+  font: 7px var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.sidebar-profile {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 17px;
+  border-top: 1px solid #35473e;
+  gap: 9px;
+}
 .user-avatar {
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
-  border: 1px solid var(--color-brand-border);
   border-radius: 50%;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-strong);
+  background: var(--color-paper);
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 700;
 }
-
 .user-copy {
   display: grid;
-  min-width: 72px;
-  gap: 1px;
-  text-align: left;
+  min-width: 0;
+  gap: 2px;
 }
-
 .user-copy strong {
   overflow: hidden;
-  max-width: 120px;
-  color: var(--color-ink);
-  font-size: 12px;
+  color: #f4eddf;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .user-copy small {
-  color: var(--color-text-soft);
-  font-size: 10px;
+  color: #71857a;
+  font-size: 8px;
 }
-
-.logout-button {
-  min-height: 32px;
-  padding: 5px 10px;
+.sidebar-profile button {
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: #87978e;
+  font-size: 9px;
+  cursor: pointer;
 }
-
+.sidebar-profile button:hover {
+  color: #e7a07e;
+}
+.app-frame {
+  min-height: 100svh;
+  margin-left: 244px;
+}
+.app-topbar {
+  position: sticky;
+  z-index: 40;
+  top: 0;
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(24px, 4vw, 58px);
+  border-bottom: 1px solid var(--color-line-strong);
+  background: rgba(246, 241, 230, 0.92);
+  backdrop-filter: blur(16px);
+}
+.topbar-route {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.topbar-route span {
+  color: var(--color-accent-strong);
+  font: 8px var(--font-mono);
+  letter-spacing: 0.13em;
+}
+.topbar-route b {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+}
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  font: 8px var(--font-mono);
+  gap: 24px;
+}
+.topbar-meta span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.topbar-meta i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5e9473;
+}
 .app-main {
-  min-height: calc(100svh - 73px);
+  min-height: calc(100svh - 65px);
 }
-
 .page-enter-active,
 .page-leave-active {
   transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
+    opacity 0.16s ease,
+    transform 0.16s ease;
 }
-
-.page-enter-from,
-.page-leave-to {
+.page-enter-from {
   opacity: 0;
   transform: translateY(5px);
 }
-
-@media (max-width: 760px) {
-  .app-header__inner {
-    width: min(100% - 24px, var(--content-max));
-    min-height: 64px;
-    gap: var(--space-4);
-  }
-
-  .brand__copy small,
-  .user-copy {
-    display: none;
-  }
-
-  .primary-nav a {
-    padding-inline: var(--space-2);
-  }
-
-  .primary-nav a::after {
-    right: var(--space-2);
-    left: var(--space-2);
-  }
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
 }
-
-@media (max-width: 520px) {
-  .brand__copy {
+@media (max-width: 820px) {
+  .app-sidebar {
+    position: static;
+    width: 100%;
+    padding: 15px 18px;
+  }
+  .sidebar-context,
+  .sidebar-status,
+  .sidebar-profile {
     display: none;
   }
-
-  .brand__mark {
-    width: 36px;
-    height: 36px;
+  .primary-nav {
+    display: flex;
+    margin-top: 13px;
+    overflow-x: auto;
   }
-
-  .user-avatar {
+  .primary-nav a {
+    min-width: 126px;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+  .primary-nav a.router-link-active {
+    border-bottom-color: var(--color-accent);
+  }
+  .app-frame {
+    margin-left: 0;
+  }
+  .app-topbar {
+    padding: 0 18px;
+  }
+  .topbar-meta span {
     display: none;
   }
 }
