@@ -245,13 +245,16 @@ public class InventoryTxnService : IInventoryTxnService
 
     public async Task<List<SharedItem>> GetSharedItems(int? buildingId = null)
     {
+        // 别名必须带引号：Oracle 把裸别名大写（ItemId → ITEMID），与 EF 列映射
+        // （ITEM_ID 等）不一致 → "The required column 'ITEM_ID' was not present"。
+        // 与 GetItemLoans 同模式：带引号别名固定列名大小写。
         if (buildingId.HasValue)
         {
             return await _context.Set<SharedItem>()
                 .FromSqlRaw(
-                    @"SELECT Item_ID AS ItemId, Item_Name AS ItemName,
-                            Building_ID AS BuildingId, Total_Qty AS TotalQty,
-                            Available_Qty AS AvailableQty, Status
+                    @"SELECT Item_ID AS ""ItemId"", Item_Name AS ""ItemName"",
+                            Building_ID AS ""BuildingId"", Total_Qty AS ""TotalQty"",
+                            Available_Qty AS ""AvailableQty"", Status
                      FROM D_Shared_Item
                      WHERE Status = '正常' AND Available_Qty > 0 AND Building_ID = {0}
                      ORDER BY Item_ID", buildingId.Value)
@@ -260,9 +263,9 @@ public class InventoryTxnService : IInventoryTxnService
 
         return await _context.Set<SharedItem>()
             .FromSqlRaw(
-                @"SELECT Item_ID AS ItemId, Item_Name AS ItemName,
-                        Building_ID AS BuildingId, Total_Qty AS TotalQty,
-                        Available_Qty AS AvailableQty, Status
+                @"SELECT Item_ID AS ""ItemId"", Item_Name AS ""ItemName"",
+                        Building_ID AS ""BuildingId"", Total_Qty AS ""TotalQty"",
+                        Available_Qty AS ""AvailableQty"", Status
                  FROM D_Shared_Item
                  WHERE Status = '正常' AND Available_Qty > 0
                  ORDER BY Item_ID")
@@ -309,8 +312,8 @@ public class InventoryTxnService : IInventoryTxnService
     {
         return await _context.Set<RepairMaterial>()
             .FromSqlRaw(
-                @"SELECT Material_ID AS MaterialId, Material_Name AS MaterialName,
-                        Unit, Stock_Qty AS StockQty
+                @"SELECT Material_ID AS ""MaterialId"", Material_Name AS ""MaterialName"",
+                        Unit, Stock_Qty AS ""StockQty""
                  FROM D_Repair_Material
                  ORDER BY Material_ID")
             .ToListAsync();
