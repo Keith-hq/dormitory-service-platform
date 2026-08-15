@@ -47,32 +47,29 @@ let packages = [
   {
     packageId: 7102,
     studentId: 'S2026001',
-    courierCompany: '顺丰速运',
-    trackingNo: 'SF142***290',
-    shelfCode: 'A-03-18',
+    expressNo: 'SF142***290',
+    carrier: '顺丰速运',
     pickupCode: '5-1832',
-    status: 'ready',
-    arrivedAt: '今天 10:36'
+    arrivalTime: '2026-08-13T10:36:00+08:00',
+    status: '待取件'
   },
   {
     packageId: 7094,
     studentId: 'S2026001',
-    courierCompany: '中通快递',
-    trackingNo: 'ZT778***051',
-    shelfCode: 'B-11-02',
+    expressNo: 'ZT778***051',
+    carrier: '中通快递',
     pickupCode: '2-6401',
-    status: 'ready',
-    arrivedAt: '昨天 16:20'
+    arrivalTime: '2026-08-12T16:20:00+08:00',
+    status: '待取件'
   },
   {
     packageId: 7031,
     studentId: 'S2026001',
-    courierCompany: '京东物流',
-    trackingNo: 'JD009***714',
-    shelfCode: 'C-02-05',
-    pickupCode: '已取件',
-    status: 'picked_up',
-    arrivedAt: '08-09 11:08'
+    expressNo: 'JD009***714',
+    carrier: '京东物流',
+    pickupCode: 'C-0205',
+    arrivalTime: '2026-08-09T11:08:00+08:00',
+    status: '已取件'
   }
 ]
 
@@ -288,9 +285,9 @@ const roleServiceMockAdapter = async (config) => {
       return createResponse(config, { code: 404, message: '快递不存在', data: null, status: 404 })
     }
     packages = packages.map((item) =>
-      item.packageId === packageId ? { ...item, status: 'picked_up', pickupCode: '已取件' } : item
+      item.packageId === packageId ? { ...item, status: '已取件' } : item
     )
-    return createResponse(config, { message: '取件成功' })
+    return createResponse(config, { message: '取件成功', data: null })
   }
 
   if (path === '/water-orders' && method === 'get') {

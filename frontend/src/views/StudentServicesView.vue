@@ -5,6 +5,7 @@ import { studentApi } from '@/api/student'
 import { PageHeader, RecordsTable, StatusTag } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
+import { formatPackageArrivalTime, isPackageReady, PACKAGE_STATUS } from '@/utils/package'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,15 +30,13 @@ const statusLabel = {
   pending: '待配送',
   delivering: '配送中',
   completed: '已送达',
-  ready: '待取件',
-  picked_up: '已取件',
   reviewing: '复核中',
   approved: '已通过',
   rejected: '未通过'
 }
 
 const statusTone = (status) => {
-  if (['completed', 'picked_up', 'approved'].includes(status)) return 'success'
+  if (['completed', PACKAGE_STATUS.PICKED_UP, 'approved'].includes(status)) return 'success'
   if (['delivering', 'reviewing'].includes(status)) return 'info'
   if (status === 'rejected') return 'danger'
   return 'warning'
@@ -46,12 +45,11 @@ const statusTone = (status) => {
 const columns = computed(() => {
   if (activeTab.value === 'packages') {
     return [
-      { key: 'courierCompany', label: '快递公司' },
-      { key: 'trackingNo', label: '运单号' },
-      { key: 'shelfCode', label: '货架位置' },
+      { key: 'carrier', label: '快递公司' },
+      { key: 'expressNo', label: '运单号' },
       { key: 'pickupCode', label: '取件码' },
       { key: 'status', label: '状态' },
-      { key: 'arrivedAt', label: '到站时间' }
+      { key: 'arrivalTime', label: '到站时间' }
     ]
   }
   if (activeTab.value === 'appeals') {
@@ -136,7 +134,7 @@ const pickupPackage = async (item) => {
   try {
     await studentApi.pickupPackage(item.packageId)
     await reloadPackages()
-    feedback.value = `${item.courierCompany}快递已确认取件`
+    feedback.value = `${item.carrier}快递已确认取件`
   } catch (error) {
     feedback.value = error.message || '确认取件失败'
   } finally {
@@ -217,6 +215,7 @@ onMounted(loadAll)
     >
       <template #cell-quantity="{ value }">{{ value }} 桶</template>
       <template #cell-amount="{ value }">¥{{ value }}</template>
+      <template #cell-arrivalTime="{ value }">{{ formatPackageArrivalTime(value) }}</template>
       <template #cell-scoreChange="{ value }">
         <strong :class="value > 0 ? 'score-positive' : 'score-negative'">
           {{ value > 0 ? '+' : '' }}{{ value }}
@@ -229,10 +228,10 @@ onMounted(loadAll)
         <button
           type="button"
           class="btn btn-sm btn-primary"
-          :disabled="item.status !== 'ready' || actionLoading === `package-${item.packageId}`"
+          :disabled="!isPackageReady(item.status) || actionLoading === `package-${item.packageId}`"
           @click="pickupPackage(item)"
         >
-          {{ item.status === 'ready' ? '确认取件' : '已取件' }}
+          {{ isPackageReady(item.status) ? '确认取件' : '已取件' }}
         </button>
       </template>
     </RecordsTable>

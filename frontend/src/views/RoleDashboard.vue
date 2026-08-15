@@ -6,6 +6,7 @@ import { studentApi } from '@/api/student'
 import { PageHeader, StatusTag } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
+import { formatPackageArrivalTime, isPackageReady, PACKAGE_STATUS } from '@/utils/package'
 
 const userStore = useUserStore()
 const loading = ref(true)
@@ -47,7 +48,7 @@ const pageCopy = computed(() =>
 const studentMetrics = computed(() => [
   {
     label: '待取快递',
-    value: collections.value.packages.filter((item) => item.status === 'ready').length,
+    value: collections.value.packages.filter((item) => isPackageReady(item.status)).length,
     suffix: '件'
   },
   {
@@ -96,9 +97,9 @@ const modules = computed(() => {
       {
         index: '02',
         title: '快递取件',
-        description: '查看货架位置与取件码，到站后在线确认取件。',
+        description: '查看运单与取件码，到站后在线确认取件。',
         to: { path: '/student/services', query: { tab: 'packages' } },
-        count: `${collections.value.packages.filter((item) => item.status === 'ready').length} 件待取`
+        count: `${collections.value.packages.filter((item) => isPackageReady(item.status)).length} 件待取`
       },
       {
         index: '03',
@@ -146,8 +147,6 @@ const statusLabel = {
   pending: '待处理',
   delivering: '配送中',
   completed: '已完成',
-  ready: '待取件',
-  picked_up: '已取件',
   reviewing: '复核中',
   approved: '已通过',
   normal: '正常',
@@ -156,7 +155,7 @@ const statusLabel = {
 }
 
 const statusTone = (status) => {
-  if (['completed', 'picked_up', 'approved', 'normal', 'processed'].includes(status))
+  if (['completed', PACKAGE_STATUS.PICKED_UP, 'approved', 'normal', 'processed'].includes(status))
     return 'success'
   if (['late'].includes(status)) return 'danger'
   if (['delivering', 'reviewing'].includes(status)) return 'info'
@@ -166,13 +165,13 @@ const statusTone = (status) => {
 const activity = computed(() => {
   if (isStudent.value) {
     const packageItems = collections.value.packages
-      .filter((item) => item.status === 'ready')
+      .filter((item) => isPackageReady(item.status))
       .map((item) => ({
         id: `package-${item.packageId}`,
-        title: `${item.courierCompany}已到站`,
-        detail: `${item.shelfCode} · 取件码 ${item.pickupCode}`,
+        title: `${item.carrier}已到站`,
+        detail: `${item.expressNo} · 取件码 ${item.pickupCode}`,
         status: item.status,
-        time: item.arrivedAt
+        time: formatPackageArrivalTime(item.arrivalTime)
       }))
     const orderItems = collections.value.waterOrders.slice(0, 2).map((item) => ({
       id: `water-${item.orderId}`,
