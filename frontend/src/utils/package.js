@@ -5,6 +5,36 @@ export const PACKAGE_STATUS = Object.freeze({
 
 export const isPackageReady = (status) => status === PACKAGE_STATUS.READY
 
+export const normalizePackage = (item) => {
+  if (!item || typeof item !== 'object') return item
+
+  const packageId = item.packageId ?? item.parcelId
+  const fallbackCode = packageId === null || packageId === undefined ? '' : String(packageId)
+
+  return {
+    ...item,
+    packageId,
+    expressNo: item.expressNo || fallbackCode,
+    carrier: item.carrier || item.courierCompany || '',
+    pickupCode: item.pickupCode || fallbackCode,
+    arrivalTime: item.arrivalTime || item.arriveTime,
+    status: item.status || (item.pickupTime ? PACKAGE_STATUS.PICKED_UP : PACKAGE_STATUS.READY)
+  }
+}
+
+export const normalizePackagePayload = (payload) => {
+  if (Array.isArray(payload)) return payload.map(normalizePackage)
+  if (!payload || typeof payload !== 'object') return payload
+
+  for (const key of ['items', 'records', 'list']) {
+    if (Array.isArray(payload[key])) {
+      return { ...payload, [key]: payload[key].map(normalizePackage) }
+    }
+  }
+
+  return payload
+}
+
 export const formatPackageArrivalTime = (value) => {
   if (!value) return '—'
 

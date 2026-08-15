@@ -1,7 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveRoleServiceMockAdapter } from '../src/mock/roleServices.js'
-import { formatPackageArrivalTime, isPackageReady, PACKAGE_STATUS } from '../src/utils/package.js'
+import {
+  formatPackageArrivalTime,
+  isPackageReady,
+  normalizePackagePayload,
+  PACKAGE_STATUS
+} from '../src/utils/package.js'
 
 const studentRequest = (url, method = 'get') => ({
   url,
@@ -49,4 +54,33 @@ test('formats package arrival timestamps without changing invalid values', () =>
   assert.notEqual(formatPackageArrivalTime('2026-08-13T10:36:00+08:00'), '—')
   assert.equal(formatPackageArrivalTime('pending sync'), 'pending sync')
   assert.equal(formatPackageArrivalTime(''), '—')
+})
+
+test('normalizes the legacy parcel response at the API boundary', () => {
+  const payload = normalizePackagePayload({
+    items: [
+      {
+        parcelId: 18,
+        studentId: 'S2026001',
+        arriveTime: '2026-08-15T10:00:00+08:00',
+        pickupTime: null,
+        courierCompany: '联调快递'
+      }
+    ],
+    total: 1
+  })
+
+  assert.deepEqual(payload.items[0], {
+    parcelId: 18,
+    studentId: 'S2026001',
+    arriveTime: '2026-08-15T10:00:00+08:00',
+    pickupTime: null,
+    courierCompany: '联调快递',
+    packageId: 18,
+    expressNo: '18',
+    carrier: '联调快递',
+    pickupCode: '18',
+    arrivalTime: '2026-08-15T10:00:00+08:00',
+    status: PACKAGE_STATUS.READY
+  })
 })
