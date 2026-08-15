@@ -27,10 +27,14 @@ public class RoomRepository : BaseRepository<Room>
     public Task<bool> BuildingExistsAsync(int buildingId)
         => _context.Buildings.AnyAsync(b => b.BuildingId == buildingId);
 
-    /// <summary>DORM-06 批量初始化：该楼栋该楼层已有房间号（跳过重复）</summary>
-    public async Task<HashSet<string>> GetRoomNumbersAsync(int buildingId, int floor)
+    /// <summary>
+    /// DORM-06 批量初始化：该楼栋已有房间号（跳过重复）。
+    /// 楼栋级查重，对齐迁移 023 唯一约束 UK_D_ROOM_BUILDING_NO (Building_ID, Room_Number)：
+    /// 跨楼层同号同样视为已存在（三审整改）。
+    /// </summary>
+    public async Task<HashSet<string>> GetRoomNumbersAsync(int buildingId)
         => (await _dbSet
-                .Where(r => r.BuildingId == buildingId && r.Floor == floor)
+                .Where(r => r.BuildingId == buildingId)
                 .Select(r => r.RoomNumber)
                 .ToListAsync())
             .ToHashSet();

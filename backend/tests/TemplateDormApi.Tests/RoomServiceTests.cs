@@ -25,6 +25,12 @@ public class RoomServiceTests
         return (new AppDbContext(options), new AppDbContext(options));
     }
 
+    /// <summary>匿名对象序列化（不转义中文），用于断言响应字段</summary>
+    private static string Serialize(object value) => JsonSerializer.Serialize(value, new JsonSerializerOptions
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    });
+
     [Fact]
     public async Task CreateAsync_PersistsFloorAndDefaultsStatusToNormal()
     {
@@ -146,10 +152,7 @@ public class RoomServiceTests
             Capacity = 4
         }, $"uk-conflict-key-{Guid.NewGuid():N}");
 
-        var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
-        {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        });
+        var json = Serialize(result);
         Assert.Contains("\"skipped\":[\"103\"]", json); // 冲突号归入"已存在跳过"，不 500
         Assert.Contains("\"total\":2", json);           // 101/102 仍创建成功
 
@@ -202,10 +205,101 @@ public class RoomServiceTests
 
         // 后续同键重放：命中缓存，replayed=true
         var replay = await service1.BatchInitAsync(dto, key);
-        var json = JsonSerializer.Serialize(replay, new JsonSerializerOptions
-        {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        });
+        var json = Serialize(replay);
         Assert.Contains("\"replayed\":true", json);
+    }
+
+    [Fact]
+    public async Task BatchInit_CrossFloorExistingRoom_IsSkippedAtPrecheck()
+    {
+        // 楼栋级唯一（UK_D_ROOM_BUILDING_NO）：Floor=1 已有 103，Floor=2 批量同号 → 初始查重即跳过
+        var (context, readContext) = CreateContexts();
+        await using var _ = context;
+        await using var __ = readContext;
+        context.Buildings.Add(new Building
+        {
+            BuildingId = 1,
+            BuildingName = "一号楼",
+            BuildingType = "男生宿舍",
+            FloorCount = 6
+        });
+        context.Rooms.Add(new Room
+        {
+            BuildingId = 1,
+            RoomNumber = "103",
+            Floor = 1,
+            Capacity = 4,
+            Occupancy = 0,
+            Status = "正常",
+            PowerStatus = "正常"
+        });
+        await context.SaveChangesAsync();
+
+        var service = new RoomService(new RoomRepository(context));
+        var result = await service.BatchInitAsync(new RoomBatchInitDto
+        {
+            BuildingId = 1,
+            Floor = 2,
+            StartRoomNo = "103",
+            Count = 1,
+            Capacity = 4
+        }, $"crossfloor-precheck-key-{Guid.NewGuid():N}");
+
+        var json = Serialize(result);
+        Assert.Contains("\"skipped\":[\"103\"]", json); // 跨楼层同号在初始查重即跳过
+        Assert.Contains("\"total\":0", json);
+        Assert.Contains("\"replayed\":false", json);
+
+        // 库中仍只有 Floor=1 的一条 103，无跨楼层重复
+        var count = await context.Rooms.CountAsync(r => r.BuildingId == 1 && r.RoomNumber == "103");
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task BatchInit_CrossFloorConcurrentUkConflict_SkipsAndDoesNotThrow()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"room-uk-crossfloor-tests-{Guid.NewGuid():N}")
+            .Options;
+        await using var context = new UkConflictOnceDbContext(options, new Room
+        {
+            BuildingId = 1,
+            RoomNumber = "103",
+            Floor = 1, // 并发批次在另一楼层抢先建了同号房间
+            Capacity = 4,
+            Occupancy = 0,
+            Status = "正常",
+            PowerStatus = "正常"
+        });
+        context.Buildings.Add(new Building
+        {
+            BuildingId = 1,
+            BuildingName = "一号楼",
+            BuildingType = "男生宿舍",
+            FloorCount = 6
+        });
+        await context.SaveChangesAsync();
+        context.ArmUkConflict();
+
+        var service = new RoomService(new RoomRepository(context));
+        var result = await service.BatchInitAsync(new RoomBatchInitDto
+        {
+            BuildingId = 1,
+            Floor = 2, // 本批次在 2 楼生成 101~103
+            StartRoomNo = "101",
+            Count = 3,
+            Capacity = 4
+        }, $"crossfloor-uk-key-{Guid.NewGuid():N}");
+
+        var json = Serialize(result);
+        Assert.Contains("\"skipped\":[\"103\"]", json); // 跨楼层冲突：楼栋级重查发现后跳过，不 500
+        Assert.Contains("\"total\":2", json);
+
+        var roomNumbers = await context.Rooms
+            .Where(r => r.BuildingId == 1)
+            .Select(r => r.RoomNumber)
+            .OrderBy(r => r)
+            .ToListAsync();
+        Assert.Equal(new[] { "101", "102", "103" }, roomNumbers);
     }
 }

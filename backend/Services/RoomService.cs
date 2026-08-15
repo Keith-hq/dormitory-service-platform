@@ -73,7 +73,7 @@ public class RoomService : IRoomService
         if (!int.TryParse(dto.StartRoomNo, out var startNo) || startNo <= 0)
             throw new BusinessException(400, "起始房间号必须为正整数（如 101）");
 
-        var existing = await _repo.GetRoomNumbersAsync(dto.BuildingId, dto.Floor);
+        var existing = await _repo.GetRoomNumbersAsync(dto.BuildingId); // 楼栋级查重（UK 楼栋级唯一，跨楼层同号也跳过）
         var newRooms = new List<Room>();
         var skipped = new List<string>();
         for (var i = 0; i < dto.Count; i++)
@@ -81,7 +81,7 @@ public class RoomService : IRoomService
             var roomNo = (startNo + i).ToString();
             if (existing.Contains(roomNo))
             {
-                skipped.Add(roomNo); // 已存在则跳过，避免主键/重复房间
+                skipped.Add(roomNo); // 楼栋内已存在（含跨楼层）则跳过，避免撞 UK_D_ROOM_BUILDING_NO
                 continue;
             }
             var room = new Room
@@ -107,9 +107,9 @@ public class RoomService : IRoomService
 
     /// <summary>
     /// DORM-06 唯一索引兜底：并发批次（不同幂等键、同号房间、均过了预查）插入时数据库报
-    /// ORA-00001 命中 UK_D_ROOM_BUILDING_NO。兜底策略：清跟踪 → 重查已有房间号 →
-    /// 冲突号归入"已存在跳过" → 剩余重试，不 500。每轮至少过滤掉一个冲突号（集合单调收敛），
-    /// 重试上限仅在持续并发竞争时快速失败，理论不可达。
+    /// ORA-00001 命中 UK_D_ROOM_BUILDING_NO。兜底策略：清跟踪 → 楼栋级重查已有房间号
+    /// （跨楼层同号同样命中唯一约束）→ 冲突号归入"已存在跳过" → 剩余重试，不 500。
+    /// 每轮至少过滤掉一个冲突号（集合单调收敛），重试上限仅在持续并发竞争时快速失败，理论不可达。
     /// </summary>
     private async Task SaveBatchWithUkFallbackAsync(RoomBatchInitDto dto, List<Room> newRooms, List<string> skipped)
     {
@@ -127,7 +127,7 @@ public class RoomService : IRoomService
                     throw; // 兜底上限：持续并发竞争时快速失败，避免无限重试
 
                 _repo.ClearTracker();
-                var nowExisting = await _repo.GetRoomNumbersAsync(dto.BuildingId, dto.Floor);
+                var nowExisting = await _repo.GetRoomNumbersAsync(dto.BuildingId); // 楼栋级重查：跨楼层同号同样归入跳过
                 for (var i = newRooms.Count - 1; i >= 0; i--)
                 {
                     if (nowExisting.Contains(newRooms[i].RoomNumber))
