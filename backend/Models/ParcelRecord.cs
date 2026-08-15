@@ -1,25 +1,19 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace TemplateDormApi.Models;
 
 /// <summary>
-/// 快递记录实体（映射 D_Parcel_Record，主键由序列+触发器生成）。
-/// 取件状态由 Pickup_Time 是否为空判断：NULL=未取件，非空=已取件。
+/// 快递代收记录（映射 D_Parcel_Record）——退宿三步校验的只读数据源。
+/// 写入方为快递模块（C8 链路），本模块不写此表（跨模块只读，符合单写者红线）。
 /// </summary>
 public class ParcelRecord
 {
-    [Key]
     public int ParcelId { get; set; }
 
-    /// <summary>收件学生（FK → D_Student，可空）</summary>
     public string? StudentId { get; set; }
 
-    /// <summary>到达时间</summary>
     public DateTime ArriveTime { get; set; }
 
-    /// <summary>取件时间（NULL=未取）</summary>
+    /// <summary>取件时间；NULL = 未取（退宿校验不通过项）</summary>
     public DateTime? PickupTime { get; set; }
 
-    /// <summary>快递公司</summary>
     public string? CourierCompany { get; set; }
 }

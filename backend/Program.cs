@@ -78,12 +78,17 @@ builder.Services.AddScoped<ViolationRepository>();
 builder.Services.AddScoped<VoteRepository>();
 builder.Services.AddScoped<VisitorRepository>();
 builder.Services.AddScoped<ParcelRepository>();
+builder.Services.AddScoped<LeaveRepository>();
+builder.Services.AddScoped<BedAllocationRepository>();
+builder.Services.AddScoped<CheckoutRepository>();
 
 // ===== 5. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
+builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddScoped<IUtilityFeeService, UtilityFeeService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IFacilityService, FacilityService>();
@@ -102,6 +107,9 @@ builder.Services.AddScoped<IViolationService, ViolationService>();
 builder.Services.AddScoped<IVoteService, VoteService>();
 builder.Services.AddScoped<IVisitorService, VisitorService>();
 builder.Services.AddScoped<IParcelService, ParcelService>();
+builder.Services.AddScoped<ILeaveService, LeaveService>();
+builder.Services.AddScoped<IAllocationService, AllocationService>();
+builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 
