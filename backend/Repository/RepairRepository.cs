@@ -51,6 +51,27 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         return ToDto(ticket);
     }
 
+    /// <summary>
+    /// 宿管侧「损坏资产转报修」（DORM-16）入口：创建一条资产关联的报修工单。
+    /// Student_ID 为空（宿管发起，非学生报修）、Room_ID 取资产所属房间、初始状态
+    /// 待处理。仅把工单加入变更跟踪，不 SaveChanges——由 AssetService 与
+    /// D_Asset_Repair / D_Asset_Warning 写入置于同一事务统一提交。
+    /// </summary>
+    public RepairTicket CreateAssetTicket(int? roomId, string description)
+    {
+        var ticket = new RepairTicket
+        {
+            StudentId = null,
+            RoomId = roomId,
+            IssueDescription = description.Trim(),
+            SubmitTime = DateTime.Now,
+            Status = "待处理",
+            SlaLevel = "普通"
+        };
+        DbContext.RepairTickets.Add(ticket);
+        return ticket;
+    }
+
     public async Task<PagedResult<RepairTicketDto>> GetStudentTicketsAsync(
         string studentId,
         RepairTicketQueryDto query,

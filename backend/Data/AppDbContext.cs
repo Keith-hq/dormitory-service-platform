@@ -52,6 +52,11 @@ public class AppDbContext : DbContext
     public DbSet<WalletAccount> WalletAccounts => Set<WalletAccount>();
     public DbSet<WalletLog> WalletLogs => Set<WalletLog>();
 
+    // ===== 资产/保洁/共享物品主数据（刘鸿铭域，迁移 029 扩展表）=====
+    public DbSet<CleaningTask> CleaningTasks => Set<CleaningTask>();
+    public DbSet<AssetRepair> AssetRepairs => Set<AssetRepair>();
+    public DbSet<AssetWarning> AssetWarnings => Set<AssetWarning>();
+
     // ===== 住宿全生命周期（刘润东）：离校报备 / 退宿清算 =====
     // 注：BedAllocation、ItemLoan 的 DbSet 由住宿/共享物品模块声明，此处不重复声明。
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
@@ -151,7 +156,7 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_ASSET");
             entity.HasKey(e => e.AssetId);
-            entity.Property(e => e.AssetId).HasColumnName("ASSET_ID");
+            entity.Property(e => e.AssetId).HasColumnName("ASSET_ID").ValueGeneratedOnAdd();
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
             entity.Property(e => e.AssetName).HasColumnName("ASSET_NAME").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Quantity).HasColumnName("QUANTITY").HasDefaultValue(1);
@@ -769,12 +774,13 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_SHARED_ITEM");
             entity.HasKey(e => e.ItemId);
-            entity.Property(e => e.ItemId).HasColumnName("ITEM_ID");
+            entity.Property(e => e.ItemId).HasColumnName("ITEM_ID").ValueGeneratedOnAdd();
             entity.Property(e => e.ItemName).HasColumnName("ITEM_NAME").HasMaxLength(50).IsRequired();
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
             entity.Property(e => e.TotalQty).HasColumnName("TOTAL_QTY");
             entity.Property(e => e.AvailableQty).HasColumnName("AVAILABLE_QTY");
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("DESCRIPTION").HasMaxLength(200);
 
             entity.HasOne<Building>()
                   .WithMany()
@@ -914,6 +920,66 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TargetType).HasColumnName("TARGET_TYPE").HasMaxLength(50);
             entity.Property(e => e.TargetId).HasColumnName("TARGET_ID").HasMaxLength(50);
             entity.Property(e => e.EventTime).HasColumnName("EVENT_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+        });
+
+        // ===== 资产/保洁/共享物品主数据（迁移 029）=====
+
+        // ---- CleaningTask 保洁任务 ----
+        modelBuilder.Entity<CleaningTask>(entity =>
+        {
+            entity.ToTable("D_CLEANING_TASK");
+            entity.HasKey(e => e.TaskId);
+            entity.Property(e => e.TaskId).HasColumnName("TASK_ID").ValueGeneratedOnAdd();
+            entity.Property(e => e.FacilityId).HasColumnName("FACILITY_ID");
+            entity.Property(e => e.TriggerCount).HasColumnName("TRIGGER_COUNT");
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+            entity.Property(e => e.CompleteTime).HasColumnName("COMPLETE_TIME");
+
+            entity.HasOne<Facility>()
+                  .WithMany()
+                  .HasForeignKey(e => e.FacilityId)
+                  .HasConstraintName("FK_D_CLEANING_FACILITY");
+        });
+
+        // ---- AssetRepair 资产转报修关联 ----
+        modelBuilder.Entity<AssetRepair>(entity =>
+        {
+            entity.ToTable("D_ASSET_REPAIR");
+            entity.HasKey(e => e.LinkId);
+            entity.Property(e => e.LinkId).HasColumnName("LINK_ID").ValueGeneratedOnAdd();
+            entity.Property(e => e.AssetId).HasColumnName("ASSET_ID");
+            entity.Property(e => e.TicketId).HasColumnName("TICKET_ID");
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+
+            entity.HasOne<Asset>()
+                  .WithMany()
+                  .HasForeignKey(e => e.AssetId)
+                  .HasConstraintName("FK_D_ASSET_REPAIR_ASSET");
+
+            entity.HasOne<RepairTicket>()
+                  .WithMany()
+                  .HasForeignKey(e => e.TicketId)
+                  .HasConstraintName("FK_D_ASSET_REPAIR_TICKET");
+        });
+
+        // ---- AssetWarning 损耗预警 ----
+        modelBuilder.Entity<AssetWarning>(entity =>
+        {
+            entity.ToTable("D_ASSET_WARNING");
+            entity.HasKey(e => e.WarningId);
+            entity.Property(e => e.WarningId).HasColumnName("WARNING_ID").ValueGeneratedOnAdd();
+            entity.Property(e => e.AssetId).HasColumnName("ASSET_ID");
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+            entity.Property(e => e.Note).HasColumnName("NOTE").HasMaxLength(500);
+            entity.Property(e => e.HandleAction).HasColumnName("HANDLE_ACTION").HasMaxLength(20);
+            entity.Property(e => e.HandleTime).HasColumnName("HANDLE_TIME");
+            entity.Property(e => e.Handled).HasColumnName("HANDLED").HasMaxLength(10).IsRequired();
+
+            entity.HasOne<Asset>()
+                  .WithMany()
+                  .HasForeignKey(e => e.AssetId)
+                  .HasConstraintName("FK_D_ASSET_WARNING_ASSET");
         });
     }
 }

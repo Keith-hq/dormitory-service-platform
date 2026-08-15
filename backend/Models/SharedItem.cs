@@ -17,4 +17,7 @@ public class SharedItem
     public int AvailableQty { get; set; }
 
     public string Status { get; set; } = "正常";
+
+    /// <summary>描述（契约 DORM-48/49，迁移 029 新增列）</summary>
+    public string? Description { get; set; }
 }

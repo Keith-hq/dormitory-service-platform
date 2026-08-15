@@ -146,6 +146,9 @@ builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
+builder.Services.AddScoped<ISharedItemService, SharedItemService>();
+builder.Services.AddScoped<ICleaningTaskService, CleaningTaskService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IImportService, ImportService>();
 
