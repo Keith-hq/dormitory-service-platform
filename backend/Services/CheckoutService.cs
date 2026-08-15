@@ -130,7 +130,14 @@ public class CheckoutService : ICheckoutService
             log.RejectReason = string.Join("；", failures);
             log.ResultTime = DateTime.Now;
             await _context.SaveChangesAsync();
-            throw new BusinessException(400, $"清算未通过：{log.RejectReason}");
+
+            // 响应引导（与李昂对齐）：欠费学生清偿路径 = 钱包充值 + STU-05 人工缴费
+            // （自动扣款每月 1-3 号只跑当月，历史欠费无自动重扣）；
+            // 未通过项处理完后重新发起退宿登记（旧单留档）。
+            var guidance = !feeOk
+                ? "；欠费请充值钱包后通过学生端账单缴费（STU-05）结清"
+                : string.Empty;
+            throw new BusinessException(400, $"清算未通过：{log.RejectReason}。处理未通过项后重新发起退宿登记{guidance}");
         }
 
         // ===== 校验通过：先写 CheckOut_Date，再调 calc（v0.4.1 对齐），同一事务 =====
