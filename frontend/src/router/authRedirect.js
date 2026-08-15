@@ -5,8 +5,21 @@ const INTERNAL_ORIGIN = 'https://dormitory.local'
 const ALLOWED_REDIRECT_PATHS = new Set([
   '/student',
   '/student/services',
+  '/student/profile',
+  '/student/finance',
+  '/student/repair',
+  '/student/facilities',
+  '/student/community',
+  '/student/report',
   '/admin',
   '/admin/operations',
+  '/admin/duty',
+  '/admin/repair',
+  '/repairman',
+  '/counselor',
+  '/super-admin',
+  '/super-admin/people',
+  '/super-admin/audit',
   '/building'
 ])
 

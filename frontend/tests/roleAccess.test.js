@@ -7,7 +7,9 @@ import { normalizeCollection } from '../src/utils/collection.js'
 test('maps supported roles to their own workspace', () => {
   assert.equal(getRoleHome('student'), '/student')
   assert.equal(getRoleHome('ADMIN'), '/admin')
-  assert.equal(getRoleHome('super_admin'), '/admin')
+  assert.equal(getRoleHome('repairman'), '/repairman')
+  assert.equal(getRoleHome('counselor'), '/counselor')
+  assert.equal(getRoleHome('super_admin'), '/super-admin')
   assert.equal(getRoleHome('unknown'), '/login')
   assert.equal(getRoleHome('__proto__'), '/login')
 })
@@ -20,9 +22,11 @@ test('checks route role allowlists', () => {
 
 test('keeps redirects on registered internal role routes', () => {
   assert.equal(
-    getSafeAuthRedirect('/student/services?tab=packages'),
-    '/student/services?tab=packages'
+    getSafeAuthRedirect('/student/finance?month=2026-08'),
+    '/student/finance?month=2026-08'
   )
+  assert.equal(getSafeAuthRedirect('/counselor', '/counselor'), '/counselor')
+  assert.equal(getSafeAuthRedirect('/super-admin/audit', '/super-admin'), '/super-admin/audit')
   assert.equal(getSafeAuthRedirect('//example.com', '/admin'), '/admin')
   assert.equal(getSafeAuthRedirect('/unknown', '/admin'), '/admin')
 })
