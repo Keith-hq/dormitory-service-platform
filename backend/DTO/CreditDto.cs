@@ -22,6 +22,14 @@ public class CreditDeductDto : IValidatableObject
     [StringLength(100, ErrorMessage = "Event_Key 不能超过 100 个字符")]
     public string EventKey { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 罚分封底：为 true 时，扣分在信用分服务锁内按当前分数封底到 0，
+    /// 不再因"结果低于 0"被拒绝。供按次罚分（如共享物品超期归还扣 2 分）使用，
+    /// 避免低分学生（1 分）扣分失败导致"已归还但扣分永久不一致"。
+    /// 其他扣款场景（如账单扣款）保持 false，扣款不足仍应拒绝。
+    /// </summary>
+    public bool FloorAtZero { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (ScoreChange == 0)

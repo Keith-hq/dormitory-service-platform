@@ -33,6 +33,11 @@ public class FeeSharingService : IFeeSharingService
     /// <summary>
     /// 学生退宿时触发：结算退宿学生的当月分摊
     /// 调用存储过程 SP_Calc_Checkout_Fee('S001', 1)
+    /// 一审 R1（难点⑥）：本方法无事务——SP 内部不 COMMIT（v1.2 契约），
+    /// 事务由调用方统一管理：
+    ///   - 接口/人工补算入口（FeeSharingController）在本方法外层开启并提交事务；
+    ///   - 刘润东的退宿事务可直接在同一外层事务内调用本方法（或直调 SP），
+    ///     不会二次 BeginTransaction，由他的事务统一提交。
     /// </summary>
     public async Task CalcCheckoutFee(string studentId, int allocationId)
     {
