@@ -6,20 +6,12 @@ import { useUserStore } from '@/store/user'
 const routes = [
   {
     path: '/',
-    name: 'Workspace',
-    component: () => import('@/views/RoleDashboard.vue'),
-    meta: { requiresAuth: true }
+    redirect: '/login'
   },
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/LoginView.vue'),
-    meta: { public: true, layout: 'auth' }
-  },
-  {
-    path: '/prototype/workspace',
-    name: 'WorkspacePrototype',
-    component: () => import('@/views/prototype/WorkspacePrototype.vue'),
     meta: { public: true, layout: 'auth' }
   },
   {
@@ -146,10 +138,6 @@ router.beforeEach((to) => {
       name: 'Login',
       query: { redirect: to.fullPath }
     }
-  }
-
-  if (to.name === 'Workspace' && userStore.isLoggedIn) {
-    return roleHome
   }
 
   if (to.meta.requiresAuth && !isRoleAllowed(userStore.userInfo?.role, to.meta.roles)) {
