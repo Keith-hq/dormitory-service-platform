@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.Models;
+using System.Data;
 using System.Data.Common;
 
 namespace TemplateDormApi.Services;
@@ -39,16 +40,28 @@ public class BillingService : IBillingService
 
     public async Task<decimal> GetBalance(string studentId)
     {
-        using var conn = _context.Database.GetDbConnection();
-        await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT Balance FROM D_Wallet_Account WHERE Student_ID = :id";
-        var param = cmd.CreateParameter();
-        param.ParameterName = "id";
-        param.Value = studentId;
-        cmd.Parameters.Add(param);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is DBNull or null ? 0 : Convert.ToDecimal(result);
+        // 2026-08-15 实测修正：不能 using 释放 DbContext 的共享连接
+        // （"Cannot access a disposed object"），改为 wasOpen 模式：
+        // 借用连接查询，仅当本方法打开时才关闭
+        var conn = _context.Database.GetDbConnection();
+        var wasOpen = conn.State == ConnectionState.Open;
+        if (!wasOpen) await conn.OpenAsync();
+
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT Balance FROM D_Wallet_Account WHERE Student_ID = :id";
+            var param = cmd.CreateParameter();
+            param.ParameterName = "id";
+            param.Value = studentId;
+            cmd.Parameters.Add(param);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is DBNull or null ? 0 : Convert.ToDecimal(result);
+        }
+        finally
+        {
+            if (!wasOpen) conn.Close();
+        }
     }
 
     public async Task<List<WalletLog>> GetWalletLogs(string studentId, string yearMonth)
@@ -65,15 +78,25 @@ public class BillingService : IBillingService
 
     public async Task<string> GetPowerStatus(int roomId)
     {
-        using var conn = _context.Database.GetDbConnection();
-        await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT Power_Status FROM D_Room WHERE Room_ID = :id";
-        var param = cmd.CreateParameter();
-        param.ParameterName = "id";
-        param.Value = roomId;
-        cmd.Parameters.Add(param);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is DBNull or null ? "正常" : result.ToString()!;
+        // 与 GetBalance 同款 wasOpen 模式（不释放 DbContext 共享连接）
+        var conn = _context.Database.GetDbConnection();
+        var wasOpen = conn.State == ConnectionState.Open;
+        if (!wasOpen) await conn.OpenAsync();
+
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT Power_Status FROM D_Room WHERE Room_ID = :id";
+            var param = cmd.CreateParameter();
+            param.ParameterName = "id";
+            param.Value = roomId;
+            cmd.Parameters.Add(param);
+            var result = await cmd.ExecuteScalarAsync();
+            return result is DBNull or null ? "正常" : result.ToString()!;
+        }
+        finally
+        {
+            if (!wasOpen) conn.Close();
+        }
     }
 }

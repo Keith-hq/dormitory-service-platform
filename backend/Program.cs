@@ -84,6 +84,8 @@ builder.Services.AddScoped<IBuildingService, BuildingService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
+builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddScoped<IUtilityFeeService, UtilityFeeService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<IFacilityService, FacilityService>();

@@ -237,7 +237,10 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_UTILITY_FEE");
             entity.HasKey(e => e.FeeId);
-            entity.Property(e => e.FeeId).HasColumnName("FEE_ID");
+            // 主键由 SEQ_D_UTILITY_FEE_ID + TRG_D_UTILITY_FEE_ID_BI 回填（迁移 023），
+            // 与 Room 同一模式：EF 插入后经 RETURNING 读回生成值
+            entity.Property(e => e.FeeId).HasColumnName("FEE_ID")
+                  .ValueGeneratedOnAdd();
             entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
             entity.Property(e => e.YearMonth).HasColumnName("YEAR_MONTH").HasMaxLength(10).IsRequired();
             entity.Property(e => e.WaterFee).HasColumnName("WATER_FEE").HasPrecision(8, 2);
