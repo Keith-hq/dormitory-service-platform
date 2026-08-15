@@ -1,7 +1,18 @@
--- 账单划扣与断电判定存储过程（难点②）v1.1
+-- 账单划扣与断电判定存储过程（难点②）v1.3
 -- 依赖：D_Fee_Detail, D_Wallet_Account, D_Wallet_Log, D_Fee_Deduction_Attempt, D_Room
 -- 基线：database/ddl/extensions/010_extension_tables.sql
--- 执行顺序：本脚本必须在 sp_fee_sharing.sql（创建 SEQ_FEE_DETAIL）之后执行
+-- 执行顺序：本脚本必须在 sp_fee_sharing.sql（创建 SEQ_FEE_DETAIL）之后执行；
+--   sp_wallet.sql 在本脚本之后执行（复用 SEQ_WALLET_LOG）
+-- v1.2（缴费/钱包落地，2026-08-15）：修复 SP_Auto_Deduct 与人工缴费的竞态——
+--   游标读到 Is_Paid='否' 后若人工缴费先完成（扣款+标记'是'+提交），原子 UPDATE
+--   仍会命中同一明细 → 双重扣款（AUTO Key 与人工 Key 不同，不撞 UK）。
+--   修复：原子 UPDATE 的 WHERE 追加 Is_Paid='否' 子查询复查，与人工缴费在
+--   D_Fee_Detail 行锁上线性化——人工缴费先提交者胜，自动扣款跳过该明细。
+-- v1.3（PR #58 评审整改，2026-08-15）：双重扣款防线升级为"原子认领"——
+--   先认领明细（UPDATE Is_Paid='否'→'是'，SQL%ROWCOUNT 裁决）再扣钱包，
+--   与 SP_Manual_Pay v1.1 同锁序（明细→钱包），两 SP 并发无交叉锁死锁；
+--   余额不足时回滚认领保持明细未缴；并发他人已缴则静默跳过（不再误记
+--   '余额不足'尝试，v1.2 该分支语义不准）。
 
 -- ============================================================
 -- 创建专用序列——替代 SEQ_FEE_DETAIL，语义独立
@@ -34,6 +45,10 @@ END;
 --       p_YearMonth  账单月份（如 '2026-08'）
 -- v1.1：原子扣款（UPDATE WHERE Balance>=due）、过滤0元账单、
 --       过滤 Publish_Status='已发布'、重跑时更新旧 Attempt 状态
+-- v1.2：原子 UPDATE 追加 Is_Paid='否' 子查询复查，修复与人工缴费的
+--       双重扣款竞态（详见文件头 v1.2 修订说明）
+-- v1.3：改为"原子认领"模式（先认领明细再扣钱包，SQL%ROWCOUNT 裁决，
+--       与 SP_Manual_Pay v1.1 同锁序，详见文件头 v1.3 修订说明）
 -- ============================================================
 CREATE OR REPLACE PROCEDURE SP_Auto_Deduct(
     p_AttemptNo IN NUMBER,
@@ -58,8 +73,25 @@ BEGIN
     ) LOOP
         v_TotalDue := fee_rec.Total_Share;
 
-        -- 原子扣款：WHERE Balance >= due 保证不会扣成负数；
-        -- SQL%ROWCOUNT 判断是否真的扣到了（并发场景另一会话已扣则 ROWCOUNT=0）
+        SAVEPOINT sp_det;
+
+        -- 1) 原子认领（v1.3）：与 SP_Manual_Pay v1.1 在 D_Fee_Detail 行锁上
+        --    线性化——游标读取后若人工缴费/另一批 AUTO 抢先完成，本 UPDATE
+        --    ROWCOUNT=0，静默跳过（明细已缴，无需扣款、不记尝试；v1.2 的
+        --    '余额不足'误记分支随之移除）
+        UPDATE D_Fee_Detail
+           SET Is_Paid = '是'
+         WHERE Detail_ID = fee_rec.Detail_ID
+           AND Is_Paid = '否';
+
+        v_RowsUpdated := SQL%ROWCOUNT;
+        IF v_RowsUpdated = 0 THEN
+            CONTINUE;                     -- 已被他人缴，跳过
+        END IF;
+
+        -- 2) 原子扣款：WHERE Balance >= due 保证不会扣成负数；
+        --    余额不足/钱包行不存在 → 回滚认领（明细保持未缴，下轮重试），
+        --    只记'余额不足'尝试
         UPDATE D_Wallet_Account
         SET Balance = Balance - v_TotalDue
         WHERE Student_ID = fee_rec.Student_ID
@@ -67,55 +99,9 @@ BEGIN
 
         v_RowsUpdated := SQL%ROWCOUNT;
 
-        IF v_RowsUpdated = 1 THEN
-            -- 扣款成功：写流水
-            BEGIN
-                INSERT INTO D_Wallet_Log (
-                    Log_ID, Student_ID, Amount, Transaction_Type,
-                    Before_Balance, After_Balance, Detail_ID,
-                    Idempotency_Key, Create_Time
-                ) VALUES (
-                    SEQ_WALLET_LOG.NEXTVAL,
-                    fee_rec.Student_ID,
-                    v_TotalDue,
-                    '自动扣款',
-                    (SELECT Balance + v_TotalDue FROM D_Wallet_Account WHERE Student_ID = fee_rec.Student_ID),
-                    (SELECT Balance FROM D_Wallet_Account WHERE Student_ID = fee_rec.Student_ID),
-                    fee_rec.Detail_ID,
-                    v_KeyPrefix || fee_rec.Detail_ID,
-                    SYSDATE
-                );
-            EXCEPTION
-                WHEN DUP_VAL_ON_INDEX THEN
-                    NULL;  -- 已扣过（重跑幂等），跳过流水
-            END;
+        IF v_RowsUpdated = 0 THEN
+            ROLLBACK TO sp_det;           -- 撤销认领
 
-            -- 标记已缴
-            UPDATE D_Fee_Detail
-            SET Is_Paid = '是'
-            WHERE Detail_ID = fee_rec.Detail_ID;
-
-            -- 记录/更新 Attempt（重跑时覆盖旧状态）
-            BEGIN
-                INSERT INTO D_Fee_Deduction_Attempt (
-                    Attempt_ID, Detail_ID, Attempt_No, Attempt_Time, Result
-                ) VALUES (
-                    SEQ_FEE_DED_ATT.NEXTVAL,
-                    fee_rec.Detail_ID,
-                    p_AttemptNo,
-                    SYSDATE,
-                    '成功'
-                );
-            EXCEPTION
-                WHEN DUP_VAL_ON_INDEX THEN
-                    UPDATE D_Fee_Deduction_Attempt
-                    SET Result = '成功', Attempt_Time = SYSDATE
-                    WHERE Detail_ID = fee_rec.Detail_ID
-                      AND Attempt_No = p_AttemptNo;
-            END;
-
-        ELSE
-            -- 余额不足（或并发已扣）：只记录尝试
             BEGIN
                 INSERT INTO D_Fee_Deduction_Attempt (
                     Attempt_ID, Detail_ID, Attempt_No, Attempt_Time, Result
@@ -134,7 +120,49 @@ BEGIN
                       AND Attempt_No = p_AttemptNo;
             END;
 
+            CONTINUE;
         END IF;
+
+        -- 3) 扣款成功：写流水
+        BEGIN
+            INSERT INTO D_Wallet_Log (
+                Log_ID, Student_ID, Amount, Transaction_Type,
+                Before_Balance, After_Balance, Detail_ID,
+                Idempotency_Key, Create_Time
+            ) VALUES (
+                SEQ_WALLET_LOG.NEXTVAL,
+                fee_rec.Student_ID,
+                v_TotalDue,
+                '自动扣款',
+                (SELECT Balance + v_TotalDue FROM D_Wallet_Account WHERE Student_ID = fee_rec.Student_ID),
+                (SELECT Balance FROM D_Wallet_Account WHERE Student_ID = fee_rec.Student_ID),
+                fee_rec.Detail_ID,
+                v_KeyPrefix || fee_rec.Detail_ID,
+                SYSDATE
+            );
+        EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN
+                NULL;  -- 已扣过（重跑幂等），跳过流水
+        END;
+
+        -- 4) 记录/更新 Attempt（重跑时覆盖旧状态）
+        BEGIN
+            INSERT INTO D_Fee_Deduction_Attempt (
+                Attempt_ID, Detail_ID, Attempt_No, Attempt_Time, Result
+            ) VALUES (
+                SEQ_FEE_DED_ATT.NEXTVAL,
+                fee_rec.Detail_ID,
+                p_AttemptNo,
+                SYSDATE,
+                '成功'
+            );
+        EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN
+                UPDATE D_Fee_Deduction_Attempt
+                SET Result = '成功', Attempt_Time = SYSDATE
+                WHERE Detail_ID = fee_rec.Detail_ID
+                  AND Attempt_No = p_AttemptNo;
+        END;
     END LOOP;
 
     COMMIT;

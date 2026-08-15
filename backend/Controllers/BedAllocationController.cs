@@ -1,37 +1,45 @@
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Security;
+using TemplateDormApi.Services;
 
 namespace TemplateDormApi.Controllers;
 
 /// <summary>
-/// 住宿分配 — DORM-08/09/10
-/// 路由: /api/allocations / /api/rooms (复数，对齐契约)
+/// 住宿分配 — DORM-08 入住（并发唯一）/ DORM-09 调寝 / DORM-10 房间住户
 /// </summary>
 [ApiController]
 public class BedAllocationController : ControllerBase
 {
-    /// <summary>DORM-08 入住分配 — 契约 POST /allocations</summary>
+    private readonly IAllocationService _service;
+    public BedAllocationController(IAllocationService service) => _service = service;
+
+    /// <summary>
+    /// DORM-08 入住分配 — 契约 POST /allocations {studentId, roomId, bedNo, checkInDate}
+    /// 床位并发唯一由 UK_D_BED_ALLOC_ACTIVE 兜底；studentId 缺省时（IT-C2-002）从登录态解析。
+    /// </summary>
     [HttpPost("api/allocations")]
-    public ActionResult<ApiResponse<object>> Create([FromBody] object dto)
+    public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] AllocationCreateDto dto)
     {
-        // TODO: {studentId, roomId, bedNo, checkInDate} 分配学生到房间床位
-        // D_Room.Occupancy +1（事务）；床位并发唯一 ⇒ UK_D_BED_ALLOC_ACTIVE
-        return Ok(ApiResponse.Created(new { }));
+        if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "参数校验失败"));
+        var alloc = await _service.CreateAsync(dto, CurrentUser.GetAccountId(User));
+        return Ok(ApiResponse.Created(alloc));
     }
 
-    /// <summary>DORM-09 调寝 — 契约 POST /allocations/{allocationId}/transfer</summary>
+    /// <summary>DORM-09 调寝 — 契约 POST /allocations/{allocationId}/transfer {targetRoomId, targetBedNo}</summary>
     [HttpPost("api/allocations/{allocationId}/transfer")]
-    public ActionResult<ApiResponse<object>> Transfer(int allocationId, [FromBody] object dto)
+    public async Task<ActionResult<ApiResponse<object>>> Transfer(int allocationId, [FromBody] AllocationTransferDto dto)
     {
-        // TODO: 写旧记录 CheckOut_Date，建新记录，联动两个房间 Occupancy
-        return Ok(ApiResponse.Ok(new { }));
+        if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "参数校验失败"));
+        var alloc = await _service.TransferAsync(allocationId, dto);
+        return Ok(ApiResponse.Ok(alloc, "调寝成功"));
     }
 
     /// <summary>DORM-10 房间住户 — 契约 GET /rooms/{roomId}/occupants</summary>
     [HttpGet("api/rooms/{roomId}/occupants")]
-    public ActionResult<ApiResponse<object>> Occupants(int roomId)
+    public async Task<ActionResult<ApiResponse<object>>> Occupants(int roomId)
     {
-        // TODO: 查询某房间当前所有在住学生信息
-        return Ok(ApiResponse.Ok(new { items = Array.Empty<object>() }));
+        var result = await _service.GetOccupantsAsync(roomId);
+        return Ok(ApiResponse.Ok(result));
     }
 }
