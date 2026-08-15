@@ -45,13 +45,14 @@ public class NotificationRepository
         return (items, total);
     }
 
-    public Task<bool> ExistsAsync(int notificationId, int recipientAccountId)
+    public async Task<bool> ExistsAsync(int notificationId, int recipientAccountId)
     {
-        return _context.Notifications
+        var count = await _context.Notifications
             .AsNoTracking()
-            .AnyAsync(notification =>
+            .CountAsync(notification =>
                 notification.NotificationId == notificationId &&
                 notification.RecipientAccountId == recipientAccountId);
+        return count > 0;
     }
 
     public async Task<int> MarkReadAsync(int notificationId, int recipientAccountId)

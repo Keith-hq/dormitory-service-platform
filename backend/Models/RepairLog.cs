@@ -16,4 +16,5 @@ public sealed class RepairLog
     public string? RepairResult { get; set; }
 
     public DateTime ResolveTime { get; set; }
+    public RepairTicket? Ticket { get; set; }
 }

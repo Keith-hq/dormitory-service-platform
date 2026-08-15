@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TemplateDormApi.Models;
 
@@ -11,6 +12,7 @@ public class RoomVote
     public int VoteId { get; set; }
 
     /// <summary>所属房间（FK → D_Room）</summary>
+    [Column("Room_ID")]
     public int RoomId { get; set; }
 
     /// <summary>发起学生（FK → D_Student）</summary>
@@ -26,6 +28,7 @@ public class RoomVote
     public DateTime Deadline { get; set; }
 
     /// <summary>应参与人数</summary>
+    [Column("Eligible_Count")]
     public int EligibleCount { get; set; }
 
     /// <summary>状态（进行中 / 已通过 / 未通过 / 已结束）</summary>

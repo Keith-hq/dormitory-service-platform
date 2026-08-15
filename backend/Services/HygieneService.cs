@@ -8,7 +8,7 @@ namespace TemplateDormApi.Services;
 public interface IHygieneService
 {
     Task<IReadOnlyList<HygieneRecordDto>> GetRoomRecordsAsync(
-        long roomId,
+        int roomId,
         int? accountId,
         bool isDormAdmin,
         CancellationToken cancellationToken);
@@ -27,7 +27,7 @@ public sealed class HygieneService : IHygieneService
     }
 
     public async Task<IReadOnlyList<HygieneRecordDto>> GetRoomRecordsAsync(
-        long roomId,
+        int roomId,
         int? accountId,
         bool isDormAdmin,
         CancellationToken cancellationToken)

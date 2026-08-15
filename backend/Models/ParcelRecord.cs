@@ -1,3 +1,6 @@
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace TemplateDormApi.Models;
 
 /// <summary>
@@ -6,14 +9,22 @@ namespace TemplateDormApi.Models;
 /// </summary>
 public class ParcelRecord
 {
+    [Column("PARCEL_ID")]
     public int ParcelId { get; set; }
 
+    [Column("STUDENT_ID")]
+    [MaxLength(20)]
     public string? StudentId { get; set; }
 
+    [Column("ARRIVE_TIME")]
     public DateTime ArriveTime { get; set; }
 
     /// <summary>取件时间；NULL = 未取（退宿校验不通过项）</summary>
     public DateTime? PickupTime { get; set; }
 
+    [Column("COURIER_COMPANY")]
+    [MaxLength(50)]
     public string? CourierCompany { get; set; }
+
+    public Student? Student { get; set; }
 }

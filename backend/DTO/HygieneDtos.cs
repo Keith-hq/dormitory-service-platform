@@ -4,8 +4,8 @@ namespace TemplateDormApi.DTO;
 
 public sealed class CreateHygieneRecordRequest
 {
-    [Range(1, long.MaxValue, ErrorMessage = "房间 ID 必须大于 0")]
-    public long RoomId { get; set; }
+    [Range(1, int.MaxValue, ErrorMessage = "房间 ID 必须大于 0")]
+    public int RoomId { get; set; }
 
     [Range(0, 100, ErrorMessage = "卫生评分必须在 0 到 100 之间")]
     public int Score { get; set; }
@@ -32,7 +32,7 @@ public sealed class HygieneRankingQueryDto
 public sealed class HygieneRecordDto
 {
     public long RecordId { get; set; }
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
     public DateTime CheckDate { get; set; }
     public decimal Score { get; set; }
     public string? InspectorId { get; set; }
@@ -41,7 +41,7 @@ public sealed class HygieneRecordDto
 
 public sealed class HygieneRankingDto
 {
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
     public decimal AverageScore { get; set; }
     public int Rank { get; set; }
 }
