@@ -107,6 +107,46 @@ public class CreditServiceTests
     }
 
     [Fact]
+    public async Task DeductAsync_FloorAtZeroClampsScoreToOnePenalty()
+    {
+        // 七审恢复（架构师确认）：按次罚分封底——当前分数为 1 时扣 2 分不再被拒，
+        // 锁内按 0 封底，流水记录请求的名义分值（-2），幂等内容比对保持一致。
+        await using var context = TestDbContextFactory.Create();
+        await AddStudentAsync(context, "20260001");
+        await AddCreditAccountAsync(context, "20260001", 1);
+        var dto = Request("floor-at-zero");
+        dto.FloorAtZero = true;
+
+        var result = await CreateService(context).DeductAsync(dto, CancellationToken.None);
+
+        Assert.Equal(0, result.CurrentScore);
+        Assert.Equal(0, (await context.CreditAccounts.AsNoTracking().SingleAsync()).CurrentScore);
+        var log = Assert.Single(await context.CreditLogs.AsNoTracking().ToListAsync());
+        Assert.Equal(-2, log.ScoreChange);
+
+        // 重试幂等：同一 Event_Key 再次调用返回一致结果，不重复扣分
+        var retry = await CreateService(context).DeductAsync(dto, CancellationToken.None);
+        Assert.Equal(0, retry.CurrentScore);
+        Assert.Equal(1, await context.CreditLogs.CountAsync());
+    }
+
+    [Fact]
+    public async Task DeductAsync_WithoutFloorAtZeroStillRejectsBelowZeroPenalty()
+    {
+        // 封底标志未开启时（如账单扣款场景），低于 0 的结果仍应拒绝，语义不回退
+        await using var context = TestDbContextFactory.Create();
+        await AddStudentAsync(context, "20260001");
+        await AddCreditAccountAsync(context, "20260001", 1);
+
+        var exception = await Assert.ThrowsAsync<BusinessException>(
+            () => CreateService(context).DeductAsync(Request("no-floor"), CancellationToken.None));
+
+        Assert.Equal(400, exception.Code);
+        Assert.Equal(1, (await context.CreditAccounts.AsNoTracking().SingleAsync()).CurrentScore);
+        Assert.Empty(await context.CreditLogs.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
     public async Task DeductAsync_LazilyCreatesAccountAtOneHundredBeforeChange()
     {
         await using var context = TestDbContextFactory.Create();
