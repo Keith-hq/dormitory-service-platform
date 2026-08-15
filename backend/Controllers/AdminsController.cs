@@ -269,7 +269,7 @@ public class AdminsController : ControllerBase
             from admin in _context.Admins
             join account in _context.UserAccounts on admin.AdminId equals account.AdminId
             where admin.AdminId != excludedAdminId && admin.RoleLevel == "超级管理员" && account.AccountStatus == "正常"
-            select admin.AdminId).AnyAsync();
+            select admin.AdminId).CountAsync() > 0;
 
     private static string GenerateRandomPassword(int length)
     {

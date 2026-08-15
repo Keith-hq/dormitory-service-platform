@@ -292,7 +292,7 @@ public class AuthController : ControllerBase
         var loginName = string.IsNullOrWhiteSpace(request.LoginName)
             ? request.StudentId
             : request.LoginName.Trim();
-        var loginExists = await _context.UserAccounts.AnyAsync(u => u.LoginName == loginName);
+        var loginExists = await _context.UserAccounts.CountAsync(u => u.LoginName == loginName) > 0;
         if (loginExists)
             return BadRequest(ApiResponse.Error(400, "登录名已存在"));
 
@@ -333,10 +333,10 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse.Error(400, "角色必须为：超级管理员、楼长、维修员、辅导员"));
 
         if (request.BuildingId.HasValue &&
-            !await _context.Buildings.AnyAsync(building => building.BuildingId == request.BuildingId.Value))
+            await _context.Buildings.CountAsync(building => building.BuildingId == request.BuildingId.Value) == 0)
             return BadRequest(ApiResponse.Error(400, "指定的楼栋不存在"));
 
-        if (await _context.UserAccounts.AnyAsync(account => account.LoginName == request.AdminId))
+        if (await _context.UserAccounts.CountAsync(account => account.LoginName == request.AdminId) > 0)
             return BadRequest(ApiResponse.Error(400, "登录名已存在"));
 
         // 1. 查找或创建 Admin
