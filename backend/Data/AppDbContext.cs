@@ -30,14 +30,9 @@ public class AppDbContext : DbContext
     public DbSet<HygieneRecord> HygieneRecords => Set<HygieneRecord>();
     public DbSet<HygieneComment> HygieneComments => Set<HygieneComment>();
     public DbSet<WaterOrder> WaterOrders => Set<WaterOrder>();
-    public DbSet<BedAllocation> BedAllocations => Set<BedAllocation>();
-    public DbSet<RepairTicket> RepairTickets => Set<RepairTicket>();
     public DbSet<RepairLog> RepairLogs => Set<RepairLog>();
     public DbSet<RepairAttachment> RepairAttachments => Set<RepairAttachment>();
-    public DbSet<LateEntry> LateEntries => Set<LateEntry>();
     public DbSet<AccessLog> AccessLogs => Set<AccessLog>();
-    public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
-    public DbSet<ParcelRecord> ParcelRecords => Set<ParcelRecord>();
     public DbSet<ViolationRecord> ViolationRecords => Set<ViolationRecord>();
 
     // ===== 扩展表 =====

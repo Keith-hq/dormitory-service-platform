@@ -19,11 +19,8 @@ public class CreateVoteRequest
 
     [Range(1, 99, ErrorMessage = "应参与人数必须在 1~99 之间")]
     public int EligibleCount { get; set; } = 4;
-    public int RoomId { get; set; }
     public string? InitiatorStudentId { get; set; }
-    public string? Topic { get; set; }
     public int DurationDays { get; set; } // 投票持续天数
-    public int EligibleCount { get; set; }
 }
 
 /// <summary>

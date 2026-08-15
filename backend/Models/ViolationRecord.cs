@@ -26,4 +26,6 @@ public class ViolationRecord
     [Column("PENALTY")]
     [MaxLength(100)]
     public string? Penalty { get; set; }
+
+    public long? FeeId { get; set; }
 }
