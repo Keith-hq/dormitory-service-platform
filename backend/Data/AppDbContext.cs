@@ -488,12 +488,6 @@ public class AppDbContext : DbContext
         // ---- ViolationRecord 违规记录 ----
         modelBuilder.Entity<ViolationRecord>(entity =>
         {
-            entity.ToTable("D_UTILITY_FEE");
-            entity.HasKey(e => e.FeeId);
-            // 主键由 SEQ_D_UTILITY_FEE_ID + TRG_D_UTILITY_FEE_ID_BI 回填（迁移 023），
-            // 与 Room 同一模式：EF 插入后经 RETURNING 读回生成值
-            entity.Property(e => e.FeeId).HasColumnName("FEE_ID")
-                  .ValueGeneratedOnAdd();
             entity.ToTable("D_VIOLATION_RECORD");
             entity.HasKey(e => e.RecordId);
             entity.Property(e => e.RecordId).HasColumnName("RECORD_ID");
@@ -523,7 +517,7 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("D_USER_ACCOUNT", b => b.HasCheckConstraint("CK_D_USER_STATUS", "ACCOUNT_STATUS IN ('正常', '停用')"));
             entity.HasKey(e => e.AccountId);
-            entity.Property(e => e.AccountId).HasColumnName("ACCOUNT_ID");
+            entity.Property(e => e.AccountId).HasColumnName("ACCOUNT_ID").ValueGeneratedOnAdd();
             entity.Property(e => e.LoginName).HasColumnName("LOGIN_NAME").HasMaxLength(50).IsRequired();
             entity.Property(e => e.PasswordHash).HasColumnName("PASSWORD_HASH").HasMaxLength(255).IsRequired();
             entity.Property(e => e.AccountStatus).HasColumnName("ACCOUNT_STATUS").HasMaxLength(10).IsRequired();
@@ -914,6 +908,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TargetType).HasColumnName("TARGET_TYPE").HasMaxLength(50);
             entity.Property(e => e.TargetId).HasColumnName("TARGET_ID").HasMaxLength(50);
             entity.Property(e => e.EventTime).HasColumnName("EVENT_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+            entity.Property(e => e.Details).HasColumnName("DETAILS").HasMaxLength(2000);
         });
     }
 }

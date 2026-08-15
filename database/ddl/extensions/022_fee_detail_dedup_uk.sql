@@ -30,6 +30,7 @@
 --   SELECT Constraint_Name, Index_Name FROM USER_CONSTRAINTS
 --    WHERE Table_Name = 'D_FEE_DETAIL' AND Constraint_Type = 'U';
 --   应只剩 1 行，Index_Name 为 UK_D_FEE_DETAIL（列序 Fee_ID, Student_ID）。
+--   已纳入 database/verify/extension_schema_checks.sql 第 23 部分。
 
 -- =====================================================================
 -- Part A：存量冲突检查（有冲突即终止，不执行后续 DDL）

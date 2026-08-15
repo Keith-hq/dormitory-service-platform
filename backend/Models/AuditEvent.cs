@@ -27,6 +27,8 @@ public class AuditEvent
     [Column("EVENT_TIME")]
     public DateTime EventTime { get; set; }
 
+    [Column("DETAILS")]
+    [MaxLength(2000)]
     public string? Details { get; set; }
 
     [ForeignKey(nameof(ActorAccountId))]
