@@ -1,87 +1,94 @@
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Services;
 
 namespace TemplateDormApi.Controllers;
 
 /// <summary>
 /// 离校报备 — COUN-01~04 / STU-15~17,40
-/// 路由: /api/leave-applications (复数，对齐契约)
+/// 路由: /api/leave-applications（对齐契约）
+/// 状态机：待批 → 已通过/已驳回/已撤回；修改与撤销仅待批可用（IT-C2-007）。
 /// </summary>
 [ApiController]
 [Route("api/leave-applications")]
 public class LeaveController : ControllerBase
 {
+    private readonly ILeaveService _service;
+    public LeaveController(ILeaveService service) => _service = service;
+
     // ===== 辅导员端 =====
 
-    /// <summary>COUN-01 待审批报备列表 — 契约 GET /leave-applications?status=</summary>
+    /// <summary>COUN-01 报备列表 — 契约 GET /leave-applications?status=（待批/已通过/已驳回/已撤回）</summary>
     [HttpGet]
-    public ActionResult<ApiResponse<object>> List(
+    public async Task<ActionResult<ApiResponse<object>>> List(
         [FromQuery] string? status,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        // TODO: 辅导员查看所有离校报备，按 status 筛选（待批/已通过/已驳回）
-        return Ok(ApiResponse.Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize }));
+        var result = await _service.GetPagedAsync(page, pageSize, status);
+        return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>COUN-02 通过报备 — 契约 PUT /leave-applications/{applyId}/approve</summary>
+    /// <summary>COUN-02 通过报备 — 契约 PUT /leave-applications/{applyId}/approve（仅待批）</summary>
     [HttpPut("{applyId}/approve")]
-    public ActionResult<ApiResponse<object>> Approve(int applyId)
+    public async Task<ActionResult<ApiResponse<object>>> Approve(int applyId)
     {
-        // TODO: 辅导员审批通过，状态→已批准
-        return Ok(ApiResponse.Ok(new { }));
+        var app = await _service.ApproveAsync(applyId);
+        return Ok(ApiResponse.Ok(app, "审批通过"));
     }
 
-    /// <summary>COUN-03 驳回报备 — 契约 PUT /leave-applications/{applyId}/reject</summary>
+    /// <summary>COUN-03 驳回报备 — 契约 PUT /leave-applications/{applyId}/reject（驳回必填原因）</summary>
     [HttpPut("{applyId}/reject")]
-    public ActionResult<ApiResponse<object>> Reject(int applyId, [FromBody] object dto)
+    public async Task<ActionResult<ApiResponse<object>>> Reject(int applyId, [FromBody] LeaveRejectDto dto)
     {
-        // TODO: 辅导员驳回，reason 必填（DDL 暂无 Reason 列，C-023 待裁决）
-        return Ok(ApiResponse.Ok(new { }));
+        if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "驳回原因不能为空"));
+        var app = await _service.RejectAsync(applyId, dto.Reason);
+        return Ok(ApiResponse.Ok(app, "已驳回"));
     }
 
     /// <summary>COUN-04 离校统计 — 契约 GET /leave-applications/stats</summary>
     [HttpGet("stats")]
-    public ActionResult<ApiResponse<object>> Statistics()
+    public async Task<ActionResult<ApiResponse<object>>> Statistics()
     {
-        // TODO: 统计当前离校人数、目的地分布等
-        return Ok(ApiResponse.Ok(new { }));
+        var stats = await _service.GetStatsAsync();
+        return Ok(ApiResponse.Ok(stats));
     }
 
     // ===== 学生端 =====
 
-    /// <summary>STU-15 提交离校返校报备 — 契约 POST /leave-applications</summary>
+    /// <summary>STU-15 提交离校返校报备 — 契约 POST /leave-applications（状态=待批）</summary>
     [HttpPost]
-    public ActionResult<ApiResponse<object>> Submit([FromBody] object dto)
+    public async Task<ActionResult<ApiResponse<object>>> Submit([FromBody] LeaveSubmitDto dto)
     {
-        // TODO: 学生提交离校/返校申请，状态=待批
-        return Ok(ApiResponse.Created(new { }));
+        if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "参数校验失败"));
+        var app = await _service.SubmitAsync(dto);
+        return Ok(ApiResponse.Created(app));
     }
 
     /// <summary>STU-16 我的报备 — 契约 GET /students/{studentId}/leave-applications</summary>
     [HttpGet("/api/students/{studentId}/leave-applications")]
-    public ActionResult<ApiResponse<object>> MyList(
+    public async Task<ActionResult<ApiResponse<object>>> MyList(
         string studentId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        // TODO: 学生查看自己的报备记录，按 studentId 过滤
-        return Ok(ApiResponse.Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize }));
+        var result = await _service.GetByStudentPagedAsync(studentId, page, pageSize);
+        return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>STU-17 修改报备 — 契约 PUT /leave-applications/{applyId}</summary>
+    /// <summary>STU-17 修改报备 — 契约 PUT /leave-applications/{applyId}（仅待批）</summary>
     [HttpPut("{applyId}")]
-    public ActionResult<ApiResponse<object>> Update(int applyId, [FromBody] object dto)
+    public async Task<ActionResult<ApiResponse<object>>> Update(int applyId, [FromBody] LeaveUpdateDto dto)
     {
-        // TODO: 学生修改未审批的报备
-        return Ok(ApiResponse.Ok(new { }));
+        var app = await _service.UpdateAsync(applyId, dto);
+        return Ok(ApiResponse.Ok(app, "修改成功"));
     }
 
-    /// <summary>STU-40 撤回报备 — 契约 POST /leave-applications/{applyId}/cancel</summary>
+    /// <summary>STU-40 撤回报备 — 契约 POST /leave-applications/{applyId}/cancel（仅待批）</summary>
     [HttpPost("{applyId}/cancel")]
-    public ActionResult<ApiResponse<object>> Cancel(int applyId)
+    public async Task<ActionResult<ApiResponse<object>>> Cancel(int applyId)
     {
-        // TODO: 学生撤回待审批的报备
-        return Ok(ApiResponse.Ok(new { }));
+        var app = await _service.CancelAsync(applyId);
+        return Ok(ApiResponse.Ok(app, "已撤回"));
     }
 }
