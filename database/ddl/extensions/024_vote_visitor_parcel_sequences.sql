@@ -1,7 +1,6 @@
--- 扩展表迁移 022：D_Room_Vote / D_Visitor_Authorization / D_Parcel_Record 主键序列与触发器。
--- 在已有环境上执行于 ddl/extensions/021_sla_dispatch.sql 之后；
--- 全量重建时执行顺序为 foundation/001 -> extensions/010 -> ... -> extensions/021
---   -> extensions/022。
+-- 扩展表迁移 024：D_Room_Vote / D_Visitor_Authorization / D_Parcel_Record 主键序列与触发器。
+-- 022/023 编号已被占用，本迁移排在 024，按编号顺序执行。
+-- 全量重建时执行顺序为 foundation/001 -> extensions/010 -> ... -> extensions/024。
 -- 本脚本不得修改或重建任何基线表。
 --
 -- 为什么补这些序列？

@@ -70,6 +70,32 @@ public class VisitorServiceTests
     }
 
     [Fact]
+    public async Task ApplyAsync_CheckedOutBed_Throws()
+    {
+        var (context, _) = CreateContexts();
+        await using var __ = context;
+
+        // 已退宿（CheckOutDate 有值）不算在住，与退宿模块口径一致
+        context.BedAllocations.Add(new BedAllocation
+        {
+            StudentId = "S001",
+            RoomId = 101,
+            BedNo = 1,
+            CheckInDate = DateTime.Now.AddDays(-30),
+            CheckOutDate = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
+        var service = new VisitorService(new VisitorRepository(context));
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            service.ApplyAsync("S001", new VisitorApplyRequest
+            {
+                VisitorName = "张三",
+                EndTime = DateTime.Now.AddHours(2)
+            }));
+    }
+
+    [Fact]
     public async Task RevokeAsync_ChangesStatusToRevoked()
     {
         var (context, readContext) = CreateContexts();
