@@ -245,13 +245,18 @@ public class InventoryTxnService : IInventoryTxnService
 
     public async Task<List<SharedItem>> GetSharedItems(int? buildingId = null)
     {
+        // 别名必须带引号且用【数据库列名】大写（与 GetItemLoans 同模式，
+        // "LOAN_ID" 等）：非组合 FromSqlRaw 要求读列名与 EF 模型列名完全一致
+        // （大小写敏感，Oracle 按查询文本原样报告列名），属性名别名（"ItemId"）
+        // 或裸标识符（大写为 ITEMID，无下划线）都会报
+        // "The required column 'ITEM_ID' was not present in the results of a 'FromSql' operation"。
         if (buildingId.HasValue)
         {
             return await _context.Set<SharedItem>()
                 .FromSqlRaw(
-                    @"SELECT Item_ID AS ItemId, Item_Name AS ItemName,
-                            Building_ID AS BuildingId, Total_Qty AS TotalQty,
-                            Available_Qty AS AvailableQty, Status
+                    @"SELECT Item_ID AS ""ITEM_ID"", Item_Name AS ""ITEM_NAME"",
+                            Building_ID AS ""BUILDING_ID"", Total_Qty AS ""TOTAL_QTY"",
+                            Available_Qty AS ""AVAILABLE_QTY"", Status AS ""STATUS""
                      FROM D_Shared_Item
                      WHERE Status = '正常' AND Available_Qty > 0 AND Building_ID = {0}
                      ORDER BY Item_ID", buildingId.Value)
@@ -260,9 +265,9 @@ public class InventoryTxnService : IInventoryTxnService
 
         return await _context.Set<SharedItem>()
             .FromSqlRaw(
-                @"SELECT Item_ID AS ItemId, Item_Name AS ItemName,
-                        Building_ID AS BuildingId, Total_Qty AS TotalQty,
-                        Available_Qty AS AvailableQty, Status
+                @"SELECT Item_ID AS ""ITEM_ID"", Item_Name AS ""ITEM_NAME"",
+                        Building_ID AS ""BUILDING_ID"", Total_Qty AS ""TOTAL_QTY"",
+                        Available_Qty AS ""AVAILABLE_QTY"", Status AS ""STATUS""
                  FROM D_Shared_Item
                  WHERE Status = '正常' AND Available_Qty > 0
                  ORDER BY Item_ID")
@@ -307,10 +312,12 @@ public class InventoryTxnService : IInventoryTxnService
 
     public async Task<List<RepairMaterial>> GetRepairMaterials()
     {
+        // 同 GetSharedItems：带引号别名固定为【数据库列名】大写（"MATERIAL_ID" 等），
+        // 属性名别名（"MaterialId"）与模型列名 MATERIAL_ID 不一致，报列缺失
         return await _context.Set<RepairMaterial>()
             .FromSqlRaw(
-                @"SELECT Material_ID AS MaterialId, Material_Name AS MaterialName,
-                        Unit, Stock_Qty AS StockQty
+                @"SELECT Material_ID AS ""MATERIAL_ID"", Material_Name AS ""MATERIAL_NAME"",
+                        Unit AS ""UNIT"", Stock_Qty AS ""STOCK_QTY""
                  FROM D_Repair_Material
                  ORDER BY Material_ID")
             .ToListAsync();
