@@ -1,319 +1,259 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { studentApi } from '@/api/student'
-import { InlineState, WorkspaceHeader } from '@/components'
+import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
 import { toUserMessage } from '@/utils/errorMessage'
 
 const userStore = useUserStore()
-const year = ref(new Date().getFullYear())
 const loading = ref(true)
 const error = ref('')
-const annual = ref(null)
 const monthlyFee = ref(null)
 const facilityUsage = ref(null)
 const studentId = computed(() => userStore.userInfo?.id || '')
+const period = computed(
+  () => monthlyFee.value?.yearMonth || facilityUsage.value?.yearMonth || '当前账期'
+)
+const outstanding = computed(() =>
+  Math.max(
+    Number(monthlyFee.value?.utilityTotal || 0) - Number(monthlyFee.value?.paidTotal || 0),
+    0
+  )
+)
 const metrics = computed(() => [
   {
-    label: '年度水电支出',
-    value: `¥${Number(annual.value?.utilityTotal || 0).toFixed(2)}`,
-    note: monthlyFee.value?.yearMonth || '全年汇总'
+    label: '本期水电',
+    value: `¥${Number(monthlyFee.value?.utilityTotal || 0).toFixed(2)}`,
+    hint: period.value
   },
-  { label: '卫生平均分', value: Number(annual.value?.hygieneAvg || 0).toFixed(1), note: '百分制' },
-  { label: '门禁出入次数', value: String(annual.value?.accessCount || 0), note: '年度累计' },
   {
-    label: '设施使用次数',
+    label: '已缴金额',
+    value: `¥${Number(monthlyFee.value?.paidTotal || 0).toFixed(2)}`,
+    hint: '账单实缴'
+  },
+  {
+    label: '待缴金额',
+    value: `¥${outstanding.value.toFixed(2)}`,
+    hint: outstanding.value > 0 ? '请及时处理' : '本期已结清'
+  },
+  {
+    label: '设施使用',
     value: String(facilityUsage.value?.usageCount || 0),
-    note: facilityUsage.value?.yearMonth || '本月'
+    hint: `${period.value} 次数`
   }
 ])
+
 const loadReport = async () => {
   loading.value = true
   error.value = ''
-  const [annualResult, feeResult, usageResult] = await Promise.allSettled([
-    studentApi.getAnnualReport(studentId.value, { year: year.value }),
+  const [feeResult, usageResult] = await Promise.allSettled([
     studentApi.getMonthlyFeeReport(studentId.value),
     studentApi.getFacilityUsageReport(studentId.value)
   ])
-  if (annualResult.status === 'fulfilled') annual.value = annualResult.value
-  if (feeResult.status === 'fulfilled') monthlyFee.value = feeResult.value
-  if (usageResult.status === 'fulfilled') facilityUsage.value = usageResult.value
-  if (annualResult.status === 'rejected')
-    error.value = toUserMessage(annualResult.reason, '年度报告暂时无法生成')
+
+  monthlyFee.value = feeResult.status === 'fulfilled' ? feeResult.value : null
+  facilityUsage.value = usageResult.status === 'fulfilled' ? usageResult.value : null
+
+  if (feeResult.status === 'rejected' && usageResult.status === 'rejected') {
+    error.value = toUserMessage(feeResult.reason, '生活统计暂时无法同步')
+  }
   loading.value = false
 }
+
 onMounted(loadReport)
 </script>
 
 <template>
-  <div class="report-page workspace-page">
+  <main class="snapshot-page">
     <WorkspaceHeader
-      eyebrow="STUDENT / ANNUAL REPORT"
-      :title="`${year} 宿舍生活报告`"
-      description="把费用、卫生、门禁和设施使用汇总成一份可追溯的年度回顾。"
+      eyebrow="STUDENT / MONTHLY SNAPSHOT"
+      title="本月生活统计"
+      description="只保留已经接入真实数据的费用与设施使用指标，帮助你快速确认本期状态。"
     >
-      <select v-model.number="year" class="form-select" @change="loadReport">
-        <option v-for="item in [2026, 2025, 2024]" :key="item" :value="item">{{ item }} 年</option>
-      </select>
+      <button class="btn btn-sm" type="button" :disabled="loading" @click="loadReport">
+        重新同步
+      </button>
     </WorkspaceHeader>
+
     <InlineState :loading="loading" :error="error" />
-    <template v-if="!loading && annual">
-      <section class="report-cover">
-        <div>
-          <span>PERSONAL EDITION / {{ studentId }}</span>
-          <h2>{{ annual.overview || '这一年的住校生活，正在形成你的校园记忆。' }}</h2>
-          <p>{{ userStore.userName }} · {{ userStore.userInfo?.buildingName || '宿舍园区' }}</p>
-        </div>
-        <strong>{{ year }}</strong>
-      </section>
-      <section class="report-metrics">
-        <article v-for="(metric, index) in metrics" :key="metric.label">
-          <span>0{{ index + 1 }} / {{ metric.label }}</span
-          ><strong>{{ metric.value }}</strong
-          ><small>{{ metric.note }}</small>
-        </article>
-      </section>
-      <div class="report-grid">
-        <section class="expense-figure">
+
+    <template v-if="!loading && !error">
+      <MetricStrip :metrics="metrics" style="--metric-count: 4" />
+
+      <section class="snapshot-grid">
+        <article class="finance-card">
           <header>
-            <span>UTILITY / MONTHLY</span>
-            <h2>费用观察</h2>
+            <span>01 / UTILITY STATUS</span>
+            <small>{{ period }}</small>
           </header>
-          <div class="expense-amount">
-            <span>最近账期</span
-            ><strong>¥{{ Number(monthlyFee?.utilityTotal || 0).toFixed(2) }}</strong
-            ><small>已缴 ¥{{ Number(monthlyFee?.paidTotal || 0).toFixed(2) }}</small>
+          <div class="amount-row">
+            <div>
+              <small>本期费用</small>
+              <strong>¥{{ Number(monthlyFee?.utilityTotal || 0).toFixed(2) }}</strong>
+            </div>
+            <div>
+              <small>已缴金额</small>
+              <strong>¥{{ Number(monthlyFee?.paidTotal || 0).toFixed(2) }}</strong>
+            </div>
           </div>
-          <div class="expense-bars">
-            <i
-              v-for="(height, index) in [34, 48, 42, 58, 51, 69, 63, 74, 67, 82, 76, 88]"
-              :key="index"
-              :style="{ height: `${height}%` }"
-              ><small>{{ index + 1 }}</small></i
-            >
+          <div class="settlement" :class="{ due: outstanding > 0 }">
+            <span>{{ outstanding > 0 ? '仍有待缴费用' : '本期费用已结清' }}</span>
+            <b>¥{{ outstanding.toFixed(2) }}</b>
           </div>
-        </section>
-        <aside class="habit-note">
-          <span>LIVING NOTE</span>
-          <h2>生活注解</h2>
-          <p>
-            报告只使用与你相关的住宿数据。门禁频率用于个人回顾，不代表纪律评价；具体扣分以信用流水和违规记录为准。
-          </p>
-          <dl>
-            <div>
-              <dt>数据范围</dt>
-              <dd>{{ year }}.01—{{ year }}.12</dd>
-            </div>
-            <div>
-              <dt>更新时间</dt>
-              <dd>刚刚同步</dd>
-            </div>
-            <div>
-              <dt>报告版本</dt>
-              <dd>PERSONAL / 01</dd>
-            </div>
-          </dl>
+        </article>
+
+        <aside class="facility-card">
+          <span>02 / FACILITY USE</span>
+          <strong>{{ facilityUsage?.usageCount || 0 }}</strong>
+          <h2>本期设施使用次数</h2>
+          <p>统计已确认的设施使用记录。预约详情与后续操作仍在“设施共享”页面完成。</p>
+          <router-link to="/student/facilities">查看设施共享 →</router-link>
         </aside>
-      </div>
+      </section>
+
+      <footer class="scope-note">
+        <span>DATA SCOPE</span>
+        <p>
+          当前仅展示已完成真实联调的月度费用与设施使用数据；年度聚合报告属于暂缓业务，不纳入本轮交付。
+        </p>
+      </footer>
     </template>
-  </div>
+  </main>
 </template>
 
 <style scoped>
-.workspace-page {
+.snapshot-page {
   width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: 72px;
 }
-.report-cover {
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: 20px;
+  margin-top: 30px;
+}
+.finance-card,
+.facility-card {
+  border: 1px solid var(--color-line-strong);
+}
+.finance-card {
+  background: rgba(255, 255, 255, 0.36);
+}
+.finance-card header {
   display: flex;
-  min-height: 240px;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
-  margin: 27px 0 0;
-  padding: 35px 38px;
-  background: #b9ced0;
-  color: #213d32;
-  overflow: hidden;
-}
-.report-cover > div > span,
-.expense-figure header span,
-.habit-note > span {
-  font: 8px var(--font-mono);
-  letter-spacing: 0.16em;
-}
-.report-cover h2 {
-  max-width: 720px;
-  margin: 18px 0 12px;
-  font-family: var(--font-display);
-  font-size: clamp(28px, 3.4vw, 47px);
-  font-weight: 500;
-  line-height: 1.2;
-}
-.report-cover p {
-  margin: 0;
-  color: #597369;
-  font-size: 10px;
-}
-.report-cover > strong {
-  color: rgba(33, 61, 50, 0.18);
-  font: 500 clamp(70px, 12vw, 160px) var(--font-display);
-  line-height: 0.75;
-}
-.report-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border: 1px solid var(--color-line-strong);
-  border-top: 0;
-}
-.report-metrics article {
-  display: grid;
-  min-height: 118px;
-  padding: 18px 20px;
-  border-right: 1px solid var(--color-line);
-  align-content: space-between;
-}
-.report-metrics article:last-child {
-  border-right: 0;
-}
-.report-metrics span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-}
-.report-metrics strong {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 500;
-}
-.report-metrics small {
-  color: var(--color-text-soft);
-  font-size: 8px;
-}
-.report-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.55fr);
-  margin-top: 18px;
-  gap: 18px;
-}
-.expense-figure,
-.habit-note {
-  border: 1px solid var(--color-line-strong);
-  background: rgba(250, 246, 237, 0.52);
-}
-.expense-figure {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  grid-template-rows: auto 1fr;
-  min-height: 310px;
-}
-.expense-figure > header {
-  grid-column: 1/-1;
-  padding: 18px 21px;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--color-line);
 }
-.expense-figure h2,
-.habit-note h2 {
-  margin: 6px 0 0;
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 500;
+.finance-card header span,
+.facility-card > span,
+.scope-note > span {
+  color: var(--color-accent-strong);
+  font: 8px var(--font-mono);
+  letter-spacing: 0.14em;
 }
-.expense-amount {
+.finance-card header small {
+  color: var(--color-text-muted);
+  font: 9px var(--font-mono);
+}
+.amount-row {
   display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.amount-row > div {
+  display: grid;
+  min-height: 150px;
   align-content: center;
-  padding: 24px;
+  padding: 28px;
   border-right: 1px solid var(--color-line);
 }
-.expense-amount span,
-.expense-amount small {
+.amount-row > div:last-child {
+  border-right: 0;
+}
+.amount-row small {
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
-.expense-amount strong {
-  margin: 12px 0;
-  font: 500 29px var(--font-display);
+.amount-row strong {
+  margin-top: 12px;
+  color: var(--color-ink);
+  font: 500 clamp(31px, 4vw, 48px) var(--font-display);
 }
-.expense-bars {
+.settlement {
   display: flex;
-  height: 220px;
-  align-items: end;
-  padding: 28px 25px 30px;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 22px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-success);
+  font-size: 11px;
 }
-.expense-bars i {
-  position: relative;
-  flex: 1;
-  min-width: 8px;
-  background: var(--color-brand);
+.settlement.due {
+  color: var(--color-accent-strong);
 }
-.expense-bars i:nth-child(3n) {
-  background: var(--color-accent);
+.settlement b {
+  font: 500 18px var(--font-display);
 }
-.expense-bars small {
-  position: absolute;
-  right: 0;
-  bottom: -18px;
-  left: 0;
-  color: var(--color-text-soft);
-  font: 7px var(--font-mono);
-  text-align: center;
-}
-.habit-note {
-  padding: 24px;
+.facility-card {
+  padding: 28px;
   background: var(--color-ink);
   color: var(--color-paper);
 }
-.habit-note > span {
-  color: #df8e70;
+.facility-card > strong {
+  display: block;
+  margin: 32px 0 6px;
+  color: var(--color-accent);
+  font: 500 76px var(--font-display);
+  line-height: 0.9;
 }
-.habit-note p {
-  margin: 24px 0;
-  color: #9bad9f;
+.facility-card h2 {
+  margin: 0;
+  font: 500 20px var(--font-display);
+}
+.facility-card p {
+  margin: 22px 0;
+  color: #aaa39a;
   font-size: 10px;
-  line-height: 1.9;
+  line-height: 1.8;
 }
-.habit-note dl {
+.facility-card a {
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.scope-note {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 24px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-line-strong);
+}
+.scope-note p {
+  max-width: 720px;
   margin: 0;
-  border-top: 1px solid #42564b;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 1.8;
 }
-.habit-note dl div {
-  display: flex;
-  justify-content: space-between;
-  padding: 14px 0;
-  border-bottom: 1px solid #394e42;
-}
-.habit-note dt {
-  color: #819489;
-  font-size: 8px;
-}
-.habit-note dd {
-  margin: 0;
-  font: 8px var(--font-mono);
-}
-@media (max-width: 850px) {
-  .workspace-page {
+@media (max-width: 780px) {
+  .snapshot-page {
     width: min(100% - 32px, var(--content-max));
   }
-  .report-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-  .report-grid {
+  .snapshot-grid,
+  .amount-row {
     grid-template-columns: 1fr;
   }
-  .report-cover > strong {
-    display: none;
-  }
-}
-@media (max-width: 560px) {
-  .report-metrics {
-    grid-template-columns: 1fr;
-  }
-  .expense-figure {
-    grid-template-columns: 1fr;
-  }
-  .expense-amount {
+  .amount-row > div {
+    min-height: 110px;
     border-right: 0;
     border-bottom: 1px solid var(--color-line);
+  }
+  .scope-note {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 }
 </style>

@@ -58,7 +58,7 @@ const routes = [
     path: '/student/report',
     name: 'StudentReport',
     component: () => import('@/views/student/StudentReportView.vue'),
-    meta: { requiresAuth: true, roles: ['student'], title: '年度生活报告' }
+    meta: { requiresAuth: true, roles: ['student'], title: '月度生活统计' }
   },
   {
     path: '/admin',
@@ -74,7 +74,7 @@ const routes = [
     path: '/admin/duty',
     name: 'AdminDuty',
     component: () => import('@/views/admin/AdminDutyView.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '访客值守' }
   },
   {
     path: '/admin/repair',

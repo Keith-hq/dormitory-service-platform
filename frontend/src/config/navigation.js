@@ -6,12 +6,12 @@ export const APP_NAVIGATION = Object.freeze({
     { index: '04', to: '/student/repair', label: '报修流程', eyebrow: 'REPAIR' },
     { index: '05', to: '/student/facilities', label: '设施共享', eyebrow: 'FACILITIES' },
     { index: '06', to: '/student/community', label: '安全社区', eyebrow: 'COMMUNITY' },
-    { index: '07', to: '/student/report', label: '生活报告', eyebrow: 'REPORT' }
+    { index: '07', to: '/student/report', label: '生活统计', eyebrow: 'SNAPSHOT' }
   ],
   admin: [
     { index: '01', to: '/admin', label: '运营首页', eyebrow: 'OVERVIEW' },
     { index: '02', to: '/building', label: '空间档案', eyebrow: 'SPACES' },
-    { index: '03', to: '/admin/duty', label: '安全值班', eyebrow: 'DUTY' },
+    { index: '03', to: '/admin/duty', label: '访客值守', eyebrow: 'VISITORS' },
     { index: '04', to: '/admin/repair', label: '维修调度', eyebrow: 'REPAIR' }
   ],
   repairman: [{ index: '01', to: '/repairman', label: '我的工单', eyebrow: 'WORK ORDERS' }],

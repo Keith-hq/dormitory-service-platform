@@ -10,16 +10,8 @@ const loading = ref(true)
 const error = ref('')
 const buildings = ref([])
 const density = ref([])
-const accessLogs = ref([])
-const violations = ref([])
 const notices = ref([])
 
-const abnormalLogs = computed(() =>
-  accessLogs.value.filter((item) => {
-    const status = String(item.status ?? item.accessStatus ?? '').toLowerCase()
-    return status && !['normal', '正常'].includes(status)
-  })
-)
 const metrics = computed(() => [
   { label: '在管楼栋', value: buildings.value.length, hint: '空间底座' },
   {
@@ -28,10 +20,9 @@ const metrics = computed(() => [
       (sum, item) => sum + Number(item.currentCount ?? item.count ?? 0),
       0
     ),
-    hint: '实时门禁'
+    hint: '实时在楼'
   },
-  { label: '异常通行', value: abnormalLogs.value.length, hint: '优先核查' },
-  { label: '违规记录', value: violations.value.length, hint: '当前页' }
+  { label: '近期公告', value: notices.value.length, hint: '交接事项' }
 ])
 
 const load = async () => {
@@ -40,11 +31,9 @@ const load = async () => {
   const results = await Promise.allSettled([
     buildingApi.getList({ page: 1, pageSize: 100 }),
     adminApi.getAccessDensity(),
-    adminApi.getAccessLogs({ page: 1, pageSize: 8 }),
-    adminApi.getViolations({ page: 1, pageSize: 8 }),
     adminApi.getNotices({ page: 1, pageSize: 4 })
   ])
-  const targets = [buildings, density, accessLogs, violations, notices]
+  const targets = [buildings, density, notices]
   results.forEach((result, index) => {
     if (result.status === 'fulfilled')
       targets[index].value = normalizeCollection(result.value).items
@@ -55,9 +44,6 @@ const load = async () => {
   loading.value = false
 }
 
-const displayTime = (item) => item.accessTime ?? item.occurredAt ?? item.createTime ?? '待记录'
-const displayStudent = (item) => item.studentName ?? item.studentId ?? '未识别人员'
-
 onMounted(load)
 </script>
 
@@ -66,37 +52,44 @@ onMounted(load)
     <WorkspaceHeader
       eyebrow="DORMITORY OPERATIONS"
       title="今日宿舍运营"
-      description="用一张值班简报看清楼栋运行、安全异常和需要交接的事项。"
+      description="用一张值班简报查看楼栋承载、访客值守和需要交接的公告事项。"
     >
       <button class="btn btn-sm" type="button" :disabled="loading" @click="load">重新同步</button>
     </WorkspaceHeader>
 
-    <MetricStrip :metrics="metrics" style="--metric-count: 4" />
+    <MetricStrip :metrics="metrics" style="--metric-count: 3" />
     <InlineState :loading="loading" :error="error" />
 
     <section v-if="!loading" class="brief-grid">
       <article class="duty-brief">
         <header>
-          <span>01 / DUTY PRIORITY</span>
-          <h2>值班优先级</h2>
+          <span>01 / VISITOR DUTY</span>
+          <h2>访客值守流程</h2>
         </header>
-        <ol>
-          <li v-for="item in abnormalLogs.slice(0, 5)" :key="item.logId ?? item.accessLogId">
-            <time>{{ displayTime(item) }}</time>
+        <ol class="visitor-steps">
+          <li>
+            <b>01</b>
             <div>
-              <strong>{{ displayStudent(item) }}</strong>
-              <p>
-                {{ item.roomName ?? item.buildingName ?? '位置待核对' }} ·
-                {{ item.direction ?? item.status ?? '异常通行' }}
-              </p>
+              <strong>核对来访身份</strong>
+              <p>确认访客姓名、联系电话与有效身份信息。</p>
             </div>
           </li>
-          <li v-if="!abnormalLogs.length" class="quiet">
-            <strong>当前没有待核查的门禁异常</strong>
-            <p>值班台会在发现异常后自动排列到这里。</p>
+          <li>
+            <b>02</b>
+            <div>
+              <strong>确认被访学生</strong>
+              <p>核对学号与来访事由，避免登记到错误住户。</p>
+            </div>
+          </li>
+          <li>
+            <b>03</b>
+            <div>
+              <strong>提交现场登记</strong>
+              <p>生成登记记录，后续核验与离场沿用同一编号。</p>
+            </div>
           </li>
         </ol>
-        <router-link to="/admin/duty">进入安全值班台 →</router-link>
+        <router-link to="/admin/duty">进入访客值守台 →</router-link>
       </article>
 
       <aside class="building-pulse">
@@ -185,7 +178,7 @@ onMounted(load)
   padding: 15px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
-.duty-brief time {
+.visitor-steps > li > b {
   font: 10px var(--font-mono);
   color: #cbbca4;
 }

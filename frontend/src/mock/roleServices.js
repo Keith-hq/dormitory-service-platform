@@ -19,54 +19,6 @@ const creditAppeals = [
   }
 ]
 
-const accessLogs = [
-  {
-    logId: 81023,
-    studentName: '林晓满',
-    roomName: '503',
-    direction: '进入',
-    accessTime: '2026-08-13 08:42',
-    status: 'normal'
-  },
-  {
-    logId: 81022,
-    studentName: '陈宁',
-    roomName: '407',
-    direction: '离开',
-    accessTime: '2026-08-13 08:38',
-    status: 'normal'
-  },
-  {
-    logId: 81018,
-    studentName: '赵可',
-    roomName: '601',
-    direction: '进入',
-    accessTime: '2026-08-13 00:16',
-    status: 'late'
-  }
-]
-
-const violations = [
-  {
-    violationId: 608,
-    studentName: '赵可',
-    roomName: '601',
-    type: '晚归',
-    scoreDelta: -2,
-    status: 'pending',
-    occurredAt: '2026-08-13 00:16'
-  },
-  {
-    violationId: 602,
-    studentName: '王齐',
-    roomName: '302',
-    type: '公共区域堆物',
-    scoreDelta: -1,
-    status: 'processed',
-    occurredAt: '2026-08-11 18:30'
-  }
-]
-
 const wait = (duration) => new Promise((resolve) => globalThis.setTimeout(resolve, duration))
 
 const getRequestPath = (config) => {
@@ -121,16 +73,6 @@ const roleServiceMockAdapter = async (config) => {
     })
   }
 
-  if (path === '/access-logs' && method === 'get') {
-    if (role !== 'admin') return forbidden(config)
-    return createResponse(config, { data: asCollection(accessLogs) })
-  }
-
-  if (path === '/violations' && method === 'get') {
-    if (role !== 'admin') return forbidden(config)
-    return createResponse(config, { data: asCollection(violations) })
-  }
-
   return createResponse(config, {
     code: 405,
     message: 'Mock 接口不支持该请求方法',
@@ -139,11 +81,7 @@ const roleServiceMockAdapter = async (config) => {
   })
 }
 
-const ROLE_SERVICE_PATTERNS = [
-  /^\/students\/[^/]+\/credit-appeals\/?$/,
-  /^\/access-logs\/?$/,
-  /^\/violations\/?$/
-]
+const ROLE_SERVICE_PATTERNS = [/^\/students\/[^/]+\/credit-appeals\/?$/]
 
 export const resolveRoleServiceMockAdapter = (config) => {
   const path = getRequestPath(config)

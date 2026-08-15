@@ -66,8 +66,8 @@ const submitLogin = async () => {
   <main class="login-page">
     <section class="login-intro" aria-labelledby="platform-title">
       <span class="eyebrow">DORMITORY SERVICE PLATFORM</span>
-      <h1 id="platform-title">让宿舍服务更清晰、更高效</h1>
-      <p>统一管理楼栋、房间、报修与生活服务，让每一次申请都有回应。</p>
+      <h1 id="platform-title">高校宿舍后勤与共享生活服务系统</h1>
+      <p>让楼栋后勤、报修协作与共享生活服务在同一个工作台高效流转。</p>
     </section>
 
     <section class="login-card" aria-labelledby="login-title">

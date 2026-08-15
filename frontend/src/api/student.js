@@ -57,7 +57,5 @@ export const studentApi = {
   getMonthlyFeeReport: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/reports/monthly-fee`, { params }),
   getFacilityUsageReport: (studentId, params) =>
-    request.get(`/students/${encodeURIComponent(studentId)}/reports/facility-usage`, { params }),
-  getAnnualReport: (studentId, params) =>
-    request.get(`/students/${encodeURIComponent(studentId)}/reports/annual`, { params })
+    request.get(`/students/${encodeURIComponent(studentId)}/reports/facility-usage`, { params })
 }

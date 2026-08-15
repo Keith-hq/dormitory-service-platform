@@ -34,11 +34,11 @@ const logout = async () => {
   <router-view v-if="!showAppShell" />
   <div v-else class="app-shell">
     <aside class="app-sidebar">
-      <router-link class="brand" :to="roleHome" aria-label="返回宿舍服务台首页">
+      <router-link class="brand" :to="roleHome" aria-label="返回高校宿舍后勤与共享生活服务系统首页">
         <span class="brand__mark" aria-hidden="true">舍</span>
         <span class="brand__copy">
-          <strong>住校誌</strong>
-          <small>CAMPUS LIVING</small>
+          <strong>高校宿舍后勤与共享生活服务系统</strong>
+          <small>CAMPUS LIVING SERVICE</small>
         </span>
       </router-link>
 
@@ -76,7 +76,7 @@ const logout = async () => {
       <header class="app-topbar">
         <div class="topbar-route">
           <span>{{ currentNav?.eyebrow || 'WORKSPACE' }}</span>
-          <b>{{ currentNav?.label || route.meta.title || '宿舍服务平台' }}</b>
+          <b>{{ currentNav?.label || route.meta.title || '高校宿舍后勤与共享生活服务系统' }}</b>
         </div>
         <div class="topbar-meta">
           <span><i></i> 数据通道已连接</span>
@@ -120,6 +120,7 @@ const logout = async () => {
 }
 .brand__mark {
   display: grid;
+  flex: 0 0 42px;
   width: 42px;
   height: 42px;
   place-items: center;
@@ -135,13 +136,15 @@ const logout = async () => {
 }
 .brand__copy strong {
   font-family: var(--font-display);
-  font-size: 20px;
-  letter-spacing: 0.11em;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
 }
 .brand__copy small {
   color: #92a198;
-  font-size: 8px;
-  letter-spacing: 0.18em;
+  font-size: 7px;
+  letter-spacing: 0.1em;
 }
 .sidebar-context {
   display: grid;

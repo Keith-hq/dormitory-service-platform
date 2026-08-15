@@ -1,9 +1,7 @@
 import request from '@/utils/request'
 
 export const adminApi = {
-  getAccessLogs: (params) => request.get('/access-logs', { params }),
   getAccessDensity: (params) => request.get('/access-logs/density', { params }),
-  getViolations: (params) => request.get('/violations', { params }),
   createViolation: (data) => request.post('/violations', data),
   registerVisitor: (data) => request.post('/visitor-registry', data),
   verifyVisitor: (registryId, data) => request.post(`/visitor-registry/${registryId}/verify`, data),
