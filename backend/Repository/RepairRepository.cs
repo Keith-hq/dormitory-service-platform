@@ -30,8 +30,10 @@ public sealed class RepairRepository : FrameworkRepositoryBase
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new BusinessException(409, "当前没有有效住宿，且未指定报修房间", StatusCodes.Status409Conflict);
 
+        // 顶层 AnyAsync 被 Oracle provider 翻译为 CASE WHEN EXISTS(...)
+        // THEN True ELSE False → ORA-00904（IT-C3-001 执行现场同缺陷），改 CountAsync
         var roomExists = await DbContext.Rooms.AsNoTracking()
-            .AnyAsync(item => item.RoomId == roomId, cancellationToken);
+            .CountAsync(item => item.RoomId == roomId, cancellationToken) > 0;
         if (!roomExists)
         {
             throw new BusinessException(404, "报修房间不存在", StatusCodes.Status404NotFound);
