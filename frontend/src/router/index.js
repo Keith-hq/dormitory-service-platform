@@ -17,6 +17,12 @@ const routes = [
     meta: { public: true, layout: 'auth' }
   },
   {
+    path: '/prototype/workspace',
+    name: 'WorkspacePrototype',
+    component: () => import('@/views/prototype/WorkspacePrototype.vue'),
+    meta: { public: true, layout: 'auth' }
+  },
+  {
     path: '/student',
     name: 'StudentHome',
     component: () => import('@/views/RoleDashboard.vue'),
