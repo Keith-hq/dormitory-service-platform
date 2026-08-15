@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.InMemory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -23,6 +24,15 @@ static TimeZoneInfo GetBusinessTimeZone()
     => TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "China Standard Time" : "Asia/Shanghai");
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 测试环境默认配置（必须在 builder.Configuration 读取之前设置）
+if (builder.Environment.IsEnvironment("Test"))
+{
+    builder.Configuration["Jwt:Key"] = "TestSecretKeyAtLeast32CharsLong!";
+    builder.Configuration["Jwt:Issuer"] = "DormitoryPlatform";
+    builder.Configuration["Jwt:Audience"] = "DormitoryPlatformClient";
+    builder.Configuration["ServiceKey:Shared"] = "TestServiceKey";
+}
 
 // 使用 EPPlus 5+ 包需要设置非商业用途授权，名称可以随意变动
 ExcelPackage.License.SetNonCommercialOrganization("DormitoryPlatform");
@@ -64,6 +74,12 @@ builder.Services.AddSwaggerGen(c =>
 // ===== 3. 注册 Oracle EF Core DbContext =====
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
+    if (builder.Environment.IsEnvironment("Test"))
+    {
+        options.UseInMemoryDatabase("TestDb");
+        return;
+    }
+
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
     if (string.IsNullOrEmpty(connectionString))
     {
@@ -262,7 +278,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//认证与授权
+// 认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -277,3 +293,6 @@ app.UseCors("DevCors");
 app.MapControllers();
 
 app.Run();
+
+// 负例测试用
+public partial class Program { }

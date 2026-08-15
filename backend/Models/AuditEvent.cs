@@ -27,8 +27,6 @@ public class AuditEvent
     [Column("EVENT_TIME")]
     public DateTime EventTime { get; set; }
 
-    // TODO: 后续数据库迁移添加 DETAILS VARCHAR2(2000) 列，并移除 [NotMapped]
-    [NotMapped]
     public string? Details { get; set; }
 
     [ForeignKey(nameof(ActorAccountId))]

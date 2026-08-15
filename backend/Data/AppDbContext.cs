@@ -91,6 +91,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Phone).HasColumnName("PHONE").HasMaxLength(20);
             entity.Property(e => e.RoleLevel).HasColumnName("ROLE_LEVEL").HasMaxLength(20).IsRequired();
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
+            entity.Property(e => e.Post).HasColumnName("POST").HasMaxLength(50);
         });
 
         // ---- Major 专业 ----

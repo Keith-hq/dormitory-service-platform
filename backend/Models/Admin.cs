@@ -9,6 +9,7 @@ public sealed class Admin
     public string? Phone { get; set; }
     public string RoleLevel { get; set; } = string.Empty;
     public int? BuildingId { get; set; }
+    public string? Post { get; set; }
 
     [ForeignKey(nameof(BuildingId))]
     public Building? Building { get; set; }
