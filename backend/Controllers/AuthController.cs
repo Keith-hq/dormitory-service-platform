@@ -56,7 +56,9 @@ public class AuthController : ControllerBase
     {
         public string AdminId { get; set; } = string.Empty;
         public string? LoginName { get; set; }
-        public string Password { get; set; } = string.Empty;
+        public string? Password { get; set; }
+        public string? RoleLevel { get; set; }      // 如：楼长、维修员
+        public int? BuildingId { get; set; }        // 分配的楼栋 ID
     }
 
     /// <summary>
@@ -119,6 +121,9 @@ public class AuthController : ControllerBase
     /// <summary>
     /// 用户登录接口
     /// </summary>
+    // TODO: 当前未实现首次登录强制修改密码。
+    // 后续需在 D_USER_ACCOUNT 表增加 IS_FIRST_LOGIN VARCHAR2(1) DEFAULT 'Y'，
+    // 并在登录响应中返回 needChangePassword = true，由前端引导跳转。
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -130,7 +135,7 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse.Error(401, "用户名或密码错误"));
 
         // 2. 检查账号状态
-        if (user.AccountStatus != "ACTIVE" && user.AccountStatus != "正常")
+        if (user.AccountStatus != "正常")
             return Unauthorized(ApiResponse.Error(401, "账号已停用，请联系管理员"));
 
         // 3. 从内存缓存获取失败计数
@@ -283,39 +288,75 @@ public class AuthController : ControllerBase
     /// <summary>
     /// AUTH-05：创建宿管账号（需超管权限）
     /// </summary>
-    [Authorize(Roles = "super_admin")]
+    [Authorize(Roles = AuthPolicies.SuperAdmin)]
     [HttpPost("accounts/admins")]
     public async Task<IActionResult> CreateAdminAccount([FromBody] CreateAdminAccountRequest request)
     {
-        // 检查管理员是否存在
+        // 1. 检查管理员是否存在
         var admin = await _context.Admins.FindAsync(request.AdminId);
         if (admin == null)
             return BadRequest(ApiResponse.Error(400, "管理员不存在"));
 
-        // 检查是否已有账号
-        var existing = await _context.UserAccounts.FirstOrDefaultAsync(u => u.AdminId == request.AdminId);
+        // 2. 检查是否已有账号
+        var existing = await _context.UserAccounts
+            .FirstOrDefaultAsync(u => u.AdminId == request.AdminId);
         if (existing != null)
             return BadRequest(ApiResponse.Error(400, "该管理员已有账号"));
 
-        // 创建账号
+        // 3. 验证角色是否合法（与 UpdateAdmin 一致）
+        if (!string.IsNullOrEmpty(request.RoleLevel))
+        {
+            var validRoles = new[] { "超级管理员", "楼长", "维修员" };
+            if (!validRoles.Contains(request.RoleLevel))
+                return BadRequest(ApiResponse.Error(400, "角色必须是：超级管理员、楼长、维修员"));
+        }
+
+        // 4. 如果指定了楼栋，检查是否存在（与 UpdateAdmin 一致）
+        if (request.BuildingId.HasValue)
+        {
+            var buildingExists = await _context.Buildings
+                .CountAsync(b => b.BuildingId == request.BuildingId.Value) > 0;
+            if (!buildingExists)
+                return BadRequest(ApiResponse.Error(400, "指定的楼栋不存在"));
+        }
+
+        // 5. 更新 Admin 记录（楼栋和角色）
+        if (request.BuildingId.HasValue)
+            admin.BuildingId = request.BuildingId.Value;
+        if (!string.IsNullOrEmpty(request.RoleLevel))
+            admin.RoleLevel = request.RoleLevel;
+
+        // 6. 创建 UserAccount
+        var password = string.IsNullOrEmpty(request.Password)
+            ? GenerateRandomPassword(8)
+            : request.Password;
+
         var account = new UserAccount
         {
             LoginName = request.LoginName ?? request.AdminId,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
             AdminId = request.AdminId
         };
         _context.UserAccounts.Add(account);
+
+        // 7. 保存所有变更（事务）
         await _context.SaveChangesAsync();
 
-        // 临时审计：使用日志记录（后续改用 D_Audit_Event 表）
-        var currentUser = User.Identity?.Name ?? "未知";
-        _logger.LogInformation($"超管 {currentUser} 创建了宿管账号 {account.LoginName}，AdminId={request.AdminId}");
+        // 8. 写入审计日志（使用 IAuditService）
+        await _auditService.LogEventAsync(
+            eventType: "POST /accounts/admins",
+            targetType: "Admin",
+            targetId: request.AdminId,
+            actorAccountId: GetCurrentUserId(),
+            details: $"创建宿管账号：{account.LoginName}，角色：{admin.RoleLevel}，楼栋ID：{admin.BuildingId}"
+        );
 
         return Ok(ApiResponse.Ok(new
         {
             accountId = account.AccountId,
             loginName = account.LoginName,
+            initialPassword = password,
             message = "宿管账号创建成功"
         }));
     }
@@ -362,5 +403,19 @@ public class AuthController : ControllerBase
         );
 
         return Ok(ApiResponse.Ok(new { message = "密码修改成功" }));
+    }
+
+    // 工具函数
+    private string GenerateRandomPassword(int length)
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+        var random = new Random();
+        return new string(Enumerable.Repeat(chars, length)
+            .Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+    private int? GetCurrentUserId()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(claim, out var id) ? id : (int?)null;
     }
 }

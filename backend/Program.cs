@@ -117,6 +117,7 @@ builder.Services.AddScoped<IViolationService, ViolationService>();
 builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IImportService, ImportService>();
 
 // ===== 7. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>

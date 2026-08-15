@@ -10,7 +10,7 @@ namespace TemplateDormApi.Controllers;
 
 [ApiController]
 [Authorize(Roles = AuthPolicies.SuperAdmin)]
-[Route("reports")]
+[Route("api/reports")]
 public class ReportsController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -33,15 +33,15 @@ public class ReportsController : ControllerBase
     public async Task<IActionResult> GetReport(string type, [FromQuery] ReportQueryDto query)
     {
         // 校验报表类型
-        var validTypes = new[] { "occupancy", "utility", "parcel", "lateentry", "repair", "violation", "leave" };
+        var validTypes = new[] { "occupancy", "utility", "package", "lateReturn", "repair", "violation", "leave" };
         if (!validTypes.Contains(type))
             return BadRequest(ApiResponse.Error(400, $"无效的报表类型，支持：{string.Join(", ", validTypes)}"));
 
         // 解析月份参数（格式：yyyy-MM）
-        if (string.IsNullOrEmpty(query.Month) || !query.Month.Contains('-'))
+        if (string.IsNullOrEmpty(query.YearMonth) || !query.YearMonth.Contains('-'))
             return BadRequest(ApiResponse.Error(400, "请提供月份参数，格式：yyyy-MM (如 2026-08)"));
 
-        var yearMonth = query.Month.Trim();
+        var yearMonth = query.YearMonth.Trim();
         var parts = yearMonth.Split('-');
         if (parts.Length != 2 || !int.TryParse(parts[0], out int year) || !int.TryParse(parts[1], out int month))
             return BadRequest(ApiResponse.Error(400, "月份格式无效，请使用 yyyy-MM 格式"));
@@ -51,8 +51,8 @@ public class ReportsController : ControllerBase
         {
             "occupancy" => await GetOccupancyReport(year, month),
             "utility" => await GetUtilityReport(year, month),
-            "parcel" => await GetParcelReport(year, month),
-            "lateentry" => await GetLateEntryReport(year, month),
+            "package" => await GetPackageReport(year, month),
+            "lateReturn" => await GetLateReturnReport(year, month),
             "repair" => await GetRepairReport(year, month),
             "violation" => await GetViolationReport(year, month),
             "leave" => await GetLeaveReport(year, month),
@@ -138,7 +138,7 @@ public class ReportsController : ControllerBase
     }
 
     // 3. 快递报表：按楼栋统计快递总数、已取件数、取件率
-    private async Task<object> GetParcelReport(int year, int month)
+    private async Task<object> GetPackageReport(int year, int month)
     {
         var startDate = new DateTime(year, month, 1);
         var endDate = startDate.AddMonths(1);
@@ -163,7 +163,7 @@ public class ReportsController : ControllerBase
     }
 
     // 4. 晚归报表：按月份统计晚归记录数、涉及学生数
-    private async Task<object> GetLateEntryReport(int year, int month)
+    private async Task<object> GetLateReturnReport(int year, int month)
     {
         var startDate = new DateTime(year, month, 1);
         var endDate = startDate.AddMonths(1);
@@ -247,7 +247,7 @@ public class ReportsController : ControllerBase
     // ===== DTO 定义 =====
     public class ReportQueryDto
     {
-        public string Month { get; set; } = string.Empty; // 格式：yyyy-MM
+        public string YearMonth { get; set; } = string.Empty; // 格式：yyyy-MM
     }
 
     // ===== 辅助方法 =====

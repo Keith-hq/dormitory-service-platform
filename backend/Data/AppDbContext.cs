@@ -337,6 +337,16 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.AssignedTo)
                   .HasConstraintName("FK_D_REPAIR_TICKET_ASSIGNED_ADMIN");
+
+            entity.HasOne(t => t.Log)
+                  .WithOne()
+                  .HasForeignKey<RepairLog>(l => l.TicketId)
+                  .HasConstraintName("FK_D_REPAIR_LOG_TICKET");
+
+            entity.HasMany(t => t.Attachments)
+                  .WithOne()
+                  .HasForeignKey(a => a.TicketId)
+                  .HasConstraintName("FK_D_REPAIR_ATTACHMENT_TICKET");
         });
 
         // ---- RepairLog 报修处理日志 ----
@@ -353,7 +363,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ResolveTime).HasColumnName("RESOLVE_TIME").IsRequired();
 
             entity.HasOne<RepairTicket>()
-                  .WithOne()
+                  .WithOne(t => t.Log)
                   .HasForeignKey<RepairLog>(e => e.TicketId)
                   .HasConstraintName("FK_D_REPAIR_LOG_TICKET");
 
@@ -489,7 +499,7 @@ public class AppDbContext : DbContext
         // ---- UserAccount 用户账号 ----
         modelBuilder.Entity<UserAccount>(entity =>
         {
-            entity.ToTable("D_USER_ACCOUNT", b => b.HasCheckConstraint("CK_D_USER_STATUS", "ACCOUNT_STATUS IN ('ACTIVE', 'INACTIVE', 'LOCKED')"));
+            entity.ToTable("D_USER_ACCOUNT", b => b.HasCheckConstraint("CK_D_USER_STATUS", "ACCOUNT_STATUS IN ('正常', '停用')"));
             entity.HasKey(e => e.AccountId);
             entity.Property(e => e.AccountId).HasColumnName("ACCOUNT_ID");
             entity.Property(e => e.LoginName).HasColumnName("LOGIN_NAME").HasMaxLength(50).IsRequired();

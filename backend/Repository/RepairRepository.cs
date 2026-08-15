@@ -138,7 +138,7 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         Log = item.Log is null ? null : new RepairLogDto
         {
             AdminId = item.Log.AdminId,
-            ProcessDesc = item.Log.ProcessDescription,
+            ProcessDescription = item.Log.ProcessDescription,
             ResolveTime = item.Log.ResolveTime
         },
         Attachments = item.Attachments.OrderBy(item => item.CreateTime).Select(ToDto).ToList()

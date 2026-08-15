@@ -52,11 +52,11 @@ public sealed class ViolationController : ControllerBase
 
     /// <summary>VIOL-03 删除违规记录（仅超管）。</summary>
     [Authorize(Roles = AuthPolicies.SuperAdmin)]
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteViolation(int id, [FromBody] DeleteViolationRequest request)
+    [HttpDelete("{violationsId}")]
+    public async Task<IActionResult> DeleteViolation(int violationsId, [FromBody] DeleteViolationRequest request)
     {
         // 1. 查找违规记录
-        var violation = await _context.ViolationRecords.FindAsync(id);
+        var violation = await _context.ViolationRecords.FindAsync(violationsId);
         if (violation == null)
             return NotFound(ApiResponse.Error(404, "违规记录不存在"));
 
@@ -65,7 +65,7 @@ public sealed class ViolationController : ControllerBase
             return BadRequest(ApiResponse.Error(400, "请注明删除原因"));
 
         // 3. 记录详细信息（用于审计）
-        var details = $"删除违规记录 ID {id}，学生：{violation.StudentId}，类型：{violation.VioType}，日期：{violation.VioDate:yyyy-MM-dd}，原因：{request.Reason}";
+        var details = $"删除违规记录 ID {violationsId}，学生：{violation.StudentId}，类型：{violation.VioType}，日期：{violation.VioDate:yyyy-MM-dd}，原因：{request.Reason}";
 
         // 4. 执行删除
         _context.ViolationRecords.Remove(violation);
@@ -73,14 +73,14 @@ public sealed class ViolationController : ControllerBase
 
         // 5. 写入审计日志
         await _auditService.LogEventAsync(
-            eventType: $"DELETE /api/violations/{id}",
+            eventType: $"DELETE /api/violations/{violationsId}",
             targetType: "Violation",
-            targetId: id.ToString(),
+            targetId: violationsId.ToString(),
             actorAccountId: GetCurrentUserId(),
             details: details
         );
 
-        return Ok(ApiResponse.Ok(new { message = $"违规记录 ID {id} 已删除" }));
+        return Ok(ApiResponse.Ok(new { message = $"违规记录 ID {violationsId} 已删除" }));
     }
 
     // ===== DTO 定义 =====

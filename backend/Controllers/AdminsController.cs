@@ -10,7 +10,7 @@ namespace TemplateDormApi.Controllers;
 
 [ApiController]
 [Authorize(Roles = AuthPolicies.SuperAdmin)]
-[Route("admins")]
+[Route("api/admins")]
 public class AdminsController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -108,17 +108,25 @@ public class AdminsController : ControllerBase
         }));
     }
 
+
     // DELETE /admins/{id}/disable - 停用宿管（SUPER-06）
     // 契约要求：楼长须先移交在办事项；停用后 5 分钟内会话失效
-    [HttpDelete("{id}/disable")]
+    // TODO: 当前为降级实现：仅停用账号，未实现 Token 吊销机制。
+    // 后续需实现：更新 D_ADMIN.TOKEN_VERSION，使旧 Token 失效，真正实现“5 分钟内会话失效”。
+    // 需在 D_ADMIN 表增加 TOKEN_VERSION NUMBER(10) DEFAULT 0。
+    [HttpPut("{id}/disable")]
     public async Task<IActionResult> DisableAdmin(string id, [FromBody] DisableAdminRequest request)
     {
-        // 1. 检查宿管是否存在
+        // 1. 检查原因是否存在
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(ApiResponse.Error(400, "请注明停用原因"));
+
+        // 2. 检查宿管是否存在
         var admin = await _context.Admins.FindAsync(id);
         if (admin == null)
             return NotFound(ApiResponse.Error(404, "宿管不存在"));
 
-        // 2. 如果是楼长，检查是否有在办事项（已分配未完成的工单）
+        // 3. 如果是楼长，检查是否有在办事项（已分配未完成的工单）
         if (admin.RoleLevel == "楼长")
         {
             var hasPending = await _context.RepairTickets
@@ -130,20 +138,20 @@ public class AdminsController : ControllerBase
             }
         }
 
-        // 3. 停用宿管（软删除或标记状态）
+        // 4. 停用宿管（软删除或标记状态）
         // 由于 D_Admin 表没有 STATUS 字段，这里我们删除关联的 UserAccount 来实现“停用”
         // 但更稳妥的是先检查是否有 UserAccount，有则设为停用状态
         var userAccount = await _context.UserAccounts
             .FirstOrDefaultAsync(u => u.AdminId == id);
         if (userAccount != null)
         {
-            userAccount.AccountStatus = "INACTIVE";
+            userAccount.AccountStatus = "停用";
             await _context.SaveChangesAsync();
         }
 
         // 也可以考虑直接删除 Admin 记录（但会导致关联数据问题），这里不删除
 
-        // 4. 写入审计日志
+        // 5. 写入审计日志
         await _auditService.LogEventAsync(
             eventType: $"DELETE /admins/{id}/disable",
             targetType: "Admin",

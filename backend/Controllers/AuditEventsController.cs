@@ -10,7 +10,7 @@ namespace TemplateDormApi.Controllers;
 
 [ApiController]
 [Authorize(Roles = AuthPolicies.SuperAdmin)]
-[Route("audit-events")]
+[Route("api/audit-events")]
 public class AuditEventsController : ControllerBase
 {
     private readonly AppDbContext _context;

@@ -50,7 +50,7 @@ public sealed class RepairTicketDto
 public sealed class RepairLogDto
 {
     public string? AdminId { get; set; }
-    public string? ProcessDesc { get; set; }
+    public string? ProcessDescription { get; set; }
     public DateTime ResolveTime { get; set; }
 }
 

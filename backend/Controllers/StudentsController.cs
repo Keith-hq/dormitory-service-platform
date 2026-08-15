@@ -12,21 +12,24 @@ namespace TemplateDormApi.Controllers;
 
 [ApiController]
 [Authorize(Roles = AuthPolicies.SuperAdmin)]
-[Route("students")]
+[Route("api/students")]
 public class StudentsController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IAuditService _auditService;
     private readonly ILogger<StudentsController> _logger;
+    private readonly IImportService _importService;
 
     public StudentsController(
         AppDbContext context,
         IAuditService auditService,
-        ILogger<StudentsController> logger)
+        ILogger<StudentsController> logger,
+        IImportService importService)
     {
         _context = context;
         _auditService = auditService;
         _logger = logger;
+        _importService = importService;
     }
 
     // GET /students - 获取所有学生档案（SUPER-03）
@@ -215,138 +218,37 @@ public class StudentsController : ControllerBase
     // POST /students/import - Excel 批量导入学生（IMPORT-01）
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> ImportStudents(IFormFile file)
+    public async Task<IActionResult> ImportStudents([FromForm] IFormFile file)
     {
-        // 1. 校验文件
-        if (file == null || file.Length == 0)
-            return BadRequest(ApiResponse.Error(400, "请上传 Excel 文件"));
+        var importResult = await _importService.ImportStudentsAsync(file, CancellationToken.None);
+        var importedCount = importResult.ImportedCount;
+        var errors = importResult.Errors;
+        var skippedRows = importResult.SkippedRows;
 
-        var ext = Path.GetExtension(file.FileName).ToLower();
-        if (ext != ".xlsx" && ext != ".xls")
-            return BadRequest(ApiResponse.Error(400, "仅支持 .xlsx 或 .xls 格式"));
-
-        // 2. 解析 Excel
-        var errors = new List<ImportError>();
-        var studentsToAdd = new List<Student>();
-        var accountsToAdd = new List<UserAccount>();
-
-        using var stream = new MemoryStream();
-        await file.CopyToAsync(stream);
-        using var package = new OfficeOpenXml.ExcelPackage(stream);
-        var worksheet = package.Workbook.Worksheets[0];
-        if (worksheet == null)
-            return BadRequest(ApiResponse.Error(400, "Excel 文件格式不正确，请确保包含工作表"));
-
-        // 假设表头：学号、姓名、性别、专业名称、手机号、邮箱
-        for (int row = 2; row <= worksheet.Dimension.End.Row; row++)
-        {
-            var studentId = worksheet.Cells[row, 1]?.Text?.Trim();
-            var name = worksheet.Cells[row, 2]?.Text?.Trim();
-            var gender = worksheet.Cells[row, 3]?.Text?.Trim();
-            var majorName = worksheet.Cells[row, 4]?.Text?.Trim();
-            var phone = worksheet.Cells[row, 5]?.Text?.Trim();
-            var email = worksheet.Cells[row, 6]?.Text?.Trim();
-
-            var errorRow = new List<string>();
-
-            // 必填字段校验
-            if (string.IsNullOrEmpty(studentId))
-                errorRow.Add("学号不能为空");
-            if (string.IsNullOrEmpty(name))
-                errorRow.Add("姓名不能为空");
-
-            if (errorRow.Any())
-            {
-                errors.Add(new ImportError { Row = row, Messages = errorRow });
-                continue;
-            }
-
-            // 学号重复校验（跨行）
-            if (studentsToAdd.Any(s => s.StudentId == studentId) ||
-                await _context.Students.CountAsync(s => s.StudentId == studentId) > 0)
-            {
-                errors.Add(new ImportError { Row = row, Messages = new List<string> { $"学号 {studentId} 已存在" } });
-                continue;
-            }
-
-            // 专业解析（通过名称查找，如果不存在则记录错误）
-            int? majorId = null;
-            if (!string.IsNullOrEmpty(majorName))
-            {
-                var major = await _context.Majors
-                    .FirstOrDefaultAsync(m => m.MajorName == majorName);
-                if (major == null)
-                {
-                    errors.Add(new ImportError { Row = row, Messages = new List<string> { $"专业 '{majorName}' 不存在" } });
-                    continue;
-                }
-                majorId = major.MajorId;
-            }
-
-            // 构建学生对象
-            var student = new Student
-            {
-                StudentId = studentId ?? string.Empty,
-                Name = name ?? string.Empty,
-                Gender = gender ?? string.Empty,
-                MajorId = majorId,
-                Phone = phone ?? string.Empty,
-                Email = email ?? string.Empty
-            };
-            studentsToAdd.Add(student);
-
-            // 自动创建账号（默认密码为学号）
-            var account = new UserAccount
-            {
-                LoginName = studentId ?? string.Empty,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(studentId ?? string.Empty), // 默认密码学号
-                AccountStatus = "正常",
-                StudentId = studentId ?? string.Empty
-            };
-            accountsToAdd.Add(account);
-        }
-
-        // 3. 错误处理：单次超过 10 条错误整批拒绝
+        // 处理错误
         if (errors.Count > 10)
         {
             return BadRequest(ApiResponse.Error(400, $"导入失败，共 {errors.Count} 条错误，超过 10 条限制", errors));
         }
-        if (errors.Any())
+        if (errors.Count > 0)
         {
             return BadRequest(ApiResponse.Error(400, $"存在 {errors.Count} 条错误，请修正后重新上传", errors));
         }
 
-        // 4. 批量插入
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        // 写入审计日志
+        await _auditService.LogEventAsync(
+            eventType: "POST /students/import",
+            targetType: "Student",
+            actorAccountId: GetCurrentUserId(),
+            details: $"批量导入学生 {importedCount} 条，跳过 {skippedRows.Count} 行（已存在）"
+        );
+
+        return Ok(ApiResponse.Ok(new
         {
-            // 插入学生
-            await _context.Students.AddRangeAsync(studentsToAdd);
-            // 插入账号
-            await _context.UserAccounts.AddRangeAsync(accountsToAdd);
-            await _context.SaveChangesAsync();
-
-            await transaction.CommitAsync();
-
-            // 审计日志
-            await _auditService.LogEventAsync(
-                eventType: "POST /students/import",
-                targetType: "Student",
-                actorAccountId: GetCurrentUserId(),
-                details: $"批量导入学生 {studentsToAdd.Count} 条，自动创建账号 {accountsToAdd.Count} 条"
-            );
-
-            return Ok(ApiResponse.Ok(new
-            {
-                importedCount = studentsToAdd.Count,
-                message = "导入成功"
-            }));
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+            importedCount,
+            skippedRows,
+            message = "导入成功"
+        }));
     }
 
     // 辅助类

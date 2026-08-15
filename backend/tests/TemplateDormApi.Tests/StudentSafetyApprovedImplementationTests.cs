@@ -62,7 +62,7 @@ public sealed class StudentSafetyApprovedImplementationTests
         Assert.True(created.TicketId > 0);
         Assert.Equal(201, created.RoomId);
         Assert.Equal("待处理", created.Status);
-        Assert.Equal("已检查压缩机", detail.Log?.ProcessDesc);
+        Assert.Equal("已检查压缩机", detail.Log?.ProcessDescription);
         Assert.Single(detail.Attachments);
         Assert.Equal("2026/08/test.png", detail.Attachments[0].StorageRef);
     }

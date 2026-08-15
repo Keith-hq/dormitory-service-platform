@@ -11,7 +11,7 @@ namespace TemplateDormApi.Controllers;
 
 [ApiController]
 [Authorize(Roles = AuthPolicies.SuperAdmin)]
-[Route("majors")]
+[Route("api/majors")]
 public class MajorsController : ControllerBase
 {
     private readonly AppDbContext _context;
