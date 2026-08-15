@@ -57,15 +57,15 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 12. `ddl/extensions/020_repair_late_hygiene_room_sequences.sql`
 13. `ddl/extensions/021_sla_dispatch.sql`
 14. `ddl/extensions/022_fee_detail_dedup_uk.sql`
-15. `ddl/extensions/023_dorm_checkout_sequences_room_unique.sql`（PR #49 待合入）
-16. `ddl/extensions/024_*`（PR #52 待合入，编号占用）
+15. `ddl/extensions/023_dorm_checkout_sequences_room_unique.sql`
+16. `ddl/extensions/024_vote_visitor_parcel_sequences.sql`
 17. `ddl/extensions/025_*`（PR #55 待合入，编号占用）
 18. `ddl/extensions/026_utility_fee_sequence.sql`（PR #58：D_Utility_Fee 序列）
 19. `verify/foundation_schema_checks.sql`
 20. `verify/extension_schema_checks.sql`
 
 `010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
-`011` 至 `026` 是按编号顺序执行的增量迁移（023/024/025 为在途 PR 占用）；
+`011` 至 `026` 是按编号顺序执行的增量迁移（025 为在途 PR 占用）；
 已有环境只执行尚未应用的迁移，不要重复执行已完成的 `ALTER TABLE` 脚本。
 
 ## 存储过程执行顺序

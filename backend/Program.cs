@@ -75,6 +75,9 @@ builder.Services.AddScoped<StudentReportRepository>();
 builder.Services.AddScoped<AccessRepository>();
 builder.Services.AddScoped<VisitorRegistryRepository>();
 builder.Services.AddScoped<ViolationRepository>();
+builder.Services.AddScoped<VoteRepository>();
+builder.Services.AddScoped<VisitorRepository>();
+builder.Services.AddScoped<ParcelRepository>();
 builder.Services.AddScoped<LeaveRepository>();
 builder.Services.AddScoped<BedAllocationRepository>();
 builder.Services.AddScoped<CheckoutRepository>();
@@ -101,6 +104,9 @@ builder.Services.AddScoped<IStudentReportService, StudentReportService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
+builder.Services.AddScoped<IVoteService, VoteService>();
+builder.Services.AddScoped<IVisitorService, VisitorService>();
+builder.Services.AddScoped<IParcelService, ParcelService>();
 builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
@@ -238,8 +244,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization(AuthPolicies.Register);
-builder.Services.AddScoped<VisitorService>();
-builder.Services.AddScoped<VoteService>();
 var app = builder.Build();
 
 // ===== 中间件管道 =====

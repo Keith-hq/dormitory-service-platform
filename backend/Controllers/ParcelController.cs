@@ -11,18 +11,18 @@ using TemplateDormApi.Services;
 namespace TemplateDormApi.Controllers;
 
 /// <summary>
-/// 访客授权接口（STU-32/33/34/41）。路由对齐 Apifox 契约。
+/// 快递接口（PKG-01/02）。路由对齐 Apifox 契约。
 /// </summary>
 [ApiController]
 [Route("api")]
-public class VisitorController : ControllerBase
+public class ParcelController : ControllerBase
 {
-    private readonly IVisitorService _service;
+    private readonly IParcelService _service;
     private readonly AppDbContext _context;
     private readonly IStudentIdentityService _identityService;
 
-    public VisitorController(
-        IVisitorService service,
+    public ParcelController(
+        IParcelService service,
         AppDbContext context,
         IStudentIdentityService identityService)
     {
@@ -53,21 +53,10 @@ public class VisitorController : ControllerBase
         await _identityService.EnsureOwnStudentIdAsync(accountId, studentId, HttpContext.RequestAborted);
     }
 
-    /// <summary>STU-32 申请访客授权（限时）。</summary>
-    [HttpPost("visitor-authorizations")]
+    /// <summary>PKG-01 查询我的快递（取件码）。</summary>
+    [HttpGet("students/{studentId}/packages")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<VisitorAuthorization>>> Apply(
-        [FromBody] VisitorApplyRequest request)
-    {
-        var studentId = await ResolveStudentId();
-        var auth = await _service.ApplyAsync(studentId, request);
-        return Ok(ApiResponse.Created(auth));
-    }
-
-    /// <summary>STU-33 查询我的访客授权记录。</summary>
-    [HttpGet("students/{studentId}/visitor-authorizations")]
-    [Authorize]
-    public async Task<ActionResult<ApiResponse<PagedResult<VisitorAuthorization>>>> MyList(
+    public async Task<ActionResult<ApiResponse<PagedResult<ParcelRecord>>>> MyParcels(
         string studentId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
@@ -76,27 +65,17 @@ public class VisitorController : ControllerBase
         if (page < 1 || pageSize < 1 || pageSize > 100)
             return BadRequest(ApiResponse.Error(400, "分页参数不合法：page >= 1，1 <= pageSize <= 100"));
 
-        var result = await _service.GetMyListAsync(studentId, page, pageSize);
+        var result = await _service.GetMyParcelsAsync(studentId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>STU-34 查看授权凭证（Token）。</summary>
-    [HttpGet("visitor-authorizations/{authId:int}")]
+    /// <summary>PKG-02 确认取件。</summary>
+    [HttpPost("packages/{packageId:int}/pickup")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<VisitorAuthorization>>> Credential(int authId)
+    public async Task<ActionResult<ApiResponse<ParcelRecord>>> Pickup(int packageId)
     {
         var studentId = await ResolveStudentId();
-        var auth = await _service.GetCredentialAsync(authId, studentId);
-        return Ok(ApiResponse.Ok(auth));
-    }
-
-    /// <summary>STU-41 撤销授权。</summary>
-    [HttpPost("visitor-authorizations/{authId:int}/revoke")]
-    [Authorize]
-    public async Task<ActionResult<ApiResponse<VisitorAuthorization>>> Revoke(int authId)
-    {
-        var studentId = await ResolveStudentId();
-        var auth = await _service.RevokeAsync(authId, studentId);
-        return Ok(ApiResponse.Ok(auth, "撤销成功"));
+        var parcel = await _service.PickupAsync(packageId, studentId);
+        return Ok(ApiResponse.Ok(parcel, "取件成功"));
     }
 }
