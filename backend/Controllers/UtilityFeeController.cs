@@ -47,12 +47,12 @@ public class UtilityFeeController : ControllerBase
         return Ok(ApiResponse.Ok(new { feeId = id }, "账单修改成功"));
     }
 
-    /// <summary>DORM-21：发布账单（幂等：已发布返回 400）</summary>
+    /// <summary>DORM-21：发布账单（幂等：已发布返回 400；发布成功自动触发该月分摊）</summary>
     [HttpPost("utility-fees/{id:long}/publish")]
     public async Task<ActionResult<ApiResponse<object>>> PublishBill(long id)
     {
         await _service.PublishBill(id);
-        return Ok(ApiResponse.Ok(new { feeId = id }, "账单发布成功"));
+        return Ok(ApiResponse.Ok(new { feeId = id }, "账单发布成功，已触发该月分摊"));
     }
 
     /// <summary>DORM-22：账单分摊（整月维度，重复触发幂等）</summary>
@@ -71,16 +71,30 @@ public class UtilityFeeController : ControllerBase
         return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>DORM-24：账单列表（按账期/发布状态过滤）</summary>
+    /// <summary>
+    /// DORM-24：账单列表（契约参数 buildingId/yearMonth/isPaid/page/pageSize，
+    /// PageResponse 分页响应 data.items/total/page/pageSize）。
+    /// publishStatus 为契约外扩展参数（待契约同步后保留或移除）。
+    /// </summary>
     [HttpGet("utility-fees")]
     public async Task<ActionResult<ApiResponse<object>>> GetBills(
+        [FromQuery] long? buildingId = null,
         [FromQuery] string? yearMonth = null,
-        [FromQuery] string? publishStatus = null)
+        [FromQuery] bool? isPaid = null,
+        [FromQuery] string? publishStatus = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
+        if (buildingId is <= 0)
+            return BadRequest(ApiResponse.Error(400, "buildingId 必须大于 0"));
         if (yearMonth is not null && !TryValidateYearMonth(yearMonth, out var message))
             return BadRequest(ApiResponse.Error(400, message));
+        if (page < 1)
+            return BadRequest(ApiResponse.Error(400, "page 必须 ≥ 1"));
+        if (pageSize is < 1 or > 100)
+            return BadRequest(ApiResponse.Error(400, "pageSize 必须在 1~100 之间"));
 
-        var bills = await _service.GetBills(yearMonth, publishStatus);
+        var bills = await _service.GetBills(buildingId, yearMonth, isPaid, publishStatus, page, pageSize);
         return Ok(ApiResponse.Ok(bills));
     }
 

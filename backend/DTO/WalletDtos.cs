@@ -30,10 +30,14 @@ public class WalletLogDto
     public DateTime CreateTime { get; set; }
 }
 
-/// <summary>STU-06 钱包视图：余额 + 指定月份流水</summary>
+/// <summary>STU-06 钱包视图：余额 + 指定月份流水 + 低余额提醒</summary>
 public class WalletViewDto
 {
     public string StudentId { get; set; } = string.Empty;
     public decimal Balance { get; set; }
+    /// <summary>低余额阈值（服务端常量，契约未给具体数值，待契约确认后收口）</summary>
+    public decimal LowBalanceThreshold { get; set; }
+    /// <summary>余额低于阈值时为 true（契约"含低余额提醒"字段）</summary>
+    public bool LowBalanceWarning { get; set; }
     public List<WalletLogDto> Logs { get; set; } = new();
 }

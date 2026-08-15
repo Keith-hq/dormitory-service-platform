@@ -9,8 +9,8 @@ namespace TemplateDormApi.Tests;
 
 /// <summary>
 /// 水电账单服务层测试（难点②）：InMemory 覆盖可脱离 Oracle 的快路径——
-/// 存在性/唯一性/发布状态校验、列表过滤、明细投影；
-/// 条件 UPDATE 的并发守门路径需真实 Oracle（已由 SP 层测试 + 集成链路覆盖）。
+/// 存在性/唯一性/必填兜底/分摊明细存在性校验、列表过滤与分页、明细投影；
+/// 条件 UPDATE 的并发守门路径（发布/分摊竞态）需真实 Oracle（由 SP 层测试 + 集成链路覆盖）。
 /// </summary>
 public class UtilityFeeServiceTests
 {
@@ -28,6 +28,33 @@ public class UtilityFeeServiceTests
         Assert.Equal(404, ex.Code);
         Assert.Equal(StatusCodes.Status404NotFound, ex.HttpStatus);
     }
+
+    [Theory]
+    [MemberData(nameof(MissingFeesCases))]
+    public async Task CreateBill_MissingFees_Throws400(decimal? waterFee, decimal? elecFee)
+    {
+        // PR #58 P2：必填兜底——DTO [Required] 之外，服务层拦截绕过绑定的直接调用
+        var context = TestDbContextFactory.Create();
+        var service = CreateService(context);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.CreateBill(new CreateUtilityFeeRequest
+            {
+                RoomId = 900101,
+                YearMonth = "2026-07",
+                WaterFee = waterFee,
+                ElecFee = elecFee
+            }));
+
+        Assert.Equal(400, ex.Code);
+        Assert.Contains("必填", ex.Message);
+    }
+
+    public static IEnumerable<object?[]> MissingFeesCases => new[]
+    {
+        new object?[] { null, 70m },
+        new object?[] { 30m, null }
+    };
 
     [Fact]
     public async Task CreateBill_DuplicateRoomMonth_Throws400()
@@ -80,13 +107,21 @@ public class UtilityFeeServiceTests
     }
 
     [Fact]
-    public async Task UpdateBill_Published_Throws400()
+    public async Task UpdateBill_Allocated_Throws400()
     {
+        // DORM-20 口径（PR #58 P2）：已分摊（存在明细）即禁止修改，
+        // 比契约"已发布且已缴"更严格——已分摊未缴也禁止，防账单与明细脱节
         var context = TestDbContextFactory.Create();
         context.UtilityFees.Add(new UtilityFee
         {
             FeeId = 1, RoomId = 900101, YearMonth = "2026-07",
             WaterFee = 30, PowerFee = 70, PublishStatus = "已发布"
+        });
+        context.FeeDetails.Add(new FeeDetail
+        {
+            DetailId = 11, FeeId = 1, StudentId = "S001", RoomId = 900101,
+            WaterShare = 10, PowerShare = 10, StayDays = 20, TotalDays = 30,
+            BillType = "月度", IsPaid = "否"
         });
         await context.SaveChangesAsync();
         var service = CreateService(context);
@@ -199,7 +234,7 @@ public class UtilityFeeServiceTests
         await Assert.ThrowsAsync<BusinessException>(() => service.GetBillDetails(999));
     }
 
-    // ==================== DORM-24 列表过滤 ====================
+    // ==================== DORM-24 列表过滤与分页 ====================
 
     [Fact]
     public async Task GetBills_InvalidPublishStatus_Throws400()
@@ -208,7 +243,7 @@ public class UtilityFeeServiceTests
         var service = CreateService(context);
 
         var ex = await Assert.ThrowsAsync<BusinessException>(() =>
-            service.GetBills(null, "草稿"));
+            service.GetBills(null, null, null, "草稿", 1, 10));
 
         Assert.Equal(400, ex.Code);
     }
@@ -224,16 +259,89 @@ public class UtilityFeeServiceTests
         await context.SaveChangesAsync();
         var service = CreateService(context);
 
-        var publishedJuly = await service.GetBills("2026-07", "已发布");
-        var single = Assert.Single(publishedJuly);
+        var publishedJuly = await service.GetBills(null, "2026-07", null, "已发布", 1, 10);
+        var single = Assert.Single(publishedJuly.Items);
         Assert.Equal(1, single.FeeId);
+        Assert.Equal(1, publishedJuly.Total);
+        Assert.Equal(1, publishedJuly.Page);
+        Assert.Equal(10, publishedJuly.PageSize);
 
-        var all = await service.GetBills(null, null);
-        Assert.Equal(3, all.Count);
+        var all = await service.GetBills(null, null, null, null, 1, 10);
+        Assert.Equal(3, all.Items.Count);
+        Assert.Equal(3, all.Total);
 
         // 排序：账期倒序（2026-07 在前）
-        Assert.Equal("2026-07", all[0].YearMonth);
-        Assert.Equal("2026-06", all[2].YearMonth);
+        Assert.Equal("2026-07", all.Items[0].YearMonth);
+        Assert.Equal("2026-06", all.Items[2].YearMonth);
+    }
+
+    [Fact]
+    public async Task GetBills_FiltersByBuildingId()
+    {
+        var context = TestDbContextFactory.Create();
+        context.Rooms.AddRange(
+            new Room { RoomId = 900101, BuildingId = 1, RoomNumber = "101", Capacity = 4, Status = "正常", PowerStatus = "正常" },
+            new Room { RoomId = 900102, BuildingId = 2, RoomNumber = "102", Capacity = 4, Status = "正常", PowerStatus = "正常" });
+        context.UtilityFees.AddRange(
+            new UtilityFee { FeeId = 1, RoomId = 900101, YearMonth = "2026-07", PublishStatus = "未发布" },
+            new UtilityFee { FeeId = 2, RoomId = 900102, YearMonth = "2026-07", PublishStatus = "未发布" });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var building1 = await service.GetBills(1, null, null, null, 1, 10);
+        var single = Assert.Single(building1.Items);
+        Assert.Equal(1, single.FeeId);
+
+        var building2 = await service.GetBills(2, null, null, null, 1, 10);
+        Assert.Equal(2, Assert.Single(building2.Items).FeeId);
+    }
+
+    [Fact]
+    public async Task GetBills_FiltersByIsPaid_DrivenByDetails()
+    {
+        var context = TestDbContextFactory.Create();
+        context.UtilityFees.AddRange(
+            new UtilityFee { FeeId = 1, RoomId = 900101, YearMonth = "2026-07", PublishStatus = "已发布" },
+            new UtilityFee { FeeId = 2, RoomId = 900102, YearMonth = "2026-07", PublishStatus = "已发布" },
+            new UtilityFee { FeeId = 3, RoomId = 900103, YearMonth = "2026-07", PublishStatus = "已发布" });
+        context.FeeDetails.AddRange(
+            new FeeDetail { DetailId = 11, FeeId = 1, StudentId = "S001", RoomId = 900101, IsPaid = "是" },
+            new FeeDetail { DetailId = 12, FeeId = 2, StudentId = "S002", RoomId = 900102, IsPaid = "否" },
+            new FeeDetail { DetailId = 13, FeeId = 3, StudentId = "S001", RoomId = 900103, IsPaid = "是" },
+            new FeeDetail { DetailId = 14, FeeId = 3, StudentId = "S002", RoomId = 900103, IsPaid = "否" });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        // isPaid=true：无未缴明细（Fee1 全部缴清；Fee3 有一笔未缴 → 排除）
+        var paid = await service.GetBills(null, null, true, null, 1, 10);
+        var paidFee = Assert.Single(paid.Items);
+        Assert.Equal(1, paidFee.FeeId);
+
+        // isPaid=false：存在未缴明细（Fee2/Fee3）
+        var unpaid = await service.GetBills(null, null, false, null, 1, 10);
+        Assert.Equal(new[] { 2L, 3L }, unpaid.Items.Select(i => i.FeeId).OrderBy(x => x));
+        Assert.Equal(2, unpaid.Total);
+    }
+
+    [Fact]
+    public async Task GetBills_Paginates()
+    {
+        var context = TestDbContextFactory.Create();
+        context.UtilityFees.AddRange(
+            new UtilityFee { FeeId = 1, RoomId = 900101, YearMonth = "2026-07", PublishStatus = "未发布" },
+            new UtilityFee { FeeId = 2, RoomId = 900102, YearMonth = "2026-07", PublishStatus = "未发布" },
+            new UtilityFee { FeeId = 3, RoomId = 900103, YearMonth = "2026-07", PublishStatus = "未发布" });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var page1 = await service.GetBills(null, null, null, null, 1, 2);
+        Assert.Equal(2, page1.Items.Count);
+        Assert.Equal(3, page1.Total);
+        Assert.Equal(2, page1.PageSize);
+
+        var page2 = await service.GetBills(null, null, null, null, 2, 2);
+        var last = Assert.Single(page2.Items);
+        Assert.Equal(2, page2.Page);
     }
 
     // ==================== 辅助 ====================

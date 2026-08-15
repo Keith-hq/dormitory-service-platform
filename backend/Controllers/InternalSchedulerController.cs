@@ -54,6 +54,9 @@ public class InternalSchedulerController : ControllerBase
     /// IT-C3-003：手动触发自动扣款（每月1/2/3日定时任务的同款入口）。
     /// SP_Auto_Deduct 幂等：同月重复触发，已扣明细由幂等键与 Is_Paid 状态跳过，
     /// 不重复扣款；余额不足不扣并记录尝试。
+    /// 参数偏差（PR #58 P2 登记）：契约写"无需参数"，实现为可选 attemptNo/yearMonth
+    /// （attemptNo 用于 IT-C3-002 三次尝试口径，默认 1；yearMonth 默认当月）。
+    /// 内部接口可接受，已登记待同步契约（C-025 同类）。
     /// </summary>
     [HttpPost("deduction")]
     public async Task<IActionResult> Deduction(

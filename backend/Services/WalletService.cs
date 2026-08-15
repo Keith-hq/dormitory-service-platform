@@ -45,10 +45,16 @@ public class WalletService : IWalletService
         var balance = await _billingService.GetBalance(studentId);
         var logs = await _billingService.GetWalletLogs(studentId, yearMonth);
 
+        // 低余额提醒（PR #58 P2 整改，契约"含低余额提醒"）：阈值契约未给
+        // 具体数值，先用 20 元常量，契约确认后收口
+        const decimal lowBalanceThreshold = 20m;
+
         return new WalletViewDto
         {
             StudentId = studentId,
             Balance = balance,
+            LowBalanceThreshold = lowBalanceThreshold,
+            LowBalanceWarning = balance < lowBalanceThreshold,
             Logs = logs.Select(l => new WalletLogDto
             {
                 LogId = l.LogId,

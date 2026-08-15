@@ -1,7 +1,9 @@
--- 扩展表迁移 023：D_Utility_Fee 主键序列与触发器。
--- 在已有环境上执行于 ddl/extensions/022_fee_detail_dedup_uk.sql 之后；
--- 全量重建时执行顺序为 foundation/001 -> extensions/010 -> ... -> extensions/020
---   -> extensions/021 -> extensions/022 -> extensions/023。
+-- 扩展表迁移 026：D_Utility_Fee 主键序列与触发器。
+-- 在已有环境上执行于 ddl/extensions/025（#55 待合入）之后；
+-- 全量重建时执行顺序为 foundation/001 -> extensions/010 -> ... -> extensions/025
+--   -> extensions/026。
+-- 编号说明：023 已分配给 #49（D_Checkout 序列+房间唯一索引）、024 分配给 #52、
+--   025 分配给 #55（工作台 C-040 裁定），本迁移原为 023，评审后重编号为 026。
 -- 本脚本不得修改或重建任何基线表。
 --
 -- 为什么补 D_Utility_Fee 的序列？

@@ -1,4 +1,4 @@
--- 难点② 钱包充值/人工缴费测试（SP_Recharge v1.0 / SP_Manual_Pay v1.0）
+-- 难点② 钱包充值/人工缴费测试（SP_Recharge v1.1 / SP_Manual_Pay v1.1）
 -- 覆盖缴费/钱包端点落地验收（IT-C3 链路的库层基础）：
 --   T1  充值成功：余额 1000→1100，生成 1 条充值流水                    （3 断言）
 --   T2  充值同 Key 重放：rc=0，余额与流水数不变（幂等重放先于业务校验） （3 断言）
@@ -9,26 +9,33 @@
 --   T7  明细不存在：rc=1                                              （1 断言）
 --   T8  明细非本人：rc=2                                              （1 断言）
 --   T9  余额不足：rc=3，不扣款、无流水、明细状态不变                  （4 断言）
---   T10 已缴换新 Key：rc=4                                            （1 断言）
+--   T10 已缴换新 Key：rc=4（认领 UPDATE ROWCOUNT=0 裁决）             （1 断言）
 --   T11 0 元明细：rc=4（CK Amount>0 不允许 0 金额流水）               （1 断言）
 --   T12 跨类型 Key 冲突：充值用缴费 Key → rc=2；缴费用充值 Key → rc=5 （2 断言）
---   T13 幂等兜底模拟：预插同 Key 流水后缴费 → rc=0 且余额不变         （3 断言）
+--   T13 幂等兜底模拟：预插同 Key 同主体流水后缴费 → rc=0 且余额不变   （3 断言）
 --   T14 流水 CK 直插验证：Amount=0 抛 ORA-02290                       （1 断言）
---   T15 竞态修复验证（sp_billing v1.2）：人工缴费后跑 SP_Auto_Deduct，
+--   T15 竞态修复验证（sp_billing v1.3）：人工缴费后跑 SP_Auto_Deduct，
 --       已缴明细不再扣款、无 AUTO 流水、余额不变；未缴且余额不足的明细
 --       只记'余额不足'尝试                                            （5 断言）
--- 合计 38 条断言。
+--   T16 "自动先提交、人工后提交"（PR #58 P1-2）：真实 SP_Auto_Deduct
+--       认领并扣款 d2 后，人工换新 Key 缴同一明细 → rc=4、不重复扣款、
+--       无人工流水                                                    （5 断言）
+--   T17 "人工 vs 人工"（PR #58 P1-2）：同明细不同 Key 顺序双缴，
+--       认领裁决只扣一次，第二次 rc=4                                 （6 断言）
+-- 合计 49 条断言。
 --
--- 前置条件：SP_Recharge / SP_Manual_Pay（sp_wallet.sql）、SP_Auto_Deduct
---   （sp_billing.sql v1.2）、SEQ_WALLET_LOG / SEQ_FEE_DETAIL / SEQ_FEE_DED_ATT
---   均已部署；迁移 023（D_Utility_Fee 序列）与本脚本无关（脚本显式赋 Fee_ID）。
+-- 前置条件：SP_Recharge / SP_Manual_Pay（sp_wallet.sql v1.1）、SP_Auto_Deduct
+--   （sp_billing.sql v1.3）、SEQ_WALLET_LOG / SEQ_FEE_DETAIL / SEQ_FEE_DED_ATT
+--   均已部署；迁移 026（D_Utility_Fee 序列）与本脚本无关（脚本显式赋 Fee_ID）。
 --
--- T15 说明：自动扣款按整月遍历。为避免影响库中同月的真实数据，T15 先做
---   前置守卫——2026-06 存在本测试以外的已发布未缴明细时跳过 T15 并打印 SKIP
---   （不算失败）。顺带说明：T15 顺序执行只能验证"人工缴费提交在前"的终态
---   一致性（游标过滤 Is_Paid='否'）；v1.2 新增的 UPDATE 内 Is_Paid 子查询
---   复查是交错并发窗口的兜底（AUTO 与人工 Key 不同不撞 UK），需要双会话
---   并发场景才能精确复现，两重防线保证的是同一个用户可见终态：不重复扣款。
+-- T15/T16 说明：自动扣款按整月遍历。为避免影响库中同月的真实数据，两用例先做
+--   前置守卫——2026-06 存在本测试以外的已发布未缴明细时跳过并打印 SKIP
+--   （不算失败）。两用例覆盖同一认领门的两个方向：T15 是"人工先提交"
+--   （游标过滤 Is_Paid='否' 即不进入），T16 是"自动先提交"（人工的认领
+--   UPDATE ROWCOUNT=0 → rc=4）；T17 覆盖"人工 vs 人工"。认领 UPDATE 是
+--   唯一权威，顺序执行与并发交错的裁决语义相同（READ COMMITTED 下后提交
+--   会话的认领 UPDATE 必阻塞至对方提交后重执行），单会话脚本即可确定性
+--   覆盖该门。
 --
 -- 失败不中止：断言 FAIL 只置 :g_fail=1，会话不会中途中断，结尾清理段必定
 --   执行（清理段自身也带异常兜底），无 S-PAY 残留。退出码 = :g_fail。
@@ -49,15 +56,15 @@ BEGIN
                                 OR Student_ID IN ('S-PAY-001', 'S-PAY-002'));
     DELETE FROM D_Wallet_Log WHERE Student_ID IN ('S-PAY-001', 'S-PAY-002');
     DELETE FROM D_Fee_Detail
-        WHERE Fee_ID IN (991001, 991002) OR Student_ID IN ('S-PAY-001', 'S-PAY-002');
-    DELETE FROM D_Utility_Fee WHERE Fee_ID IN (991001, 991002);
+        WHERE Fee_ID IN (991001, 991002, 991003) OR Student_ID IN ('S-PAY-001', 'S-PAY-002');
+    DELETE FROM D_Utility_Fee WHERE Fee_ID IN (991001, 991002, 991003);
     DELETE FROM D_Wallet_Account WHERE Student_ID IN ('S-PAY-001', 'S-PAY-002');
     DELETE FROM D_Student WHERE Student_ID IN ('S-PAY-001', 'S-PAY-002');
     DELETE FROM D_Room WHERE Room_ID = 9910;
     COMMIT;
 
-    -- 建测试数据：房间 9910，两笔费用（991001 有金额 2026-06 / 991002 零金额 2026-07），
-    -- S-PAY-001 钱包 1000；S-PAY-002 无钱包行（T4 测开户）
+    -- 建测试数据：房间 9910，三笔费用（991001 有金额 2026-06 / 991002 零金额 2026-07 /
+    -- 991003 T17 专用 40 元 2026-08），S-PAY-001 钱包 1000；S-PAY-002 无钱包行（T4 测开户）
     INSERT INTO D_Room (Room_ID, Room_Number, Capacity, Occupancy, Power_Status)
         VALUES (9910, 'TEST-PAY', 4, 1, '正常');
     INSERT INTO D_Student (Student_ID, Name) VALUES ('S-PAY-001', '测试缴费生1');
@@ -67,7 +74,10 @@ BEGIN
         VALUES (991001, 9910, '2026-06', 100, 50, '否', '已发布');
     INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
         VALUES (991002, 9910, '2026-07', 0, 0, '否', '已发布');
-    -- 明细：d1=(991001,S-PAY-001,应缴150) d2=(991001,S-PAY-002,应缴150) d3=(991002,S-PAY-001,0/0)
+    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
+        VALUES (991003, 9910, '2026-08', 40, 0, '否', '已发布');
+    -- 明细：d1=(991001,S-PAY-001,应缴150) d2=(991001,S-PAY-002,应缴150)
+    --       d3=(991002,S-PAY-001,0/0) d4=(991003,S-PAY-001,应缴40)
     INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID,
                               Water_Share, Power_Share, Stay_Days, Total_Days,
                               Bill_Type, Is_Paid, Create_Time)
@@ -80,6 +90,10 @@ BEGIN
                               Water_Share, Power_Share, Stay_Days, Total_Days,
                               Bill_Type, Is_Paid, Create_Time)
         VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991002, 'S-PAY-001', 9910, 0, 0, 30, 30, '月度', '否', SYSDATE);
+    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID,
+                              Water_Share, Power_Share, Stay_Days, Total_Days,
+                              Bill_Type, Is_Paid, Create_Time)
+        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991003, 'S-PAY-001', 9910, 40, 0, 30, 30, '月度', '否', SYSDATE);
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('SETUP OK');
 EXCEPTION
@@ -359,9 +373,11 @@ BEGIN
 END;
 /
 
--- ============ T13 幂等兜底模拟：预插同 Key 流水后缴费 ============
+-- ============ T13 幂等兜底模拟：预插同 Key 同主体流水后缴费 ============
 -- 模拟并发双提交的后提交会话视角：同 Key 流水已存在（对方先行提交），
 -- 本会话 SP 调用应直接 rc=0，且余额不变、流水数不变。
+-- 注意：预插流水必须挂同一 Detail_ID——v1.1 重放检查比对业务主体，
+-- 挂错主体会返回 rc=5（P2-5 语义）。
 DECLARE
     v_rc      NUMBER;
     v_balance NUMBER;
@@ -375,12 +391,12 @@ DECLARE
         END IF;
     END;
 BEGIN
+    SELECT Detail_ID INTO v_d1 FROM D_Fee_Detail WHERE Fee_ID = 991001 AND Student_ID = 'S-PAY-001';
     INSERT INTO D_Wallet_Log (Log_ID, Student_ID, Amount, Transaction_Type,
                               Before_Balance, After_Balance, Detail_ID,
                               Idempotency_Key, Create_Time)
-        VALUES (SEQ_WALLET_LOG.NEXTVAL, 'S-PAY-001', 1, '人工缴费', 950, 950, NULL, 'SPW-PAY-T13', SYSDATE);
+        VALUES (SEQ_WALLET_LOG.NEXTVAL, 'S-PAY-001', 1, '人工缴费', 950, 950, v_d1, 'SPW-PAY-T13', SYSDATE);
     COMMIT;
-    SELECT Detail_ID INTO v_d1 FROM D_Fee_Detail WHERE Fee_ID = 991001 AND Student_ID = 'S-PAY-001';
     SP_Manual_Pay(v_d1, 'S-PAY-001', 'SPW-PAY-T13', v_rc);
     Assert(v_rc = 0, 'T13 同 Key 流水已存在时缴费返回 rc=0 (got ' || v_rc || ')');
     SELECT Balance INTO v_balance FROM D_Wallet_Account WHERE Student_ID = 'S-PAY-001';
@@ -475,16 +491,119 @@ BEGIN
 END;
 /
 
+-- ============ T16 "自动先提交、人工后提交"（PR #58 P1-2） ============
+-- 真实 SP 端到端：SP_Auto_Deduct v1.3 认领并扣款 d2 提交后（AUTO 会话胜出），
+-- SP_Manual_Pay v1.1 用新 Key 缴同一明细 → 认领 UPDATE ROWCOUNT=0 → rc=4，
+-- 不重复扣款、无人工流水、明细保持已缴。
+-- 前置守卫同 T15：2026-06 存在本测试以外的已发布未缴明细时跳过（不算失败）。
+DECLARE
+    v_other    NUMBER;
+    v_rc       NUMBER;
+    v_balance  NUMBER;
+    v_d2       NUMBER;
+    v_cnt      NUMBER;
+    v_ispaid   VARCHAR2(10);
+    v_ok       NUMBER := 1;
+    PROCEDURE Assert(cond IN BOOLEAN, msg IN VARCHAR2) IS
+    BEGIN
+        IF cond THEN DBMS_OUTPUT.PUT_LINE('  PASS: ' || msg);
+        ELSE v_ok := 0; DBMS_OUTPUT.PUT_LINE('  FAIL: ' || msg);
+        END IF;
+    END;
+BEGIN
+    SELECT COUNT(*) INTO v_other
+      FROM D_Fee_Detail fd
+      JOIN D_Utility_Fee uf ON fd.Fee_ID = uf.Fee_ID
+     WHERE uf.Year_Month = '2026-06'
+       AND uf.Publish_Status = '已发布'
+       AND fd.Is_Paid = '否'
+       AND (fd.Water_Share + fd.Power_Share) > 0
+       AND fd.Fee_ID <> 991001;
+
+    IF v_other > 0 THEN
+        DBMS_OUTPUT.PUT_LINE('  SKIP: T16 前置守卫未通过（2026-06 存在 ' || v_other ||
+                             ' 条本测试以外的未缴明细）');
+    ELSE
+        -- 充值使 S-PAY-002 余额 50→300，自动扣款可成功扣 d2（150）
+        SP_Recharge('S-PAY-002', 250, 'SPW-RC-T16', v_rc);
+        Assert(v_rc = 0, 'T16 充值返回 rc=0 (got ' || v_rc || ')');
+
+        -- AUTO 会话：认领 + 扣款 + 流水 + 提交（真实 SP_Auto_Deduct）
+        SP_Auto_Deduct(1, '2026-06');
+
+        -- 人工会话（新 Key，模拟后提交会话）：认领应失败
+        SELECT Detail_ID INTO v_d2 FROM D_Fee_Detail WHERE Fee_ID = 991001 AND Student_ID = 'S-PAY-002';
+        SP_Manual_Pay(v_d2, 'S-PAY-002', 'SPW-PAY-T16', v_rc);
+        Assert(v_rc = 4, 'T16 自动扣款已缴后人工缴费返回 rc=4 (got ' || v_rc || ')');
+
+        SELECT Balance INTO v_balance FROM D_Wallet_Account WHERE Student_ID = 'S-PAY-002';
+        Assert(v_balance = 150, 'T16 人工未再扣款，余额仍为 150 (got ' || v_balance || ')');
+
+        SELECT COUNT(*) INTO v_cnt FROM D_Wallet_Log WHERE Idempotency_Key = 'SPW-PAY-T16';
+        Assert(v_cnt = 0, 'T16 不产生人工缴费流水 (got ' || v_cnt || ')');
+
+        SELECT Is_Paid INTO v_ispaid FROM D_Fee_Detail WHERE Detail_ID = v_d2;
+        Assert(v_ispaid = '是', 'T16 明细保持已缴 (got ' || v_ispaid || ')');
+    END IF;
+
+    IF v_ok = 0 THEN :g_fail := 1; END IF;
+END;
+/
+
+-- ============ T17 "人工 vs 人工"（PR #58 P1-2） ============
+-- 同明细 d4 不同 Key 顺序双缴：第一次认领+扣款成功，第二次认领 UPDATE
+-- ROWCOUNT=0 → rc=4。认领是唯一权威，顺序执行与并发交错裁决语义相同
+-- （并发时后提交会话的认领 UPDATE 阻塞至对方提交后重执行，同路径）。
+DECLARE
+    v_rc      NUMBER;
+    v_balance NUMBER;
+    v_d4      NUMBER;
+    v_cnt     NUMBER;
+    v_ispaid  VARCHAR2(10);
+    v_ok      NUMBER := 1;
+    PROCEDURE Assert(cond IN BOOLEAN, msg IN VARCHAR2) IS
+    BEGIN
+        IF cond THEN DBMS_OUTPUT.PUT_LINE('  PASS: ' || msg);
+        ELSE v_ok := 0; DBMS_OUTPUT.PUT_LINE('  FAIL: ' || msg);
+        END IF;
+    END;
+BEGIN
+    SELECT Detail_ID INTO v_d4 FROM D_Fee_Detail WHERE Fee_ID = 991003 AND Student_ID = 'S-PAY-001';
+
+    -- 第一次缴费（A 会话）：认领 + 扣款 40 + 流水
+    SP_Manual_Pay(v_d4, 'S-PAY-001', 'SPW-PAY-T17A', v_rc);
+    Assert(v_rc = 0, 'T17 第一次缴费返回 rc=0 (got ' || v_rc || ')');
+
+    SELECT Balance INTO v_balance FROM D_Wallet_Account WHERE Student_ID = 'S-PAY-001';
+    Assert(v_balance = 910, 'T17 第一次扣款后余额 950→910 (got ' || v_balance || ')');
+
+    -- 第二次缴费（B 会话，新 Key）：认领失败 → rc=4
+    SP_Manual_Pay(v_d4, 'S-PAY-001', 'SPW-PAY-T17B', v_rc);
+    Assert(v_rc = 4, 'T17 第二次缴费（新 Key）返回 rc=4 (got ' || v_rc || ')');
+
+    SELECT Balance INTO v_balance FROM D_Wallet_Account WHERE Student_ID = 'S-PAY-001';
+    Assert(v_balance = 910, 'T17 未重复扣款，余额仍为 910 (got ' || v_balance || ')');
+
+    SELECT COUNT(*) INTO v_cnt FROM D_Wallet_Log WHERE Idempotency_Key = 'SPW-PAY-T17B';
+    Assert(v_cnt = 0, 'T17 第二次缴费不产生流水 (got ' || v_cnt || ')');
+
+    SELECT Is_Paid INTO v_ispaid FROM D_Fee_Detail WHERE Detail_ID = v_d4;
+    Assert(v_ispaid = '是', 'T17 明细已缴状态正确 (got ' || v_ispaid || ')');
+
+    IF v_ok = 0 THEN :g_fail := 1; END IF;
+END;
+/
+
 -- ============ 清理（带异常兜底，必定执行；成功即提交） ============
 BEGIN
     DELETE FROM D_Fee_Deduction_Attempt
         WHERE Detail_ID IN (SELECT Detail_ID FROM D_Fee_Detail
-                             WHERE Fee_ID IN (991001, 991002)
+                             WHERE Fee_ID IN (991001, 991002, 991003)
                                 OR Student_ID IN ('S-PAY-001', 'S-PAY-002'));
     DELETE FROM D_Wallet_Log WHERE Student_ID IN ('S-PAY-001', 'S-PAY-002');
     DELETE FROM D_Fee_Detail
-        WHERE Fee_ID IN (991001, 991002) OR Student_ID IN ('S-PAY-001', 'S-PAY-002');
-    DELETE FROM D_Utility_Fee WHERE Fee_ID IN (991001, 991002);
+        WHERE Fee_ID IN (991001, 991002, 991003) OR Student_ID IN ('S-PAY-001', 'S-PAY-002');
+    DELETE FROM D_Utility_Fee WHERE Fee_ID IN (991001, 991002, 991003);
     DELETE FROM D_Wallet_Account WHERE Student_ID IN ('S-PAY-001', 'S-PAY-002');
     DELETE FROM D_Student WHERE Student_ID IN ('S-PAY-001', 'S-PAY-002');
     DELETE FROM D_Room WHERE Room_ID = 9910;

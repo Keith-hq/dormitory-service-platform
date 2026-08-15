@@ -57,13 +57,16 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 12. `ddl/extensions/020_repair_late_hygiene_room_sequences.sql`
 13. `ddl/extensions/021_sla_dispatch.sql`
 14. `ddl/extensions/022_fee_detail_dedup_uk.sql`
-15. `ddl/extensions/023_utility_fee_sequence.sql`
-16. `verify/foundation_schema_checks.sql`
-17. `verify/extension_schema_checks.sql`
+15. `ddl/extensions/023_dorm_checkout_sequences_room_unique.sql`（PR #49 待合入）
+16. `ddl/extensions/024_*`（PR #52 待合入，编号占用）
+17. `ddl/extensions/025_*`（PR #55 待合入，编号占用）
+18. `ddl/extensions/026_utility_fee_sequence.sql`（PR #58：D_Utility_Fee 序列）
+19. `verify/foundation_schema_checks.sql`
+20. `verify/extension_schema_checks.sql`
 
 `010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
-`011` 至 `023` 是按编号顺序执行的增量迁移；已有环境只执行尚未应用的迁移，
-不要重复执行已完成的 `ALTER TABLE` 脚本。
+`011` 至 `026` 是按编号顺序执行的增量迁移（023/024/025 为在途 PR 占用）；
+已有环境只执行尚未应用的迁移，不要重复执行已完成的 `ALTER TABLE` 脚本。
 
 ## 存储过程执行顺序
 
@@ -76,6 +79,6 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 测试脚本（`sp/`）：
 
 - `test_sp_checkout_fee.sql`：难点⑥ 退宿结算回归（16 断言，月份无关化，自清理）
-- `test_sp_wallet.sql`：难点② 充值/缴费（38 断言，含 SP_Auto_Deduct 竞态修复验证，自清理）
+- `test_sp_wallet.sql`：难点② 充值/缴费（49 断言，含 SP_Auto_Deduct 双方向竞态验证 T15/T16/T17，自清理）
 
 测试均为 `EXIT :g_fail` 模式（0=全过，1=有失败），供 CI 判定。

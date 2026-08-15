@@ -14,15 +14,21 @@ public class CreateUtilityFeeRequest
     /// <summary>账期 yyyy-MM（控制器校验格式与范围）</summary>
     public string YearMonth { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 水费。nullable + [Required]：区分"漏传"与"合法 0 元"（PR #58 P2 整改）；
+    /// 缺失时模型绑定 400，服务层再兜底一次（绕过绑定的直接调用）。
+    /// </summary>
+    [Required(ErrorMessage = "水费为必填字段")]
     [Range(typeof(decimal), "0", "999999.99", ErrorMessage = "水费必须在 0~999999.99 之间")]
-    public decimal WaterFee { get; set; }
+    public decimal? WaterFee { get; set; }
 
-    /// <summary>电费（契约字段 elecFee ↔ 表列 Power_Fee）</summary>
+    /// <summary>电费（契约字段 elecFee ↔ 表列 Power_Fee，必填同水费）</summary>
+    [Required(ErrorMessage = "电费为必填字段")]
     [Range(typeof(decimal), "0", "999999.99", ErrorMessage = "电费必须在 0~999999.99 之间")]
-    public decimal ElecFee { get; set; }
+    public decimal? ElecFee { get; set; }
 }
 
-/// <summary>DORM-20 修改账单请求体（仅未发布账单可改）</summary>
+/// <summary>DORM-20 修改账单请求体（未分摊未缴可改——已发布未分摊也允许，见服务注释）</summary>
 public class UpdateUtilityFeeRequest
 {
     [Range(typeof(decimal), "0", "999999.99", ErrorMessage = "水费必须在 0~999999.99 之间")]

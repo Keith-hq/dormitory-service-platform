@@ -181,18 +181,65 @@ public class UtilityFeeControllerTests
         Assert.False(fake.GetBillsCalled);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task GetBills_InvalidBuildingId_Returns400(long buildingId)
+    {
+        var fake = new FakeUtilityFeeService();
+        var controller = CreateController(fake);
+
+        var result = await controller.GetBills(buildingId: buildingId);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.False(fake.GetBillsCalled);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task GetBills_InvalidPage_Returns400(int page)
+    {
+        var fake = new FakeUtilityFeeService();
+        var controller = CreateController(fake);
+
+        var result = await controller.GetBills(page: page);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.False(fake.GetBillsCalled);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public async Task GetBills_InvalidPageSize_Returns400(int pageSize)
+    {
+        var fake = new FakeUtilityFeeService();
+        var controller = CreateController(fake);
+
+        var result = await controller.GetBills(pageSize: pageSize);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.False(fake.GetBillsCalled);
+    }
+
     [Fact]
     public async Task GetBills_ForwardsFilters()
     {
         var fake = new FakeUtilityFeeService();
         var controller = CreateController(fake);
 
-        var result = await controller.GetBills(yearMonth: "2026-07", publishStatus: "已发布");
+        var result = await controller.GetBills(
+            buildingId: 1, yearMonth: "2026-07", isPaid: false, publishStatus: "已发布", page: 2, pageSize: 20);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal(200, GetApiCode(ok.Value));
+        Assert.Equal(1, fake.LastGetBillsBuildingId);
         Assert.Equal("2026-07", fake.LastGetBillsYearMonth);
+        Assert.False(fake.LastGetBillsIsPaid);
         Assert.Equal("已发布", fake.LastGetBillsPublishStatus);
+        Assert.Equal(2, fake.LastGetBillsPage);
+        Assert.Equal(20, fake.LastGetBillsPageSize);
     }
 
     // ==================== DORM-25 供电状态 ====================
@@ -252,8 +299,12 @@ public class UtilityFeeControllerTests
         public long? LastUpdateFeeId { get; private set; }
         public UpdateUtilityFeeRequest? LastUpdateRequest { get; private set; }
         public long? LastPublishFeeId { get; private set; }
+        public long? LastGetBillsBuildingId { get; private set; }
         public string? LastGetBillsYearMonth { get; private set; }
+        public bool? LastGetBillsIsPaid { get; private set; }
         public string? LastGetBillsPublishStatus { get; private set; }
+        public int LastGetBillsPage { get; private set; }
+        public int LastGetBillsPageSize { get; private set; }
 
         public Task<long> CreateBill(CreateUtilityFeeRequest request)
         {
@@ -281,12 +332,17 @@ public class UtilityFeeControllerTests
         public Task<UtilityFeeDetailsDto> GetBillDetails(long feeId)
             => Task.FromResult(Details ?? new UtilityFeeDetailsDto { FeeId = feeId });
 
-        public Task<List<UtilityFeeListItemDto>> GetBills(string? yearMonth, string? publishStatus)
+        public Task<PagedResult<UtilityFeeListItemDto>> GetBills(
+            long? buildingId, string? yearMonth, bool? isPaid, string? publishStatus, int page, int pageSize)
         {
             GetBillsCalled = true;
+            LastGetBillsBuildingId = buildingId;
             LastGetBillsYearMonth = yearMonth;
+            LastGetBillsIsPaid = isPaid;
             LastGetBillsPublishStatus = publishStatus;
-            return Task.FromResult(new List<UtilityFeeListItemDto>());
+            LastGetBillsPage = page;
+            LastGetBillsPageSize = pageSize;
+            return Task.FromResult(new PagedResult<UtilityFeeListItemDto>());
         }
     }
 
