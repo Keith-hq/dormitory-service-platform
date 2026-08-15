@@ -1,7 +1,13 @@
--- 账单划扣与断电判定存储过程（难点②）v1.1
+-- 账单划扣与断电判定存储过程（难点②）v1.2
 -- 依赖：D_Fee_Detail, D_Wallet_Account, D_Wallet_Log, D_Fee_Deduction_Attempt, D_Room
 -- 基线：database/ddl/extensions/010_extension_tables.sql
--- 执行顺序：本脚本必须在 sp_fee_sharing.sql（创建 SEQ_FEE_DETAIL）之后执行
+-- 执行顺序：本脚本必须在 sp_fee_sharing.sql（创建 SEQ_FEE_DETAIL）之后执行；
+--   sp_wallet.sql 在本脚本之后执行（复用 SEQ_WALLET_LOG）
+-- v1.2（缴费/钱包落地，2026-08-15）：修复 SP_Auto_Deduct 与人工缴费的竞态——
+--   游标读到 Is_Paid='否' 后若人工缴费先完成（扣款+标记'是'+提交），原子 UPDATE
+--   仍会命中同一明细 → 双重扣款（AUTO Key 与人工 Key 不同，不撞 UK）。
+--   修复：原子 UPDATE 的 WHERE 追加 Is_Paid='否' 子查询复查，与人工缴费在
+--   D_Fee_Detail 行锁上线性化——人工缴费先提交者胜，自动扣款跳过该明细。
 
 -- ============================================================
 -- 创建专用序列——替代 SEQ_FEE_DETAIL，语义独立
@@ -34,6 +40,8 @@ END;
 --       p_YearMonth  账单月份（如 '2026-08'）
 -- v1.1：原子扣款（UPDATE WHERE Balance>=due）、过滤0元账单、
 --       过滤 Publish_Status='已发布'、重跑时更新旧 Attempt 状态
+-- v1.2：原子 UPDATE 追加 Is_Paid='否' 子查询复查，修复与人工缴费的
+--       双重扣款竞态（详见文件头 v1.2 修订说明）
 -- ============================================================
 CREATE OR REPLACE PROCEDURE SP_Auto_Deduct(
     p_AttemptNo IN NUMBER,
@@ -59,11 +67,14 @@ BEGIN
         v_TotalDue := fee_rec.Total_Share;
 
         -- 原子扣款：WHERE Balance >= due 保证不会扣成负数；
-        -- SQL%ROWCOUNT 判断是否真的扣到了（并发场景另一会话已扣则 ROWCOUNT=0）
+        -- SQL%ROWCOUNT 判断是否真的扣到了（并发场景另一会话已扣则 ROWCOUNT=0）；
+        -- v1.2：Is_Paid='否' 子查询复查——游标读取后若人工缴费抢先完成
+        -- （扣款+标记'是'+提交），本 UPDATE 不再命中，避免同一明细双重扣款
         UPDATE D_Wallet_Account
         SET Balance = Balance - v_TotalDue
         WHERE Student_ID = fee_rec.Student_ID
-          AND Balance >= v_TotalDue;
+          AND Balance >= v_TotalDue
+          AND (SELECT Is_Paid FROM D_Fee_Detail WHERE Detail_ID = fee_rec.Detail_ID) = '否';
 
         v_RowsUpdated := SQL%ROWCOUNT;
 

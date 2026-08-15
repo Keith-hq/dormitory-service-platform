@@ -56,9 +56,26 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 11. `ddl/extensions/019_shared_item_idempotency.sql`
 12. `ddl/extensions/020_repair_late_hygiene_room_sequences.sql`
 13. `ddl/extensions/021_sla_dispatch.sql`
-14. `verify/foundation_schema_checks.sql`
-15. `verify/extension_schema_checks.sql`
+14. `ddl/extensions/022_fee_detail_dedup_uk.sql`
+15. `ddl/extensions/023_utility_fee_sequence.sql`
+16. `verify/foundation_schema_checks.sql`
+17. `verify/extension_schema_checks.sql`
 
 `010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
-`011` 至 `021` 是按编号顺序执行的增量迁移；已有环境只执行尚未应用的迁移，
+`011` 至 `023` 是按编号顺序执行的增量迁移；已有环境只执行尚未应用的迁移，
 不要重复执行已完成的 `ALTER TABLE` 脚本。
+
+## 存储过程执行顺序
+
+在 `sp/` 目录下按依赖顺序执行（`@` 或整段粘贴均可）：
+
+1. `sp_fee_sharing.sql`（创建 SEQ_FEE_DETAIL + SP_Calc_Monthly_Fee / SP_Calc_Checkout_Fee）
+2. `sp_billing.sql`（创建 SEQ_WALLET_LOG、SEQ_FEE_DED_ATT + SP_Auto_Deduct / SP_Check_Power_Cut / SP_Restore_Power）
+3. `sp_wallet.sql`（SP_Manual_Pay / SP_Recharge，复用 sp_billing.sql 的 SEQ_WALLET_LOG，不内联 DDL）
+
+测试脚本（`sp/`）：
+
+- `test_sp_checkout_fee.sql`：难点⑥ 退宿结算回归（16 断言，月份无关化，自清理）
+- `test_sp_wallet.sql`：难点② 充值/缴费（38 断言，含 SP_Auto_Deduct 竞态修复验证，自清理）
+
+测试均为 `EXIT :g_fail` 模式（0=全过，1=有失败），供 CI 判定。
