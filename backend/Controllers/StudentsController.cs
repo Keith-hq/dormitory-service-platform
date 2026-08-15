@@ -7,6 +7,7 @@ using TemplateDormApi.Models;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 using OfficeOpenXml;
+using System.Security.Cryptography;
 
 namespace TemplateDormApi.Controllers;
 
@@ -36,7 +37,7 @@ public class StudentsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetStudents()
     {
-        var students = await _context.Students
+        var rows = await _context.Students
             .Include(s => s.Major)
                 .ThenInclude(m => m!.College)
             .OrderBy(s => s.StudentId)
@@ -49,9 +50,28 @@ public class StudentsController : ControllerBase
                 s.Email,
                 MajorId = s.MajorId,
                 MajorName = s.Major != null ? s.Major.MajorName : null,
-                CollegeName = s.Major != null && s.Major.College != null ? s.Major.College.CollegeName : null
+                CollegeName = s.Major != null && s.Major.College != null ? s.Major.College.CollegeName : null,
+                LoginName = _context.UserAccounts.Where(account => account.StudentId == s.StudentId)
+                    .Select(account => account.LoginName).FirstOrDefault(),
+                AccountStatus = _context.UserAccounts.Where(account => account.StudentId == s.StudentId)
+                    .Select(account => account.AccountStatus).FirstOrDefault()
             })
             .ToListAsync();
+
+        // 避免 Oracle 在 VARCHAR2 列与 NVARCHAR2 中文常量之间执行 COALESCE。
+        var students = rows.Select(student => new
+        {
+            student.StudentId,
+            student.Name,
+            student.Gender,
+            student.Phone,
+            student.Email,
+            student.MajorId,
+            student.MajorName,
+            student.CollegeName,
+            student.LoginName,
+            AccountStatus = student.AccountStatus ?? "未开户"
+        }).ToList();
 
         await _auditService.LogEventAsync(
             eventType: "GET /students",
@@ -172,6 +192,62 @@ public class StudentsController : ControllerBase
         }));
     }
 
+    /// <summary>停用学生登录账号，保留学生业务档案。</summary>
+    [HttpPut("{studentId}/disable")]
+    public async Task<IActionResult> DisableStudent(string studentId, [FromBody] DisableStudentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(ApiResponse.Error(400, "请注明停用原因"));
+
+        var student = await _context.Students.FindAsync(studentId);
+        if (student == null)
+            return NotFound(ApiResponse.Error(404, "学生不存在"));
+
+        var account = await _context.UserAccounts.FirstOrDefaultAsync(item => item.StudentId == studentId);
+        if (account == null)
+            return BadRequest(ApiResponse.Error(400, "该学生尚未开通登录账号"));
+
+        account.AccountStatus = "停用";
+        await _context.SaveChangesAsync();
+
+        await _auditService.LogEventAsync(
+            eventType: $"PUT /students/{studentId}/disable",
+            targetType: "Student",
+            targetId: studentId,
+            actorAccountId: GetCurrentUserId(),
+            details: $"停用学生账号 {studentId}，原因：{request.Reason.Trim()}"
+        );
+
+        return Ok(ApiResponse.Ok(new { studentId, accountStatus = account.AccountStatus }, "学生账号已停用"));
+    }
+
+    /// <summary>重置学生密码；新密码仅在本次响应中返回。</summary>
+    [HttpPost("{studentId}/password")]
+    public async Task<IActionResult> ResetStudentPassword(string studentId)
+    {
+        var student = await _context.Students.FindAsync(studentId);
+        if (student == null)
+            return NotFound(ApiResponse.Error(404, "学生不存在"));
+
+        var account = await _context.UserAccounts.FirstOrDefaultAsync(item => item.StudentId == studentId);
+        if (account == null)
+            return BadRequest(ApiResponse.Error(400, "该学生尚未开通登录账号"));
+
+        var newPassword = GenerateRandomPassword(12);
+        account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        await _context.SaveChangesAsync();
+
+        await _auditService.LogEventAsync(
+            eventType: $"POST /students/{studentId}/password",
+            targetType: "Student",
+            targetId: studentId,
+            actorAccountId: GetCurrentUserId(),
+            details: $"重置学生 {studentId} 的登录密码"
+        );
+
+        return Ok(ApiResponse.Ok(new { newPassword }, "密码重置成功"));
+    }
+
     // DELETE /students/{studentId} - 删除学生档案
     [HttpDelete("{studentId}")]
     public async Task<IActionResult> DeleteStudent(string studentId)
@@ -278,6 +354,11 @@ public class StudentsController : ControllerBase
         public string? Email { get; set; }
     }
 
+    public class DisableStudentRequest
+    {
+        public string Reason { get; set; } = string.Empty;
+    }
+
     public class ImportStudentsRequest
     {
         public List<CreateStudentRequest> Students { get; set; } = new();
@@ -288,5 +369,12 @@ public class StudentsController : ControllerBase
     {
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
+    }
+
+    private static string GenerateRandomPassword(int length)
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+        return new string(Enumerable.Repeat(chars, length)
+            .Select(value => value[RandomNumberGenerator.GetInt32(value.Length)]).ToArray());
     }
 }

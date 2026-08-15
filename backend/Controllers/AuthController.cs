@@ -9,6 +9,7 @@ using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 using SkiaSharp;
 using System.Linq;
+using System.Security.Cryptography;
 
 namespace TemplateDormApi.Controllers;
 
@@ -59,7 +60,7 @@ public class AuthController : ControllerBase
         public string AdminId { get; set; } = string.Empty; // required
         public string Name { get; set; } = string.Empty;    // required
         public string Role { get; set; } = string.Empty;    // required
-        public int BuildingId { get; set; }                 // required
+        public int? BuildingId { get; set; }                // optional for cross-building roles
         public string? Post { get; set; }                   // optional
         public string? Password { get; set; }               // optional
     }
@@ -198,7 +199,8 @@ public class AuthController : ControllerBase
             {
                 "超级管理员" => "super_admin",
                 "楼长" => "admin",
-                "维修员" => "repairman",   // 与 develop 策略一致
+                "维修员" => "repairman",
+                "辅导员" => "counselor",
                 _ => null
             };
 
@@ -263,9 +265,14 @@ public class AuthController : ControllerBase
     /// <summary>
     /// AUTH-04：学生账号注册
     /// </summary>
+    [Authorize(Roles = AuthPolicies.SuperAdmin)]
     [HttpPost("accounts/students")]
     public async Task<IActionResult> CreateStudentAccount([FromBody] CreateStudentAccountRequest request)
     {
+        request.StudentId = request.StudentId.Trim();
+        if (string.IsNullOrWhiteSpace(request.StudentId))
+            return BadRequest(ApiResponse.Error(400, "学号不能为空"));
+
         // 检查学生是否存在
         var student = await _context.Students.FindAsync(request.StudentId);
         if (student == null)
@@ -282,9 +289,16 @@ public class AuthController : ControllerBase
         : request.Password;
 
         // 创建账号
+        var loginName = string.IsNullOrWhiteSpace(request.LoginName)
+            ? request.StudentId
+            : request.LoginName.Trim();
+        var loginExists = await _context.UserAccounts.CountAsync(u => u.LoginName == loginName) > 0;
+        if (loginExists)
+            return BadRequest(ApiResponse.Error(400, "登录名已存在"));
+
         var account = new UserAccount
         {
-            LoginName = request.LoginName ?? request.StudentId,
+            LoginName = loginName,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
             StudentId = request.StudentId
@@ -308,6 +322,23 @@ public class AuthController : ControllerBase
     [HttpPost("accounts/admins")]
     public async Task<IActionResult> CreateAdminAccount([FromBody] CreateAdminAccountRequest request)
     {
+        request.AdminId = request.AdminId.Trim();
+        request.Name = request.Name.Trim();
+        request.Role = request.Role.Trim();
+        if (string.IsNullOrWhiteSpace(request.AdminId) || string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(ApiResponse.Error(400, "管理员编号和姓名不能为空"));
+
+        var validRoles = new[] { "超级管理员", "楼长", "维修员", "辅导员" };
+        if (!validRoles.Contains(request.Role))
+            return BadRequest(ApiResponse.Error(400, "角色必须为：超级管理员、楼长、维修员、辅导员"));
+
+        if (request.BuildingId.HasValue &&
+            await _context.Buildings.CountAsync(building => building.BuildingId == request.BuildingId.Value) == 0)
+            return BadRequest(ApiResponse.Error(400, "指定的楼栋不存在"));
+
+        if (await _context.UserAccounts.CountAsync(account => account.LoginName == request.AdminId) > 0)
+            return BadRequest(ApiResponse.Error(400, "登录名已存在"));
+
         // 1. 查找或创建 Admin
         var admin = await _context.Admins.FindAsync(request.AdminId);
         if (admin == null)
@@ -411,12 +442,11 @@ public class AuthController : ControllerBase
     }
 
     // 工具函数
-    private string GenerateRandomPassword(int length)
+    private static string GenerateRandomPassword(int length)
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        var random = new Random();
         return new string(Enumerable.Repeat(chars, length)
-            .Select(s => s[random.Next(s.Length)]).ToArray());
+            .Select(s => s[RandomNumberGenerator.GetInt32(s.Length)]).ToArray());
     }
     private int? GetCurrentUserId()
     {
