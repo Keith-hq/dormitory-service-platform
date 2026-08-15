@@ -8,16 +8,6 @@ using TemplateDormApi.Security;
 
 namespace TemplateDormApi.Services;
 
-/// JWT 生成服务接口
-public interface IJwtService
-{
-    /// 为用户生成 JWT 令牌
-    /// <param name="user">用户账户信息</param>
-    /// <param name="role">角色（小写，符合 AuthPolicies 常量定义）</param>
-    /// <returns>JWT 字符串</returns>
-    string GenerateToken(UserAccount user, string role);
-}
-
 /// JWT 生成服务实现
 public class JwtService : IJwtService
 {
@@ -28,15 +18,17 @@ public class JwtService : IJwtService
         _configuration = configuration;
     }
 
-    public string GenerateToken(UserAccount user, string role)
+    public async Task<string> GenerateToken(UserAccount user, string role)
     {
         // 从配置读取 JWT 参数
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        int tokenVersion = 0;
 
         // 构建 Claims（包含角色）
         var claims = new List<Claim>
         {
+            new Claim("TokenVersion", tokenVersion.ToString()),
             new Claim(ClaimTypes.NameIdentifier, user.AccountId.ToString()),
             new Claim(ClaimTypes.Name, user.LoginName),
             new Claim(ClaimTypes.Role, role)

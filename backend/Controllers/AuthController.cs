@@ -2,14 +2,15 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using OfficeOpenXml.FormulaParsing.LexicalAnalysis;
+using SkiaSharp;
+using System.Linq;
+using System.Security.Cryptography;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
-using SkiaSharp;
-using System.Linq;
-using System.Security.Cryptography;
 
 namespace TemplateDormApi.Controllers;
 
@@ -23,8 +24,9 @@ public class AuthController : ControllerBase
     private readonly ILogger<AuthController> _logger;
     private readonly IAuditService _auditService;
     private readonly IHostEnvironment _env;
+    private readonly IUserAccountService _userAccountService;
 
-    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IHostEnvironment env)
+    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IHostEnvironment env, IUserAccountService userAccountService)
     {
         _context = context;
         _jwtService = jwtService;
@@ -32,6 +34,7 @@ public class AuthController : ControllerBase
         _logger = logger;
         _auditService = auditService;
         _env = env;
+        _userAccountService = userAccountService;
     }
 
     /// <summary>
@@ -212,8 +215,9 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse.Error(401, "用户身份异常"));
         }
 
-        // 7. 生成 Token
-        var token = _jwtService.GenerateToken(user, role);
+        // 7. 生成 Token 并检测是否为首次登录
+        var token = await _jwtService.GenerateToken(user, role);
+        bool needChangePassword = user.IsFirstLogin == "Y";
 
         // 8. 返回统一 ApiResponse
         return Ok(ApiResponse.Ok(new
@@ -221,7 +225,8 @@ public class AuthController : ControllerBase
             token,
             role,
             accountId = user.AccountId,
-            loginName = user.LoginName
+            loginName = user.LoginName,
+            needChangePassword
         }, "登录成功"));
     }
 
@@ -243,14 +248,15 @@ public class AuthController : ControllerBase
         // 获取角色
         string role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "unknown";
 
+        bool needChangePassword = user.IsFirstLogin == "Y";
+
         return Ok(ApiResponse.Ok(new
         {
+            role,
             accountId = user.AccountId,
             loginName = user.LoginName,
-            role = role,
-            studentId = user.StudentId,
-            adminId = user.AdminId
-        }));
+            needChangePassword
+        }, "登录成功"));
     }
 
     /// <summary>
@@ -301,7 +307,8 @@ public class AuthController : ControllerBase
             LoginName = loginName,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
-            StudentId = request.StudentId
+            StudentId = request.StudentId,
+            IsFirstLogin = "Y"
         };
         _context.UserAccounts.Add(account);
         await _context.SaveChangesAsync();
@@ -349,7 +356,7 @@ public class AuthController : ControllerBase
                 AdminName = request.Name,
                 RoleLevel = request.Role,
                 BuildingId = request.BuildingId,
-                Post = request.Post  // 新增：岗位
+                Post = request.Post,  // 新增：岗位
             };
             _context.Admins.Add(admin);
         }
@@ -373,7 +380,8 @@ public class AuthController : ControllerBase
             LoginName = request.AdminId, // 可自定义，暂用 AdminId
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
-            AdminId = request.AdminId
+            AdminId = request.AdminId,
+            IsFirstLogin = "Y"
         };
         _context.UserAccounts.Add(account);
 
@@ -427,7 +435,7 @@ public class AuthController : ControllerBase
 
         // 更新密码
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        await _context.SaveChangesAsync();
+        await _userAccountService.UpdateIsFirstLoginAsync(accountId, "N");
 
         // 审计日志（可选）
         await _auditService.LogEventAsync(

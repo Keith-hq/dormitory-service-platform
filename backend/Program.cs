@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Quartz;
 using System.Text;
+using System.Security.Claims;
 using OfficeOpenXml;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
@@ -114,7 +115,7 @@ builder.Services.AddScoped<ParcelRepository>();
 builder.Services.AddScoped<LeaveRepository>();
 builder.Services.AddScoped<BedAllocationRepository>();
 builder.Services.AddScoped<CheckoutRepository>();
-builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<AdminRepository>();
 
 // ===== 6. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
@@ -148,6 +149,9 @@ builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IImportService, ImportService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IUserAccountService, UserAccountService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 // ===== 7. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
@@ -276,6 +280,41 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(key)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var tokenVersionClaim = context.Principal?.FindFirst("TokenVersion")?.Value;
+                if (string.IsNullOrEmpty(tokenVersionClaim))
+                    return;
+
+                var userIdClaim = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var accountId))
+                    return;
+
+                using var scope = context.HttpContext.RequestServices.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                var user = await dbContext.UserAccounts
+                    .FirstOrDefaultAsync(u => u.AccountId == accountId);
+
+                if (user != null && !string.IsNullOrEmpty(user.AdminId))
+                {
+                    var admin = await dbContext.Admins
+                        .FirstOrDefaultAsync(a => a.AdminId == user.AdminId);
+                    if (admin != null)
+                    {
+                        var currentVersion = admin.TokenVersion.ToString();
+                        if (tokenVersionClaim != currentVersion)
+                        {
+                            context.Fail("Token 已失效，请重新登录");
+                            // 注意：不要设置 context.Result，它是只读的
+                        }
+                    }
+                }
+            }
         };
     });
 
