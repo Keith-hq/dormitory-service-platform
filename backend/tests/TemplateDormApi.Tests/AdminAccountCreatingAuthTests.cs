@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -39,41 +41,49 @@ public class AuthTests : IClassFixture<TestWebApplicationFactory>
     }
 
     [Fact]
+    public async Task CreateStudentAccount_Unauthenticated_Returns401()
+    {
+        var content = JsonContent.Create(new
+        {
+            studentId = "STU_AUTH_401",
+            loginName = "student_auth_401",
+            password = "Test@123"
+        });
+
+        var response = await _client.PostAsync("/api/auth/accounts/students", content);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateAdminAccount_NonSuperAdmin_Returns403()
     {
-        // 1. 准备数据：插入一条学生记录（因为注册接口要求 Student 存在）
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var studentId = $"STU_{suffix}";
+        var loginName = $"student_{suffix}";
+
+        // 账号创建接口本身只允许超级管理员，这里直接准备普通学生账号。
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         context.Students.Add(new Student
         {
-            StudentId = "STU999",
+            StudentId = studentId,
             Name = "测试学生"
+        });
+        context.UserAccounts.Add(new UserAccount
+        {
+            LoginName = loginName,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Test@123"),
+            AccountStatus = "正常",
+            StudentId = studentId
         });
         await context.SaveChangesAsync();
 
-        // 2. 注册学生账号
-        var registerPayload = new { studentId = "STU999", loginName = "teststudent", password = "Test@123" };
-        var registerContent = new StringContent(JsonSerializer.Serialize(registerPayload), Encoding.UTF8, "application/json");
-        var registerResponse = await _client.PostAsync("/api/auth/accounts/students", registerContent);
-        registerResponse.EnsureSuccessStatusCode();
+        await AuthenticateAsync(loginName, "Test@123");
 
-        // 3. 登录（测试环境已跳过验证码）
-        var loginPayload = new { loginName = "teststudent", password = "Test@123" };
-        var loginContent = new StringContent(JsonSerializer.Serialize(loginPayload), Encoding.UTF8, "application/json");
-        var loginResponse = await _client.PostAsync("/api/auth/login", loginContent);
-        loginResponse.EnsureSuccessStatusCode();
-
-        var loginJson = await loginResponse.Content.ReadAsStringAsync();
-        var token = JsonSerializer.Deserialize<JsonElement>(loginJson)
-            .GetProperty("data").GetProperty("token").GetString();
-
-        _client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-        // 4. 调用创建宿管账号接口（期望 403）
         var request = new
         {
-            adminId = "test_admin2",
+            adminId = $"admin_{suffix}",
             name = "Test Admin 2",
             role = "楼长",
             buildingId = 1
@@ -83,5 +93,67 @@ public class AuthTests : IClassFixture<TestWebApplicationFactory>
         var response = await _client.PostAsync("/api/auth/accounts/admins", content);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateCounselorAccount_WithoutBuilding_CanLoginAsCounselor()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var superAdminId = $"SUPER_{suffix}";
+        var counselorId = $"COUN_{suffix}";
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            context.Admins.Add(new Admin
+            {
+                AdminId = superAdminId,
+                AdminName = "测试超级管理员",
+                RoleLevel = "超级管理员"
+            });
+            context.UserAccounts.Add(new UserAccount
+            {
+                LoginName = superAdminId,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Test@123"),
+                AccountStatus = "正常",
+                AdminId = superAdminId
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await AuthenticateAsync(superAdminId, "Test@123");
+        var createResponse = await _client.PostAsJsonAsync("/api/auth/accounts/admins", new
+        {
+            adminId = counselorId,
+            name = "测试辅导员",
+            role = "辅导员",
+            post = "年级辅导员"
+        });
+        createResponse.EnsureSuccessStatusCode();
+
+        var createJson = JsonSerializer.Deserialize<JsonElement>(
+            await createResponse.Content.ReadAsStringAsync());
+        var initialPassword = createJson.GetProperty("data")
+            .GetProperty("initialPassword").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(initialPassword));
+
+        _client.DefaultRequestHeaders.Authorization = null;
+        var loginJson = await LoginAsync(counselorId, initialPassword!);
+
+        Assert.Equal("counselor", loginJson.GetProperty("data").GetProperty("role").GetString());
+    }
+
+    private async Task AuthenticateAsync(string loginName, string password)
+    {
+        var loginJson = await LoginAsync(loginName, password);
+        var token = loginJson.GetProperty("data").GetProperty("token").GetString();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    private async Task<JsonElement> LoginAsync(string loginName, string password)
+    {
+        var response = await _client.PostAsJsonAsync("/api/auth/login", new { loginName, password });
+        response.EnsureSuccessStatusCode();
+        return JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync());
     }
 }
