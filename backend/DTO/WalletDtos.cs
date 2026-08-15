@@ -41,3 +41,34 @@ public class WalletViewDto
     public bool LowBalanceWarning { get; set; }
     public List<WalletLogDto> Logs { get; set; } = new();
 }
+
+/// <summary>STU-04 学生账单明细条目（GET /students/{studentId}/fees 的 items 元素）</summary>
+public class StudentFeeItemDto
+{
+    public int DetailId { get; set; }
+    public long FeeId { get; set; }
+    /// <summary>账单账期（D_Utility_Fee.Year_Month，与 items 外层 yearMonth 同维度）</summary>
+    public string YearMonth { get; set; } = string.Empty;
+    public int RoomId { get; set; }
+    public int StayDays { get; set; }
+    public int TotalDays { get; set; }
+    public decimal WaterShare { get; set; }
+    public decimal PowerShare { get; set; }
+    /// <summary>应缴合计 = WaterShare + PowerShare（沿用遗留 feesharing/detail 口径）</summary>
+    public decimal Total { get; set; }
+    public string BillType { get; set; } = string.Empty;
+    public string IsPaid { get; set; } = "否";
+}
+
+/// <summary>
+/// STU-04 学生账单查询结果：yearMonth 缺省返回全部账期（含未结明细，
+/// 供 IT-C2-003 退宿欠费阻断检查），指定时仅返回该账期。
+/// </summary>
+public class StudentFeesDto
+{
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>请求的账期回显；缺省查询时为 null（表示全部账期）</summary>
+    public string? YearMonth { get; set; }
+    public int Count { get; set; }
+    public List<StudentFeeItemDto> Items { get; set; } = new();
+}

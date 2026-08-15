@@ -16,4 +16,10 @@ public interface IWalletService
 
     /// <summary>查询学生钱包（STU-06）：余额 + 指定月份流水</summary>
     Task<WalletViewDto> GetWallet(string studentId, string yearMonth);
+
+    /// <summary>
+    /// 查询学生账单与分摊明细（STU-04）：yearMonth 缺省返回全部账期
+    /// （含未结明细，供退宿欠费检查），指定时仅返回该账期。
+    /// </summary>
+    Task<StudentFeesDto> GetStudentFees(string studentId, string? yearMonth);
 }

@@ -40,6 +40,49 @@ public class WalletService : IWalletService
             new OracleParameter("p_Idempotency_Key", idempotencyKey));
     }
 
+    /// <summary>
+    /// STU-04：学生账单查询。账期以 D_Utility_Fee.Year_Month 为维度
+    /// （与 DORM-24 账单列表同口径，而非明细 Create_Time 月份），
+    /// 缺省返回全部账期、含未结明细，供 IT-C2-003 退宿欠费检查。
+    /// </summary>
+    public async Task<StudentFeesDto> GetStudentFees(string studentId, string? yearMonth)
+    {
+        var query = from d in _context.FeeDetails
+                    join uf in _context.UtilityFees on d.FeeId equals uf.FeeId
+                    where d.StudentId == studentId
+                    select new StudentFeeItemDto
+                    {
+                        DetailId = d.DetailId,
+                        FeeId = uf.FeeId,
+                        YearMonth = uf.YearMonth,
+                        RoomId = d.RoomId,
+                        StayDays = d.StayDays,
+                        TotalDays = d.TotalDays,
+                        WaterShare = d.WaterShare,
+                        PowerShare = d.PowerShare,
+                        Total = d.WaterShare + d.PowerShare,
+                        BillType = d.BillType,
+                        IsPaid = d.IsPaid
+                    };
+
+        if (yearMonth is not null)
+            query = query.Where(i => i.YearMonth == yearMonth);
+
+        var items = await query
+            .OrderByDescending(i => i.YearMonth)
+            .ThenByDescending(i => i.DetailId)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return new StudentFeesDto
+        {
+            StudentId = studentId,
+            YearMonth = yearMonth,
+            Count = items.Count,
+            Items = items
+        };
+    }
+
     public async Task<WalletViewDto> GetWallet(string studentId, string yearMonth)
     {
         var balance = await _billingService.GetBalance(studentId);

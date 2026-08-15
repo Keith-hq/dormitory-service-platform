@@ -12,9 +12,9 @@ using TemplateDormApi.Services;
 namespace TemplateDormApi.Tests;
 
 /// <summary>
-/// 钱包控制器测试（难点② STU-05/06/07）：
-/// 1. 路由模板对齐契约（POST /api/wallet/payments、POST /api/wallet/recharges、GET /api/students/{id}/wallet）；
-/// 2. 学生身份从 JWT 解析（非本人钱包 403）；
+/// 钱包控制器测试（难点② STU-04/05/06/07）：
+/// 1. 路由模板对齐契约（POST /api/wallet/payments、POST /api/wallet/recharges、GET /api/students/{id}/wallet、GET /api/students/{id}/fees）；
+/// 2. 学生身份从 JWT 解析（非本人钱包/账单 403）；
 /// 3. Idempotency-Key 缺失/超长入口拒绝；
 /// 4. SP 结果码 → 中文消息映射。
 /// </summary>
@@ -28,12 +28,13 @@ public class WalletControllerTests
         AssertRoute(nameof(WalletController.ManualPay), "wallet/payments");
         AssertRoute(nameof(WalletController.Recharge), "wallet/recharges");
         AssertRoute(nameof(WalletController.GetWallet), "students/{studentId}/wallet");
+        AssertRoute(nameof(WalletController.GetStudentFees), "students/{studentId}/fees");
     }
 
     [Fact]
     public void Endpoints_RequireAuthentication()
     {
-        // 三个端点均为 [Authorize]（无策略——学生身份由 ResolveStudentId 从 JWT 解析）
+        // 四个端点均为 [Authorize]（无策略——学生身份由 ResolveStudentId 从 JWT 解析）
         Assert.NotNull(typeof(WalletController)
             .GetMethod(nameof(WalletController.ManualPay))!
             .GetCustomAttributes(typeof(AuthorizeAttribute), true)
@@ -44,6 +45,10 @@ public class WalletControllerTests
             .SingleOrDefault());
         Assert.NotNull(typeof(WalletController)
             .GetMethod(nameof(WalletController.GetWallet))!
+            .GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .SingleOrDefault());
+        Assert.NotNull(typeof(WalletController)
+            .GetMethod(nameof(WalletController.GetStudentFees))!
             .GetCustomAttributes(typeof(AuthorizeAttribute), true)
             .SingleOrDefault());
     }
@@ -230,6 +235,75 @@ public class WalletControllerTests
         Assert.False(fake.GetWalletCalled);
     }
 
+    // ==================== STU-04 学生账单查询 ====================
+
+    [Fact]
+    public async Task GetStudentFees_OwnStudent_ReturnsFees()
+    {
+        var (context, studentId) = await CreateStudentContext(accountId: 111);
+        var fake = new FakeWalletService
+        {
+            Fees = new StudentFeesDto { StudentId = studentId, Count = 1 }
+        };
+        var controller = CreateController(fake, context);
+        SetUser(controller, "111");
+
+        var result = await controller.GetStudentFees(studentId, "2026-07");
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ApiResponse<StudentFeesDto>>(ok.Value);
+        Assert.Equal(200, response.Code);
+        Assert.Equal(studentId, response.Data!.StudentId);
+        Assert.Equal("2026-07", fake.LastFeesYearMonth);
+    }
+
+    [Fact]
+    public async Task GetStudentFees_NoYearMonth_ForwardsNull()
+    {
+        var (context, studentId) = await CreateStudentContext(accountId: 112);
+        var fake = new FakeWalletService { Fees = new StudentFeesDto() };
+        var controller = CreateController(fake, context);
+        SetUser(controller, "112");
+
+        var result = await controller.GetStudentFees(studentId);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(200, GetApiCode(ok.Value));
+        Assert.True(fake.GetStudentFeesCalled);
+        Assert.Null(fake.LastFeesYearMonth);
+    }
+
+    [Fact]
+    public async Task GetStudentFees_OtherStudentsFees_Returns403()
+    {
+        var (context, studentId) = await CreateStudentContext(accountId: 113);
+        var fake = new FakeWalletService();
+        var controller = CreateController(fake, context);
+        SetUser(controller, "113");
+
+        var result = await controller.GetStudentFees(studentId + "-OTHER");
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(403, GetApiCode(ok.Value));
+        Assert.False(fake.GetStudentFeesCalled);
+    }
+
+    [Theory]
+    [InlineData("2026-7")]
+    [InlineData("bad")]
+    public async Task GetStudentFees_InvalidYearMonth_Returns400(string yearMonth)
+    {
+        var (context, studentId) = await CreateStudentContext(accountId: 114);
+        var fake = new FakeWalletService();
+        var controller = CreateController(fake, context);
+        SetUser(controller, "114");
+
+        var result = await controller.GetStudentFees(studentId, yearMonth);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.False(fake.GetStudentFeesCalled);
+    }
+
     // ==================== 辅助 ====================
 
     /// <summary>建一个账户与学生关联的上下文，返回 (context, studentId)</summary>
@@ -283,16 +357,19 @@ public class WalletControllerTests
         public int ManualPayResult { get; set; }
         public int RechargeResult { get; set; }
         public WalletViewDto? Wallet { get; set; }
+        public StudentFeesDto? Fees { get; set; }
 
         public bool ManualPayCalled { get; private set; }
         public bool RechargeCalled { get; private set; }
         public bool GetWalletCalled { get; private set; }
+        public bool GetStudentFeesCalled { get; private set; }
 
         public int? LastDetailId { get; private set; }
         public string? LastStudentId { get; private set; }
         public string? LastIdempotencyKey { get; private set; }
         public decimal? LastAmount { get; private set; }
         public string? LastWalletYearMonth { get; private set; }
+        public string? LastFeesYearMonth { get; private set; }
 
         public Task<int> ManualPay(int detailId, string studentId, string idempotencyKey)
         {
@@ -317,6 +394,13 @@ public class WalletControllerTests
             GetWalletCalled = true;
             LastWalletYearMonth = yearMonth;
             return Task.FromResult(Wallet ?? new WalletViewDto { StudentId = studentId });
+        }
+
+        public Task<StudentFeesDto> GetStudentFees(string studentId, string? yearMonth)
+        {
+            GetStudentFeesCalled = true;
+            LastFeesYearMonth = yearMonth;
+            return Task.FromResult(Fees ?? new StudentFeesDto { StudentId = studentId });
         }
     }
 }

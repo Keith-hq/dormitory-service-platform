@@ -136,6 +136,30 @@ public class WalletController : ControllerBase
         return Ok(ApiResponse.Ok(wallet));
     }
 
+    /// <summary>
+    /// STU-04：查询本人水电账单与分摊明细（仅本人可见）。
+    /// yearMonth 缺省返回全部账期、含未结明细，供 IT-C2-003 退宿欠费阻断检查；
+    /// 指定时仅返回该账期（校验规则与 STU-06 一致）。
+    /// </summary>
+    [HttpGet("students/{studentId}/fees")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<object>>> GetStudentFees(
+        string studentId,
+        [FromQuery] string? yearMonth = null)
+    {
+        var currentStudentId = await ResolveStudentId();
+        if (!string.Equals(studentId, currentStudentId, StringComparison.Ordinal))
+            return Ok(ApiResponse.Error(403, "无权查看他人的账单"));
+
+        if (!string.IsNullOrWhiteSpace(yearMonth)
+            && !TryValidateYearMonth(yearMonth, out var message))
+            return BadRequest(ApiResponse.Error(400, message));
+
+        var fees = await _service.GetStudentFees(studentId,
+            string.IsNullOrWhiteSpace(yearMonth) ? null : yearMonth);
+        return Ok(ApiResponse.Ok(fees));
+    }
+
     /// <summary>校验 yyyy-MM 格式及账期范围（不早于 2020-01，不晚于下月）</summary>
     private static bool TryValidateYearMonth(string yearMonth, out string message)
     {
