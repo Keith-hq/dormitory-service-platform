@@ -157,10 +157,19 @@ SCRIPTS=(
     "ddl/extensions/016_d_room_floor_status.sql"
     "ddl/extensions/017_d_leave_application_reason.sql"
     "ddl/extensions/018_d_student_email.sql"
+    "ddl/extensions/019_shared_item_idempotency.sql"
+    "ddl/extensions/020_repair_late_hygiene_room_sequences.sql"
+    "ddl/extensions/021_sla_dispatch.sql"
+    "ddl/extensions/022_fee_detail_dedup_uk.sql"
+    "ddl/extensions/023_dorm_checkout_sequences_room_unique.sql"
+    "ddl/extensions/026_utility_fee_sequence.sql"
     # 存储过程
     "sp/sp_fee_sharing.sql"
     "sp/sp_billing.sql"
     "sp/sp_facility_booking.sql"
+    "sp/sp_shared_item.sql"
+    "sp/sp_sla_dispatch.sql"
+    "sp/sp_wallet.sql"
 )
 
 if [ "$TABLE_CNT" != "0" ]; then
