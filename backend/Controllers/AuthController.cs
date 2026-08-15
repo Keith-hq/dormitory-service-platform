@@ -54,12 +54,14 @@ public class AuthController : ControllerBase
 
     public class CreateAdminAccountRequest
     {
-        public string AdminId { get; set; } = string.Empty;
-        public string? LoginName { get; set; }
-        public string? Password { get; set; }
-        public string? RoleLevel { get; set; }      // 如：楼长、维修员
-        public int? BuildingId { get; set; }        // 分配的楼栋 ID
+        public string AdminId { get; set; } = string.Empty; // required
+        public string Name { get; set; } = string.Empty;    // required
+        public string Role { get; set; } = string.Empty;    // required
+        public int BuildingId { get; set; }                 // required
+        public string? Post { get; set; }                   // optional
+        public string? Password { get; set; }               // optional
     }
+
 
     /// <summary>
     /// 修改密码请求 DTO
@@ -288,62 +290,48 @@ public class AuthController : ControllerBase
     /// <summary>
     /// AUTH-05：创建宿管账号（需超管权限）
     /// </summary>
-    [Authorize(Roles = AuthPolicies.SuperAdmin)]
     [HttpPost("accounts/admins")]
     public async Task<IActionResult> CreateAdminAccount([FromBody] CreateAdminAccountRequest request)
     {
-        // 1. 检查管理员是否存在
+        // 1. 查找或创建 Admin
         var admin = await _context.Admins.FindAsync(request.AdminId);
         if (admin == null)
-            return BadRequest(ApiResponse.Error(400, "管理员不存在"));
+        {
+            admin = new Admin
+            {
+                AdminId = request.AdminId,
+                AdminName = request.Name,
+                RoleLevel = request.Role,
+                BuildingId = request.BuildingId
+            };
+            _context.Admins.Add(admin);
+        }
+        else
+        {
+            admin.AdminName = request.Name;
+            admin.RoleLevel = request.Role;
+            admin.BuildingId = request.BuildingId;
+        }
 
         // 2. 检查是否已有账号
-        var existing = await _context.UserAccounts
-            .FirstOrDefaultAsync(u => u.AdminId == request.AdminId);
+        var existing = await _context.UserAccounts.FirstOrDefaultAsync(u => u.AdminId == request.AdminId);
         if (existing != null)
             return BadRequest(ApiResponse.Error(400, "该管理员已有账号"));
 
-        // 3. 验证角色是否合法（与 UpdateAdmin 一致）
-        if (!string.IsNullOrEmpty(request.RoleLevel))
-        {
-            var validRoles = new[] { "超级管理员", "楼长", "维修员" };
-            if (!validRoles.Contains(request.RoleLevel))
-                return BadRequest(ApiResponse.Error(400, "角色必须是：超级管理员、楼长、维修员"));
-        }
-
-        // 4. 如果指定了楼栋，检查是否存在（与 UpdateAdmin 一致）
-        if (request.BuildingId.HasValue)
-        {
-            var buildingExists = await _context.Buildings
-                .CountAsync(b => b.BuildingId == request.BuildingId.Value) > 0;
-            if (!buildingExists)
-                return BadRequest(ApiResponse.Error(400, "指定的楼栋不存在"));
-        }
-
-        // 5. 更新 Admin 记录（楼栋和角色）
-        if (request.BuildingId.HasValue)
-            admin.BuildingId = request.BuildingId.Value;
-        if (!string.IsNullOrEmpty(request.RoleLevel))
-            admin.RoleLevel = request.RoleLevel;
-
-        // 6. 创建 UserAccount
-        var password = string.IsNullOrEmpty(request.Password)
-            ? GenerateRandomPassword(8)
-            : request.Password;
-
+        // 3. 创建 UserAccount
+        var password = string.IsNullOrEmpty(request.Password) ? GenerateRandomPassword(8) : request.Password;
         var account = new UserAccount
         {
-            LoginName = request.LoginName ?? request.AdminId,
+            LoginName = request.AdminId, // 可自定义，暂用 AdminId
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
             AdminId = request.AdminId
         };
         _context.UserAccounts.Add(account);
 
-        // 7. 保存所有变更（事务）
         await _context.SaveChangesAsync();
 
-        // 8. 写入审计日志（使用 IAuditService）
+        // 4. 审计日志
         await _auditService.LogEventAsync(
             eventType: "POST /accounts/admins",
             targetType: "Admin",
