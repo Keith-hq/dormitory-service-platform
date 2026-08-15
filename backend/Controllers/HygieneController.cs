@@ -21,7 +21,7 @@ public sealed class HygieneController : ControllerBase
     [Authorize]
     [HttpGet("rooms/{roomId:long}/hygiene")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<HygieneRecordDto>>>> GetRoomRecords(
-        long roomId,
+        int roomId,
         CancellationToken cancellationToken)
     {
         var isDormAdmin = User.IsInRole("admin") || User.IsInRole("super_admin");

@@ -3,12 +3,17 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.InMemory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Quartz;
 using System.Text;
+using OfficeOpenXml;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Filters;
 using TemplateDormApi.Jobs;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Security;
@@ -20,13 +25,29 @@ static TimeZoneInfo GetBusinessTimeZone()
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 测试环境默认配置（必须在 builder.Configuration 读取之前设置）
+if (builder.Environment.IsEnvironment("Test"))
+{
+    builder.Configuration["Jwt:Key"] = "TestSecretKeyAtLeast32CharsLong!";
+    builder.Configuration["Jwt:Issuer"] = "DormitoryPlatform";
+    builder.Configuration["Jwt:Audience"] = "DormitoryPlatformClient";
+    builder.Configuration["ServiceKey:Shared"] = "TestServiceKey";
+}
+
+// 使用 EPPlus 5+ 包需要设置非商业用途授权，名称可以随意变动
+ExcelPackage.License.SetNonCommercialOrganization("DormitoryPlatform");
+
 // ===== 1. 注册 Controller（三层架构入口）=====
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        // 首字母小写驼峰（与前端对齐）
-        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-    });
+builder.Services.AddControllers(options =>
+{
+    // 添加全局审计日志过滤器
+    options.Filters.Add<AuditEventFilter>();
+})
+.AddJsonOptions(options =>
+{
+    // 首字母小写驼峰（与前端对齐）
+    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
@@ -46,11 +67,19 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "TemplateDormApi - 样板间接口", Version = "v1" });
+    c.MapType<IFormFile>(() => new OpenApiSchema { Type = "string", Format = "binary" });
+    c.OperationFilter<FormFileOperationFilter>();
 });
 
 // ===== 3. 注册 Oracle EF Core DbContext =====
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
+    if (builder.Environment.IsEnvironment("Test"))
+    {
+        options.UseInMemoryDatabase("TestDb");
+        return;
+    }
+
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
     if (string.IsNullOrEmpty(connectionString))
     {
@@ -59,7 +88,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseOracle(connectionString);
 });
 
-// ===== 4. 注册 Repository 层 =====
+// ===== 4. 内存缓存与 HTTPContext 访问器 =====
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpContextAccessor();
+
+// ===== 5. 注册 Repository 层 =====
 builder.Services.AddScoped<BuildingRepository>();
 builder.Services.AddScoped<RoomRepository>();
 builder.Services.AddScoped<UserAccountRepository>();
@@ -81,8 +114,9 @@ builder.Services.AddScoped<ParcelRepository>();
 builder.Services.AddScoped<LeaveRepository>();
 builder.Services.AddScoped<BedAllocationRepository>();
 builder.Services.AddScoped<CheckoutRepository>();
+builder.Services.AddScoped<IJwtService, JwtService>();
 
-// ===== 5. 注册 Service 层 =====
+// ===== 6. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
@@ -112,8 +146,10 @@ builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IImportService, ImportService>();
 
-// ===== 6. 注册 Quartz 定时任务 =====
+// ===== 7. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
 {
     // --- 难点① 水电分摊：每月1日凌晨 ---
@@ -207,7 +243,7 @@ var storageMaxBytes = builder.Configuration.GetValue<long?>("Storage:MaxSizeByte
 builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = storageMaxBytes);
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 
-// ===== 7. CORS 配置（允许前端跨域）=====
+// ===== 8. CORS 配置（允许前端跨域）=====
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
@@ -254,7 +290,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//认证与授权
+// 认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -269,3 +305,6 @@ app.UseCors("DevCors");
 app.MapControllers();
 
 app.Run();
+
+// 负例测试用
+public partial class Program { }

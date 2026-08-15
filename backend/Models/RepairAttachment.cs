@@ -9,4 +9,5 @@ public sealed class RepairAttachment
     public string? ContentType { get; set; }
     public long? FileSize { get; set; }
     public DateTime CreateTime { get; set; }
+    public RepairTicket? Ticket { get; set; }
 }
