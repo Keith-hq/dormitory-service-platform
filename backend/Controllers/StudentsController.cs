@@ -294,7 +294,7 @@ public class StudentsController : ControllerBase
     // POST /students/import - Excel 批量导入学生（IMPORT-01）
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> ImportStudents([FromForm] IFormFile file)
+    public async Task<IActionResult> ImportStudents(IFormFile file)
     {
         var importResult = await _importService.ImportStudentsAsync(file, CancellationToken.None);
         var importedCount = importResult.ImportedCount;
