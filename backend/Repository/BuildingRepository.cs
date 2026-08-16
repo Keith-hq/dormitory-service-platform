@@ -11,6 +11,10 @@ public class BuildingRepository : BaseRepository<Building>
 {
     public BuildingRepository(AppDbContext context) : base(context) { }
 
+    /// <summary>楼栋下是否存在房间（删除前置检查，IT-C10-002 ② 业务预检）</summary>
+    public Task<bool> HasRoomsAsync(int buildingId)
+        => _context.Rooms.AnyAsync(r => r.BuildingId == buildingId);
+
     /// <summary>根据楼栋类型筛选分页查询</summary>
     public async Task<(List<Building> Items, int Total)> GetPagedFilteredAsync(
         int page, int pageSize, string? buildingType = null)

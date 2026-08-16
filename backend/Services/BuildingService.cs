@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Exceptions;
 using TemplateDormApi.Models;
 using TemplateDormApi.Repository;
 
@@ -58,5 +60,23 @@ public class BuildingService : IBuildingService
     }
 
     public async Task<bool> DeleteAsync(int id)
-        => await _repository.DeleteAsync(id);
+    {
+        var building = await _repository.GetByIdAsync(id);
+        if (building == null) return false;
+
+        // IT-C10-002 ②：删除被引用楼栋应返回明确业务错误而非 500。
+        // 先业务预检（房间归属楼栋，占绝大多数场景），数据库外键兜底（资产等其他关联表）。
+        if (await _repository.HasRoomsAsync(id))
+            throw new BusinessException(400, "该楼栋下存在房间，请先删除或迁移房间");
+
+        try
+        {
+            return await _repository.DeleteAsync(id);
+        }
+        catch (DbUpdateException ex) when (OracleConstraintParser.IsForeignKeyViolation(ex))
+        {
+            // ORA-02292：存在未预检到的外键关联（如 D_Asset）
+            throw new BusinessException(400, "该楼栋存在关联数据（资产等），无法删除");
+        }
+    }
 }

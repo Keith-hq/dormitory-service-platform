@@ -29,4 +29,19 @@ public static class OracleConstraintParser
         }
         return null;
     }
+
+    /// <summary>
+    /// 识别外键约束冲突（ORA-02292：删除被引用数据时），供调用方翻译为业务错误（400）而非 500。
+    /// 与 TryGetUniqueConstraintName 同一 InnerException 链遍历模式；兼容消息前缀判断供 InMemory 单测替身模拟。
+    /// </summary>
+    public static bool IsForeignKeyViolation(DbUpdateException ex)
+    {
+        for (var inner = ex.InnerException; inner != null; inner = inner.InnerException)
+        {
+            if (inner is OracleException { Number: 2292 }
+                || inner.Message.StartsWith("ORA-02292", StringComparison.Ordinal))
+                return true;
+        }
+        return false;
+    }
 }
