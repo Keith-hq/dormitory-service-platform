@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Services;
@@ -7,8 +8,10 @@ namespace TemplateDormApi.Controllers;
 /// <summary>
 /// 退宿清算 — DORM-11 登记 / DORM-35 状态 / DORM-36 开始清算（三步校验）/ DORM-37 确认 / DORM-38 取消
 /// 状态机：待清算 → 已拒绝 / 已通过 / 已取消
+/// 鉴权：退宿清算为学生自助流程（IT-C2-001/002 学生 token），任意登录角色可访问。
 /// </summary>
 [ApiController]
+[Authorize]
 public class CheckoutController : ControllerBase
 {
     private readonly ICheckoutService _service;
