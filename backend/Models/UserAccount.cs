@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace TemplateDormApi.Models;
 
 /// <summary>
@@ -16,4 +18,9 @@ public class UserAccount
     public string? StudentId { get; set; }
 
     public string? AdminId { get; set; }
+
+    [Column("CREATE_TIME")]
+    public DateTime CreateTime { get; set; }
+
+    public string IsFirstLogin { get; set; } = "Y";
 }

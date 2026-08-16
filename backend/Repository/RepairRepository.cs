@@ -30,9 +30,9 @@ public sealed class RepairRepository : FrameworkRepositoryBase
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new BusinessException(409, "当前没有有效住宿，且未指定报修房间", StatusCodes.Status409Conflict);
 
-        var roomExists = await DbContext.Rooms.AsNoTracking()
-            .AnyAsync(item => item.RoomId == roomId, cancellationToken);
-        if (!roomExists)
+        var roomNum = await DbContext.Rooms.AsNoTracking()
+            .CountAsync(item => item.RoomId == roomId, cancellationToken);
+        if (roomNum == 0)
         {
             throw new BusinessException(404, "报修房间不存在", StatusCodes.Status404NotFound);
         }
@@ -49,6 +49,27 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         DbContext.RepairTickets.Add(ticket);
         await DbContext.SaveChangesAsync(cancellationToken);
         return ToDto(ticket);
+    }
+
+    /// <summary>
+    /// 宿管侧「损坏资产转报修」（DORM-16）入口：创建一条资产关联的报修工单。
+    /// Student_ID 为空（宿管发起，非学生报修）、Room_ID 取资产所属房间、初始状态
+    /// 待处理。仅把工单加入变更跟踪，不 SaveChanges——由 AssetService 与
+    /// D_Asset_Repair / D_Asset_Warning 写入置于同一事务统一提交。
+    /// </summary>
+    public RepairTicket CreateAssetTicket(int? roomId, string description)
+    {
+        var ticket = new RepairTicket
+        {
+            StudentId = null,
+            RoomId = roomId,
+            IssueDescription = description.Trim(),
+            SubmitTime = DateTime.Now,
+            Status = "待处理",
+            SlaLevel = "普通"
+        };
+        DbContext.RepairTickets.Add(ticket);
+        return ticket;
     }
 
     public async Task<PagedResult<RepairTicketDto>> GetStudentTicketsAsync(
@@ -138,7 +159,7 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         Log = item.Log is null ? null : new RepairLogDto
         {
             AdminId = item.Log.AdminId,
-            ProcessDesc = item.Log.ProcessDescription,
+            ProcessDescription = item.Log.ProcessDescription,
             ResolveTime = item.Log.ResolveTime
         },
         Attachments = item.Attachments.OrderBy(item => item.CreateTime).Select(ToDto).ToList()

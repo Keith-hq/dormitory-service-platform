@@ -9,7 +9,7 @@ public class RepairMaterialUsage
 {
     public int UsageId { get; set; }
 
-    public int TicketId { get; set; }
+    public long TicketId { get; set; }
 
     public int MaterialId { get; set; }
 

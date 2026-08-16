@@ -4,36 +4,38 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace TemplateDormApi.Models;
 
 /// <summary>
-/// 钱包流水实体（映射 D_Wallet_Log）
+/// 钱包流水实体（映射 D_Wallet_Log）。
+/// 表名/列名全大写：Oracle 提供商会按映射原样加引号生成 SQL，
+/// 混合大小写与建表实际存储不一致（ORA-00942/00904，2026-08-15 实测修正）。
 /// </summary>
-[Table("D_Wallet_Log", Schema = "DORM_OPER")]
+[Table("D_WALLET_LOG", Schema = "DORM_OPER")]
 public class WalletLog
 {
     [Key]
-    [Column("Log_ID")]
+    [Column("LOG_ID")]
     public int LogId { get; set; }
 
-    [Column("Student_ID")]
+    [Column("STUDENT_ID")]
     public string StudentId { get; set; } = string.Empty;
 
-    [Column("Amount")]
+    [Column("AMOUNT")]
     public decimal Amount { get; set; }
 
-    [Column("Transaction_Type")]
+    [Column("TRANSACTION_TYPE")]
     public string TransactionType { get; set; } = string.Empty;
 
-    [Column("Before_Balance")]
+    [Column("BEFORE_BALANCE")]
     public decimal BeforeBalance { get; set; }
 
-    [Column("After_Balance")]
+    [Column("AFTER_BALANCE")]
     public decimal AfterBalance { get; set; }
 
-    [Column("Detail_ID")]
+    [Column("DETAIL_ID")]
     public int? DetailId { get; set; }
 
-    [Column("Idempotency_Key")]
+    [Column("IDEMPOTENCY_KEY")]
     public string IdempotencyKey { get; set; } = string.Empty;
 
-    [Column("Create_Time")]
+    [Column("CREATE_TIME")]
     public DateTime CreateTime { get; set; }
 }

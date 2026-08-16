@@ -22,7 +22,7 @@ public sealed class AccommodationDto
 {
     public long AllocationId { get; set; }
     public string StudentId { get; set; } = string.Empty;
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
     public int BedNo { get; set; }
     public DateTime CheckInDate { get; set; }
     public DateTime? CheckOutDate { get; set; }

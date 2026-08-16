@@ -52,4 +52,14 @@ public class UserAccountRepository
             .Select(account => (int?)account.AccountId)
             .SingleOrDefaultAsync();
     }
+
+    public async Task UpdateIsFirstLoginAsync(int accountId, string isFirstLogin)
+    {
+        var user = await _context.UserAccounts.FindAsync(accountId);
+        if (user != null)
+        {
+            user.IsFirstLogin = isFirstLogin;
+            await _context.SaveChangesAsync();
+        }
+    }
 }
