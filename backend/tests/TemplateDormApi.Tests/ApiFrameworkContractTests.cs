@@ -46,17 +46,18 @@ public sealed class ApiFrameworkContractTests
         "POST /api/visitor-registry/{registryId}/verify",
         "POST /api/visitor-registry/{registryId}/exit",
         "POST /api/violations",
-        "GET /api/violations"
+        "GET /api/violations",
+        "DELETE /api/violations/{violationsId}"
     };
 
     [Fact]
-    public void Framework_exposes_all_25_claimed_routes()
+    public void Framework_exposes_all_26_claimed_routes()
     {
         var actualRoutes = FrameworkControllers
             .SelectMany(GetRoutes)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        Assert.Equal(25, actualRoutes.Count);
+        Assert.Equal(26, actualRoutes.Count);
         Assert.Empty(ExpectedRoutes.Except(actualRoutes, StringComparer.OrdinalIgnoreCase));
         Assert.Empty(actualRoutes.Except(ExpectedRoutes, StringComparer.OrdinalIgnoreCase));
     }

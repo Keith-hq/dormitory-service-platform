@@ -9,7 +9,7 @@ public sealed class RepairTicket
 {
     public long TicketId { get; set; }
     public string? StudentId { get; set; }
-    public long? RoomId { get; set; }
+    public int? RoomId { get; set; }
     public string IssueDescription { get; set; } = string.Empty;
     public DateTime SubmitTime { get; set; }
     public string? Status { get; set; }

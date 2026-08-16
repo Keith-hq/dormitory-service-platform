@@ -37,6 +37,7 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -59,6 +60,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Visitor_Authorization =====
 DECLARE
@@ -80,6 +82,7 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -102,6 +105,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Parcel_Record =====
 DECLARE
@@ -123,6 +127,7 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -145,3 +150,4 @@ BEGIN
             'END;';
     END IF;
 END;
+/

@@ -16,7 +16,8 @@
 --      切换为 EF ValueGeneratedOnAdd / 直接使用 NEXTVAL。
 --
 -- 执行方式（DBeaver，JDBC 连接）：整段选中执行（匿名块，幂等写法）。
--- 验证：由数据库负责人按需补充 verify 段（当前 PR 暂不添加）。
+-- 验证：重跑 database/verify/extension_schema_checks.sql，确认新增第 24 部分
+--   （D_Room 唯一索引 1 行 + 三张表序列 3 行 + 触发器 3 行）。
 
 -- =====================================================================
 -- Part A：D_Room 唯一约束 UK_D_ROOM_BUILDING_NO (Building_ID, Room_Number)
