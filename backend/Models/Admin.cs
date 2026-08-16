@@ -13,4 +13,6 @@ public sealed class Admin
 
     [ForeignKey(nameof(BuildingId))]
     public Building? Building { get; set; }
+
+    public int TokenVersion { get; set; }
 }
