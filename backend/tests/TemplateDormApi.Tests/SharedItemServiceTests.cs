@@ -93,7 +93,7 @@ public class SharedItemServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_BlocksWhenHasLoanRecord()
+    public async Task DeleteAsync_BlocksWhenHasUnreturnedLoan()
     {
         await using var context = TestDbContextFactory.Create();
         context.SharedItems.Add(new SharedItem { ItemId = 10, ItemName = "球拍", BuildingId = 1, TotalQty = 1, AvailableQty = 0, Status = "正常" });
@@ -116,5 +116,55 @@ public class SharedItemServiceTests
         await service.DeleteAsync(10, CancellationToken.None);
 
         Assert.Equal(0, await context.SharedItems.CountAsync());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AllowsWhenLoanReturned()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.SharedItems.Add(new SharedItem { ItemId = 10, ItemName = "球拍", BuildingId = 1, TotalQty = 1, AvailableQty = 1, Status = "正常" });
+        context.ItemLoans.Add(new ItemLoan
+        {
+            LoanId = 1,
+            ItemId = 10,
+            StudentId = "S1",
+            BorrowTime = DateTime.Now.AddDays(-2),
+            DueTime = DateTime.Now.AddDays(-1),
+            ReturnTime = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.DeleteAsync(10, CancellationToken.None);
+
+        Assert.Equal(0, await context.SharedItems.CountAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhitespaceName_Throws()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Buildings.Add(new Building { BuildingId = 1 });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.CreateAsync(new CreateSharedItemRequest { Name = "   ", Quantity = 1, BuildingId = 1 },
+                CancellationToken.None));
+        Assert.Equal(400, ex.HttpStatus);
+    }
+
+    [Fact]
+    public async Task CreateAsync_QuantityAbove999_Throws()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Buildings.Add(new Building { BuildingId = 1 });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.CreateAsync(new CreateSharedItemRequest { Name = "球拍", Quantity = 1000, BuildingId = 1 },
+                CancellationToken.None));
+        Assert.Equal(400, ex.HttpStatus);
     }
 }

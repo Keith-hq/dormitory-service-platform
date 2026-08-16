@@ -9,7 +9,7 @@ public sealed class CreateSharedItemRequest
     [StringLength(50, ErrorMessage = "物品名称最长 50 个字符")]
     public string Name { get; set; } = string.Empty;
 
-    [Range(0, int.MaxValue, ErrorMessage = "数量必须大于等于 0")]
+    [Range(0, 999, ErrorMessage = "数量必须在 0~999 之间（D_Shared_Item.Total_Qty 为 NUMBER(3)）")]
     public int Quantity { get; set; }
 
     [Range(1, int.MaxValue, ErrorMessage = "所属楼栋不能为空")]
@@ -26,7 +26,7 @@ public sealed class CreateSharedItemRequest
 /// </summary>
 public sealed class UpdateSharedItemRequest
 {
-    [Range(0, int.MaxValue, ErrorMessage = "数量必须大于等于 0")]
+    [Range(0, 999, ErrorMessage = "数量必须在 0~999 之间（D_Shared_Item.Total_Qty 为 NUMBER(3)）")]
     public int? Quantity { get; set; }
 
     [StringLength(200, ErrorMessage = "描述最长 200 个字符")]

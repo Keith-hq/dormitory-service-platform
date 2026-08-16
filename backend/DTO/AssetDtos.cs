@@ -12,7 +12,7 @@ public sealed class CreateAssetRequest
     [StringLength(50, ErrorMessage = "资产名称最长 50 个字符")]
     public string AssetName { get; set; } = string.Empty;
 
-    [Range(0, int.MaxValue, ErrorMessage = "数量必须大于等于 0")]
+    [Range(0, 999, ErrorMessage = "数量必须在 0~999 之间（D_ASSET.Quantity 为 NUMBER(3)）")]
     public int Quantity { get; set; } = 1;
 
     [RegularExpression("^(正常|损坏|缺失)$", ErrorMessage = "状态只能是：正常 / 损坏 / 缺失")]
@@ -41,7 +41,7 @@ public sealed class UpdateAssetRequest
 /// </summary>
 public sealed class StocktakeAssetRequest
 {
-    [Range(0, int.MaxValue, ErrorMessage = "数量必须大于等于 0")]
+    [Range(0, 999, ErrorMessage = "数量必须在 0~999 之间（D_ASSET.Quantity 为 NUMBER(3)）")]
     public int Quantity { get; set; }
 
     [StringLength(500, ErrorMessage = "盘点说明最长 500 个字符")]

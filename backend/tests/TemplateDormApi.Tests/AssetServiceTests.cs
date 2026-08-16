@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
@@ -15,7 +16,7 @@ namespace TemplateDormApi.Tests;
 public class AssetServiceTests
 {
     private static AssetService CreateService(AppDbContext context)
-        => new(context, new RepairRepository(context));
+        => new(context, new RepairRepository(context), new AuditService(context, new HttpContextAccessor()));
 
     [Fact]
     public async Task CreateAsync_RegistersAsset_WithDefaults()
@@ -231,5 +232,132 @@ public class AssetServiceTests
         var ex = await Assert.ThrowsAsync<BusinessException>(() =>
             service.HandleWarningAsync(10, new HandleWarningRequest { Action = "处理" }, CancellationToken.None));
         Assert.Equal(404, ex.HttpStatus);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DamagedAsset_GeneratesWarning()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Rooms.Add(new Room { RoomId = 1, RoomNumber = "101" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.CreateAsync(
+            new CreateAssetRequest { RoomId = 1, AssetName = "空调", Quantity = 1, Status = "损坏" },
+            CancellationToken.None);
+
+        Assert.Equal(1, await context.AssetWarnings.CountAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_MissingAsset_GeneratesWarning()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Rooms.Add(new Room { RoomId = 1, RoomNumber = "101" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.CreateAsync(
+            new CreateAssetRequest { RoomId = 1, AssetName = "微波炉", Quantity = 1, Status = "缺失" },
+            CancellationToken.None);
+
+        Assert.Equal(1, await context.AssetWarnings.CountAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhitespaceName_Throws()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Rooms.Add(new Room { RoomId = 1, RoomNumber = "101" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.CreateAsync(new CreateAssetRequest { RoomId = 1, AssetName = "   ", Quantity = 1 },
+                CancellationToken.None));
+        Assert.Equal(400, ex.HttpStatus);
+    }
+
+    [Fact]
+    public async Task CreateAsync_QuantityAbove999_Throws()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Rooms.Add(new Room { RoomId = 1, RoomNumber = "101" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.CreateAsync(new CreateAssetRequest { RoomId = 1, AssetName = "空调", Quantity = 1000 },
+                CancellationToken.None));
+        Assert.Equal(400, ex.HttpStatus);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusToDamaged_GeneratesWarning()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 1, Status = "正常" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.UpdateAsync(10, new UpdateAssetRequest { Status = "损坏" }, CancellationToken.None);
+
+        Assert.Equal(1, await context.AssetWarnings.CountAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AlreadyDamaged_NoDuplicateWarning()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 1, Status = "损坏" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.UpdateAsync(10, new UpdateAssetRequest { AssetName = "新空调" }, CancellationToken.None);
+
+        Assert.Equal(0, await context.AssetWarnings.CountAsync());
+    }
+
+    [Fact]
+    public async Task Stocktake_WithNote_WritesAudit()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 2, Status = "正常" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.StocktakeAsync(10,
+            new StocktakeAssetRequest { Quantity = 1, Note = "盘点发现少一台" }, CancellationToken.None);
+
+        var audit = await context.AuditEvents.SingleAsync();
+        Assert.Equal("STOCKTAKE", audit.EventType);
+        Assert.Equal("10", audit.TargetId);
+        Assert.Equal("盘点发现少一台", audit.Details);
+    }
+
+    [Fact]
+    public async Task Stocktake_WithoutNote_StillWritesAudit()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 2, Status = "正常" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.StocktakeAsync(10, new StocktakeAssetRequest { Quantity = 1 }, CancellationToken.None);
+
+        Assert.Equal(1, await context.AuditEvents.CountAsync());
+    }
+
+    [Fact]
+    public async Task Stocktake_QuantityAbove999_Throws()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 2, Status = "正常" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.StocktakeAsync(10, new StocktakeAssetRequest { Quantity = 1000 }, CancellationToken.None));
+        Assert.Equal(400, ex.HttpStatus);
     }
 }

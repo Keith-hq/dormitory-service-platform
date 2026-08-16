@@ -28,14 +28,24 @@ public sealed class SharedItemService : ISharedItemService
             throw new BusinessException(404, "所属楼栋不存在", StatusCodes.Status404NotFound);
         }
 
+        var name = request.Name.Trim();
+        if (name.Length == 0)
+        {
+            throw new BusinessException(400, "物品名称去除空白后不能为空", StatusCodes.Status400BadRequest);
+        }
+        if (request.Quantity > 999)
+        {
+            throw new BusinessException(400, "数量最大为 999（D_Shared_Item.Total_Qty 为 NUMBER(3)）", StatusCodes.Status400BadRequest);
+        }
+
         var item = new SharedItem
         {
-            ItemName = request.Name.Trim(),
+            ItemName = name,
             BuildingId = request.BuildingId,
             TotalQty = request.Quantity,
             AvailableQty = request.Quantity,
             Status = "正常",
-            Description = request.Description
+            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim()
         };
         _context.SharedItems.Add(item);
         await _context.SaveChangesAsync(cancellationToken);
@@ -52,6 +62,10 @@ public sealed class SharedItemService : ISharedItemService
             {
                 throw new BusinessException(400, "数量必须大于等于 0", StatusCodes.Status400BadRequest);
             }
+            if (newTotal > 999)
+            {
+                throw new BusinessException(400, "数量最大为 999（D_Shared_Item.Total_Qty 为 NUMBER(3)）", StatusCodes.Status400BadRequest);
+            }
             if (newTotal < item.AvailableQty)
             {
                 throw new BusinessException(400, "已有借出，总数不能低于当前可借数量", StatusCodes.Status400BadRequest);
@@ -61,7 +75,7 @@ public sealed class SharedItemService : ISharedItemService
 
         if (request.Description is not null)
         {
-            item.Description = request.Description;
+            item.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         }
 
         if (request.Status is not null)
@@ -81,10 +95,12 @@ public sealed class SharedItemService : ISharedItemService
     {
         var item = await GetItemAsync(itemId, cancellationToken);
 
-        var hasLoan = await _context.ItemLoans.AnyAsync(loan => loan.ItemId == itemId, cancellationToken);
-        if (hasLoan)
+        // DORM-49 删除口径：仅「有未归还借出记录」时禁止删除；已归还的历史借出不阻断。
+        var hasUnreturnedLoan = await _context.ItemLoans
+            .AnyAsync(loan => loan.ItemId == itemId && loan.ReturnTime == null, cancellationToken);
+        if (hasUnreturnedLoan)
         {
-            throw new BusinessException(409, "有借出记录时禁止删除", StatusCodes.Status409Conflict);
+            throw new BusinessException(409, "有未归还借出记录时禁止删除", StatusCodes.Status409Conflict);
         }
 
         _context.SharedItems.Remove(item);
