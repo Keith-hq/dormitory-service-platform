@@ -66,11 +66,17 @@ public sealed class SharedItemService : ISharedItemService
             {
                 throw new BusinessException(400, "数量最大为 999（D_Shared_Item.Total_Qty 为 NUMBER(3)）", StatusCodes.Status400BadRequest);
             }
-            if (newTotal < item.AvailableQty)
+            // 二轮审核：SP_Borrow_Item / SP_Return_Item 以「每笔未归还借出=占 1 件」维护
+            // Available_Qty（Available = Total - 未归还数），修改总数须按差值同步
+            // AvailableQty，并保证 newTotal >= 未归还数量，避免出现负数可借。
+            var unreturnedCount = await _context.ItemLoans
+                .CountAsync(loan => loan.ItemId == itemId && loan.ReturnTime == null, cancellationToken);
+            if (newTotal < unreturnedCount)
             {
-                throw new BusinessException(400, "已有借出，总数不能低于当前可借数量", StatusCodes.Status400BadRequest);
+                throw new BusinessException(400, "总数不能低于未归还的借出数量", StatusCodes.Status400BadRequest);
             }
             item.TotalQty = newTotal;
+            item.AvailableQty = newTotal - unreturnedCount;
         }
 
         if (request.Description is not null)
@@ -101,6 +107,19 @@ public sealed class SharedItemService : ISharedItemService
         if (hasUnreturnedLoan)
         {
             throw new BusinessException(409, "有未归还借出记录时禁止删除", StatusCodes.Status409Conflict);
+        }
+
+        // 二轮审核：D_Item_Loan.Item_ID 外键无 ON DELETE CASCADE，已归还的历史借出
+        // 记录仍会在 Oracle 挡住删除（ORA-02292）。执行到此已确认无未归还记录，
+        // 同一事务内清理该物品的历史借还记录后删除物品。
+        // 注：借出/归还写入走 SP_Borrow_Item / SP_Return_Item（李昂域），本处仅在删除
+        // 主数据时随物品清理其历史记录，不影响既有借还语义。
+        var loans = await _context.ItemLoans
+            .Where(loan => loan.ItemId == itemId)
+            .ToListAsync(cancellationToken);
+        if (loans.Count > 0)
+        {
+            _context.ItemLoans.RemoveRange(loans);
         }
 
         _context.SharedItems.Remove(item);

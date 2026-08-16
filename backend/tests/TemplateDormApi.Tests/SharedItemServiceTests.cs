@@ -51,16 +51,43 @@ public class SharedItemServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_RejectsTotalBelowAvailable()
+    public async Task UpdateAsync_RejectsTotalBelowUnreturned()
     {
+        // 二轮审核建议项：总数不能低于未归还借出数量（3 笔未归还，改 2 被拒）。
         await using var context = TestDbContextFactory.Create();
-        context.SharedItems.Add(new SharedItem { ItemId = 10, ItemName = "球拍", BuildingId = 1, TotalQty = 5, AvailableQty = 3, Status = "正常" });
+        context.SharedItems.Add(new SharedItem { ItemId = 10, ItemName = "球拍", BuildingId = 1, TotalQty = 5, AvailableQty = 2, Status = "正常" });
+        context.ItemLoans.AddRange(
+            new ItemLoan { LoanId = 1, ItemId = 10, StudentId = "S1", BorrowTime = DateTime.Now.AddDays(-2), DueTime = DateTime.Now.AddDays(-1) },
+            new ItemLoan { LoanId = 2, ItemId = 10, StudentId = "S2", BorrowTime = DateTime.Now.AddDays(-2), DueTime = DateTime.Now.AddDays(-1) },
+            new ItemLoan { LoanId = 3, ItemId = 10, StudentId = "S3", BorrowTime = DateTime.Now.AddDays(-2), DueTime = DateTime.Now.AddDays(-1) });
         await context.SaveChangesAsync();
 
         var service = CreateService(context);
         var ex = await Assert.ThrowsAsync<BusinessException>(() =>
             service.UpdateAsync(10, new UpdateSharedItemRequest { Quantity = 2 }, CancellationToken.None));
         Assert.Equal(400, ex.HttpStatus);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SyncsAvailableQtyWithUnreturned()
+    {
+        // 二轮审核建议项：修改总数须按差值同步 AvailableQty（Available = Total - 未归还数）。
+        await using var context = TestDbContextFactory.Create();
+        context.SharedItems.Add(new SharedItem { ItemId = 10, ItemName = "球拍", BuildingId = 1, TotalQty = 5, AvailableQty = 4, Status = "正常" });
+        context.ItemLoans.Add(new ItemLoan { LoanId = 1, ItemId = 10, StudentId = "S1", BorrowTime = DateTime.Now.AddDays(-2), DueTime = DateTime.Now.AddDays(-1) });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+
+        // 增加总数：AvailableQty 同步 +1（6 - 1 未归还 = 5）
+        var up = await service.UpdateAsync(10, new UpdateSharedItemRequest { Quantity = 6 }, CancellationToken.None);
+        Assert.Equal(6, up.TotalQty);
+        Assert.Equal(5, up.AvailableQty);
+
+        // 减少总数：AvailableQty 同步 -1（3 - 1 未归还 = 2）
+        var down = await service.UpdateAsync(10, new UpdateSharedItemRequest { Quantity = 3 }, CancellationToken.None);
+        Assert.Equal(3, down.TotalQty);
+        Assert.Equal(2, down.AvailableQty);
     }
 
     [Fact]
@@ -137,7 +164,9 @@ public class SharedItemServiceTests
         var service = CreateService(context);
         await service.DeleteAsync(10, CancellationToken.None);
 
+        // 二轮审核阻塞项：已归还的历史借还记录随物品同事务清理（Oracle 外键不阻断删除）。
         Assert.Equal(0, await context.SharedItems.CountAsync());
+        Assert.Equal(0, await context.ItemLoans.CountAsync());
     }
 
     [Fact]

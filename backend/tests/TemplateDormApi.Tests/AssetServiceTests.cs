@@ -360,4 +360,56 @@ public class AssetServiceTests
             service.StocktakeAsync(10, new StocktakeAssetRequest { Quantity = 1000 }, CancellationToken.None));
         Assert.Equal(400, ex.HttpStatus);
     }
+
+    [Fact]
+    public async Task DeleteAsync_DeletesWhenOnlyWarningExists()
+    {
+        // 二轮审核阻塞项：D_Asset_Warning 外键无 ON DELETE CASCADE，只有预警、
+        // 无报修关联的资产直接删除会在 Oracle 报 ORA-02292；预警应随资产同事务删除。
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 1, Status = "损坏" });
+        context.AssetWarnings.Add(new AssetWarning { WarningId = 1, AssetId = 10 });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        await service.DeleteAsync(10, CancellationToken.None);
+
+        Assert.Equal(0, await context.Assets.CountAsync());
+        Assert.Equal(0, await context.AssetWarnings.CountAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusToNormal_ClosesPendingWarnings()
+    {
+        // 二轮审核建议项：损坏/缺失恢复为正常时，未处理预警自动关闭退出 DORM-17。
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 1, Status = "损坏" });
+        context.AssetWarnings.Add(new AssetWarning { WarningId = 1, AssetId = 10 });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var dto = await service.UpdateAsync(10, new UpdateAssetRequest { Status = "正常" }, CancellationToken.None);
+
+        Assert.Equal("正常", dto.Status);
+        var warning = await context.AssetWarnings.SingleAsync();
+        Assert.Equal("是", warning.Handled);
+        Assert.Equal("处理", warning.HandleAction);
+        Assert.NotNull(warning.HandleTime);
+        Assert.Equal(0, (await service.GetWarningsAsync(1, 10, CancellationToken.None)).Total);
+    }
+
+    [Fact]
+    public async Task ToRepair_WhitespaceDescription_Throws()
+    {
+        // 二轮审核建议项：Description 仅 [Required]，纯空格 Trim() 后为空串，
+        // Oracle 空串视为 NULL 会触发 500，服务层提前拦截。
+        await using var context = TestDbContextFactory.Create();
+        context.Assets.Add(new Asset { AssetId = 10, RoomId = 1, AssetName = "空调", Quantity = 1, Status = "损坏" });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.ToRepairAsync(10, new ToRepairRequest { Description = "   " }, CancellationToken.None));
+        Assert.Equal(400, ex.HttpStatus);
+    }
 }

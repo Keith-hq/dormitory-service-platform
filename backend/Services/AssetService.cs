@@ -70,14 +70,36 @@ public sealed class AssetService : IAssetService
             Quantity = request.Quantity,
             Status = request.Status
         };
-        _context.Assets.Add(asset);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // DORM-17 预警来源：资产登记即标记为「损坏/缺失」时生成基础损耗预警。
-        if (asset.Status is "损坏" or "缺失")
+        // 二轮审核：资产与首次预警写入需同一事务，避免第二次 SaveChanges 失败时留下
+        // 「有资产但无预警」的中间态；InMemory 测试环境不支持事务，IsRelational 守卫
+        // 下跳过（同 ToRepairAsync 先例）。
+        var transaction = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        try
         {
-            await EnsureWarningForDamagedOrMissingAsync(asset.AssetId, cancellationToken);
+            _context.Assets.Add(asset);
             await _context.SaveChangesAsync(cancellationToken);
+
+            // DORM-17 预警来源：资产登记即标记为「损坏/缺失」时生成基础损耗预警。
+            if (asset.Status is "损坏" or "缺失")
+            {
+                await EnsureWarningForDamagedOrMissingAsync(asset.AssetId, cancellationToken);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+            throw;
         }
         return ToDto(asset);
     }
@@ -105,6 +127,23 @@ public sealed class AssetService : IAssetService
             {
                 await EnsureWarningForDamagedOrMissingAsync(asset.AssetId, cancellationToken);
             }
+            // 二轮审核：资产从「损坏/缺失」恢复为「正常」时，预警因损坏/缺失而产生、
+            // 恢复正常即失效——自动关闭未处理预警，使其退出 DORM-17 列表。
+            // Handle_Action 受 CK_D_ASSET_WARNING_ACTION 约束，只能取「处理/标记重点」，
+            // 恢复原因记入 Note（不新增 DDL）。
+            if (wasDamagedOrMissing && asset.Status == "正常")
+            {
+                var pendingWarnings = await _context.AssetWarnings
+                    .Where(item => item.AssetId == asset.AssetId && item.Handled == "否")
+                    .ToListAsync(cancellationToken);
+                foreach (var warning in pendingWarnings)
+                {
+                    warning.Handled = "是";
+                    warning.HandleAction = "处理";
+                    warning.HandleTime = DateTime.Now;
+                    warning.Note = "资产状态恢复为正常，自动关闭";
+                }
+            }
         }
         // remark 契约可选、D_ASSET（foundation 冻结）无对应列，不落库。
 
@@ -121,6 +160,17 @@ public sealed class AssetService : IAssetService
         if (hasRepairLink)
         {
             throw new BusinessException(409, "已关联报修的资产禁止删除", StatusCodes.Status409Conflict);
+        }
+
+        // 二轮审核：D_Asset_Warning.Asset_ID 外键无 ON DELETE CASCADE，只有预警、
+        // 无报修关联的资产直接删除会在 Oracle 报 ORA-02292。预警是资产的附属记录
+        // （DORM-17 基础损耗预警），资产删除时随同一 SaveChanges 事务一并删除、自然作废。
+        var warnings = await _context.AssetWarnings
+            .Where(item => item.AssetId == assetId)
+            .ToListAsync(cancellationToken);
+        if (warnings.Count > 0)
+        {
+            _context.AssetWarnings.RemoveRange(warnings);
         }
 
         _context.Assets.Remove(asset);
@@ -163,6 +213,12 @@ public sealed class AssetService : IAssetService
         if (asset.Status != "损坏")
         {
             throw new BusinessException(409, "仅状态为「损坏」的资产可转报修；缺失不可转", StatusCodes.Status409Conflict);
+        }
+        // 二轮审核：请求 Description 仅 [Required]，纯空格经 CreateAssetTicket 的
+        // Trim() 后成空串，Oracle 空串视为 NULL 会触发 ORA-01400 → 500；此处提前拦截。
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            throw new BusinessException(400, "报修描述不能为空", StatusCodes.Status400BadRequest);
         }
 
         // 关系型（Oracle）下用显式事务保证「锁行 + 防重 + 工单 + 关联 + 预警」原子；
