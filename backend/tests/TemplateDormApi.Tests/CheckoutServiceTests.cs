@@ -40,11 +40,36 @@ public class CheckoutServiceTests
             => Task.FromResult(new List<FeeDetail>());
     }
 
+    /// <summary>记录通知投递的替身（通知域公共服务，单测不落库）</summary>
+    private sealed class FakeNotificationService : INotificationService
+    {
+        public List<NotificationCreateDto> Created { get; } = new();
+
+        public Task<NotificationItemDto> CreateAsync(NotificationCreateDto dto)
+        {
+            Created.Add(dto);
+            return Task.FromResult(new NotificationItemDto());
+        }
+
+        public Task<PagedResult<NotificationItemDto>> GetPagedAsync(
+            int recipientAccountId, int page, int pageSize, string? isRead)
+            => Task.FromResult(new PagedResult<NotificationItemDto>());
+
+        public Task MarkReadAsync(int notificationId, int recipientAccountId) => Task.CompletedTask;
+
+        public Task MarkBatchReadAsync(IReadOnlyCollection<int> notificationIds, int recipientAccountId)
+            => Task.CompletedTask;
+
+        public Task<UnreadCountDto> GetUnreadCountAsync(int recipientAccountId)
+            => Task.FromResult(new UnreadCountDto());
+    }
+
     private sealed class Fixture
     {
         public AppDbContext Context { get; }
         public CheckoutService Service { get; }
         public FakeFeeSharingService FeeSharing { get; } = new();
+        public FakeNotificationService Notifications { get; } = new();
 
         public Fixture()
         {
@@ -52,7 +77,7 @@ public class CheckoutServiceTests
                 .UseInMemoryDatabase($"checkout-tests-{Guid.NewGuid():N}")
                 .Options;
             Context = new AppDbContext(options);
-            Service = new CheckoutService(Context, new CheckoutRepository(Context), FeeSharing);
+            Service = new CheckoutService(Context, new CheckoutRepository(Context), FeeSharing, Notifications);
 
             Context.Rooms.Add(new Room
             {
@@ -209,11 +234,16 @@ public class CheckoutServiceTests
         var room = await f.Context.Rooms.FindAsync(101);
         Assert.Equal(0, room!.Occupancy); // 释放床位
 
-        // 幂等：重复确认不报错、不重复释放（IT-C2-001 ③）
+        // 清算通知（IT-C2-001 ⑥）：确认成功向学生投递一次
+        Assert.Single(f.Notifications.Created);
+        Assert.Equal("S001", f.Notifications.Created[0].StudentId);
+
+        // 幂等：重复确认不报错、不重复释放（IT-C2-001 ③）、不重复通知
         var again = await f.Service.ConfirmAsync(1, new CheckoutConfirmDto());
         Assert.Contains("已清算", Serialize(again));
         room = await f.Context.Rooms.FindAsync(101);
         Assert.Equal(0, room!.Occupancy);
+        Assert.Single(f.Notifications.Created);
     }
 
     [Fact]

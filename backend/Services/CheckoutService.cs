@@ -20,15 +20,18 @@ public class CheckoutService : ICheckoutService
     private readonly AppDbContext _context;
     private readonly CheckoutRepository _checkoutRepo;
     private readonly IFeeSharingService _feeSharing;
+    private readonly INotificationService _notificationService;
 
     public CheckoutService(
         AppDbContext context,
         CheckoutRepository checkoutRepo,
-        IFeeSharingService feeSharing)
+        IFeeSharingService feeSharing,
+        INotificationService notificationService)
     {
         _context = context;
         _checkoutRepo = checkoutRepo;
         _feeSharing = feeSharing;
+        _notificationService = notificationService;
     }
 
     public async Task<object> RegisterAsync(long allocationId, CheckoutRegisterDto dto)
@@ -201,9 +204,11 @@ public class CheckoutService : ICheckoutService
             alloc.CheckOutDate = dto.CheckoutDate ?? DateTime.Now; // settle 已写入则保持（幂等）
         room.Occupancy = Math.Max(0, (room.Occupancy ?? 1) - 1);   // 释放床位
 
+        var transitioned = false; // 仅本次请求完成状态迁移才发清算通知（幂等重放/并发让位不发）
         try
         {
             await _context.SaveChangesAsync();
+            transitioned = true;
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -214,6 +219,9 @@ public class CheckoutService : ICheckoutService
             if (log.Status != CheckoutStatuses.Confirmed)
                 throw new BusinessException(409, "并发确认冲突，请重试", 409);
         }
+
+        if (transitioned && !string.IsNullOrWhiteSpace(alloc.StudentId))
+            await NotifyCheckoutCompletedAsync(alloc.StudentId, log.LogId);
 
         return await BuildSummaryAsync(log);
     }
@@ -261,6 +269,29 @@ public class CheckoutService : ICheckoutService
         }
 
         return await BuildSummaryAsync(log);
+    }
+
+    /// <summary>
+    /// 清算通知（IT-C2-001 ⑥）：confirm 状态迁移成功后经公共服务 INotificationService 投递，
+    /// 通知主键与收件人解析归通知域（数据拥有者边界，与 SlaDispatchService 同模式）。
+    /// 通知失败不阻断退宿确认（业务性失败跳过）。
+    /// </summary>
+    private async Task NotifyCheckoutCompletedAsync(string studentId, int checkoutId)
+    {
+        try
+        {
+            await _notificationService.CreateAsync(new NotificationCreateDto
+            {
+                StudentId = studentId,
+                Title = "退宿办理完成",
+                Content = $"退宿清算单#{checkoutId}已确认通过，床位已释放。如有退宿账单请及时缴清。",
+                NotificationType = "系统"
+            });
+        }
+        catch (BusinessException)
+        {
+            // 收件人无有效账户等业务性失败 → 跳过，不阻断退宿确认
+        }
     }
 
     /// <summary>DORM-35 响应：清算记录 + 床位分配快照</summary>
