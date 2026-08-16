@@ -21,4 +21,6 @@ public class UserAccount
 
     [Column("CREATE_TIME")]
     public DateTime CreateTime { get; set; }
+
+    public string IsFirstLogin { get; set; } = "Y";
 }

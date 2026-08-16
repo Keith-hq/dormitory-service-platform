@@ -4,17 +4,21 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.InMemory;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.OpenApi.Models;
-using Quartz;
-using System.Text;
 using OfficeOpenXml;
+using Quartz;
+using System.Security.Claims;
+using System.Text;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Filters;
 using TemplateDormApi.Jobs;
+using TemplateDormApi.Middleware;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
@@ -114,7 +118,7 @@ builder.Services.AddScoped<ParcelRepository>();
 builder.Services.AddScoped<LeaveRepository>();
 builder.Services.AddScoped<BedAllocationRepository>();
 builder.Services.AddScoped<CheckoutRepository>();
-builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<AdminRepository>();
 
 // ===== 6. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
@@ -146,8 +150,14 @@ builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
+builder.Services.AddScoped<ISharedItemService, SharedItemService>();
+builder.Services.AddScoped<ICleaningTaskService, CleaningTaskService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IImportService, ImportService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IUserAccountService, UserAccountService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 // ===== 7. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
@@ -277,6 +287,50 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(key)
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                // 检查黑名单
+                var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+                if (!string.IsNullOrEmpty(jti))
+                {
+                    using var cacheScope = context.HttpContext.RequestServices.CreateScope();
+                    var cache = cacheScope.ServiceProvider.GetRequiredService<IMemoryCache>();
+                    if (cache.Get($"revoked_token_{jti}") != null)
+                    {
+                        context.Fail("Token 已失效，请重新登录");
+                        return;
+                    }
+                }
+
+                var userIdClaim = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var accountId))
+                    return;
+
+                using var scope = context.HttpContext.RequestServices.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                var user = await dbContext.UserAccounts
+                    .FirstOrDefaultAsync(u => u.AccountId == accountId);
+
+                // 仅对管理员账号验证 TokenVersion
+                if (user != null && !string.IsNullOrEmpty(user.AdminId))
+                {
+                    // 获取 Token 中的 TokenVersion，缺失时默认 0
+                    var tokenVersionClaim = context.Principal?.FindFirst("TokenVersion")?.Value;
+                    var tokenVersionInToken = string.IsNullOrEmpty(tokenVersionClaim) ? 0 : int.Parse(tokenVersionClaim);
+
+                    var admin = await dbContext.Admins
+                        .FirstOrDefaultAsync(a => a.AdminId == user.AdminId);
+                    if (admin != null && admin.TokenVersion != tokenVersionInToken)
+                    {
+                        context.Fail("Token 已失效，请重新登录");
+                    }
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization(AuthPolicies.Register);
@@ -298,6 +352,9 @@ app.UseSwaggerUI();
 // 认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
+
+// 首次登陆强制改密码中间件
+app.UseMiddleware<FirstLoginMiddleware>();
 
 app.UseStaticFiles(new StaticFileOptions
 {

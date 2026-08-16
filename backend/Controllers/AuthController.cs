@@ -2,14 +2,16 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.IdentityModel.JsonWebTokens;
+using OfficeOpenXml.FormulaParsing.LexicalAnalysis;
+using SkiaSharp;
+using System.Linq;
+using System.Security.Cryptography;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
-using SkiaSharp;
-using System.Linq;
-using System.Security.Cryptography;
 
 namespace TemplateDormApi.Controllers;
 
@@ -23,8 +25,9 @@ public class AuthController : ControllerBase
     private readonly ILogger<AuthController> _logger;
     private readonly IAuditService _auditService;
     private readonly IHostEnvironment _env;
+    private readonly IUserAccountService _userAccountService;
 
-    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IHostEnvironment env)
+    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IHostEnvironment env, IUserAccountService userAccountService)
     {
         _context = context;
         _jwtService = jwtService;
@@ -32,6 +35,7 @@ public class AuthController : ControllerBase
         _logger = logger;
         _auditService = auditService;
         _env = env;
+        _userAccountService = userAccountService;
     }
 
     /// <summary>
@@ -126,9 +130,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// 用户登录接口
     /// </summary>
-    // TODO: 当前未实现首次登录强制修改密码。
-    // 后续需在 D_USER_ACCOUNT 表增加 IS_FIRST_LOGIN VARCHAR2(1) DEFAULT 'Y'，
-    // 并在登录响应中返回 needChangePassword = true，由前端引导跳转。
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -212,8 +213,9 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse.Error(401, "用户身份异常"));
         }
 
-        // 7. 生成 Token
-        var token = _jwtService.GenerateToken(user, role);
+        // 7. 生成 Token 并检测是否为首次登录
+        var token = await _jwtService.GenerateToken(user, role);
+        bool needChangePassword = user.IsFirstLogin == "Y";
 
         // 8. 返回统一 ApiResponse
         return Ok(ApiResponse.Ok(new
@@ -221,7 +223,8 @@ public class AuthController : ControllerBase
             token,
             role,
             accountId = user.AccountId,
-            loginName = user.LoginName
+            loginName = user.LoginName,
+            needChangePassword
         }, "登录成功"));
     }
 
@@ -243,14 +246,17 @@ public class AuthController : ControllerBase
         // 获取角色
         string role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "unknown";
 
+        bool needChangePassword = user.IsFirstLogin == "Y";
+
         return Ok(ApiResponse.Ok(new
         {
+            role,
             accountId = user.AccountId,
             loginName = user.LoginName,
-            role = role,
             studentId = user.StudentId,
-            adminId = user.AdminId
-        }));
+            adminId = user.AdminId,
+            needChangePassword
+        }, "登录成功"));
     }
 
     /// <summary>
@@ -258,10 +264,19 @@ public class AuthController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpPost("logout")]
-    public IActionResult Logout()
+    public async Task<IActionResult> Logout()
     {
+        // 提取当前 Token 的 jti
+        var jti = User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+        if (!string.IsNullOrEmpty(jti))
+        {
+            // 加入黑名单，过期时间 2 小时（与 Token 有效期一致）
+            _cache.Set($"revoked_token_{jti}", true, TimeSpan.FromHours(2));
+        }
+
         return Ok(ApiResponse.Ok(new { message = "已退出登录" }));
     }
+
     /// <summary>
     /// AUTH-04：学生账号注册
     /// </summary>
@@ -301,7 +316,8 @@ public class AuthController : ControllerBase
             LoginName = loginName,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
-            StudentId = request.StudentId
+            StudentId = request.StudentId,
+            IsFirstLogin = "Y"
         };
         _context.UserAccounts.Add(account);
         await _context.SaveChangesAsync();
@@ -349,7 +365,7 @@ public class AuthController : ControllerBase
                 AdminName = request.Name,
                 RoleLevel = request.Role,
                 BuildingId = request.BuildingId,
-                Post = request.Post  // 新增：岗位
+                Post = request.Post,  // 新增：岗位
             };
             _context.Admins.Add(admin);
         }
@@ -373,7 +389,8 @@ public class AuthController : ControllerBase
             LoginName = request.AdminId, // 可自定义，暂用 AdminId
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
-            AdminId = request.AdminId
+            AdminId = request.AdminId,
+            IsFirstLogin = "Y"
         };
         _context.UserAccounts.Add(account);
 
@@ -427,7 +444,7 @@ public class AuthController : ControllerBase
 
         // 更新密码
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        await _context.SaveChangesAsync();
+        await _userAccountService.UpdateIsFirstLoginAsync(accountId, "N");
 
         // 审计日志（可选）
         await _auditService.LogEventAsync(
