@@ -6,7 +6,7 @@ namespace TemplateDormApi.Models;
 public sealed class HygieneRecord
 {
     public long RecordId { get; set; }
-    public long? RoomId { get; set; }
+    public int? RoomId { get; set; }
     public DateTime CheckDate { get; set; }
     public decimal Score { get; set; }
     public string? InspectorId { get; set; }

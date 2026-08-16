@@ -68,7 +68,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
     }
 
     public async Task<IReadOnlyList<HygieneRecordDto>> GetRoomRecordsAsync(
-        long roomId,
+        int roomId,
         CancellationToken cancellationToken)
     {
         return await DbContext.HygieneRecords
@@ -94,7 +94,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
         CancellationToken cancellationToken)
     {
         var roomExists = await DbContext.Rooms.AsNoTracking()
-            .AnyAsync(item => item.RoomId == request.RoomId, cancellationToken);
+            .CountAsync(item => item.RoomId == request.RoomId, cancellationToken) > 0;
         if (!roomExists)
         {
             throw new TemplateDormApi.Exceptions.BusinessException(404, "房间不存在", 404);

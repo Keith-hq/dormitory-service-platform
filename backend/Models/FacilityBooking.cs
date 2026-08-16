@@ -3,7 +3,7 @@ namespace TemplateDormApi.Models;
 public sealed class FacilityBooking
 {
     public long BookingId { get; set; }
-    public long FacilityId { get; set; }
+    public int FacilityId { get; set; }
     public string StudentId { get; set; } = string.Empty;
     public DateTime CreateTime { get; set; }
     public DateTime? StartTime { get; set; }
