@@ -3,13 +3,22 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.InMemory;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.OpenApi.Models;
+using OfficeOpenXml;
 using Quartz;
+using System.Security.Claims;
 using System.Text;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Filters;
 using TemplateDormApi.Jobs;
+using TemplateDormApi.Middleware;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
@@ -20,13 +29,29 @@ static TimeZoneInfo GetBusinessTimeZone()
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 测试环境默认配置（必须在 builder.Configuration 读取之前设置）
+if (builder.Environment.IsEnvironment("Test"))
+{
+    builder.Configuration["Jwt:Key"] = "TestSecretKeyAtLeast32CharsLong!";
+    builder.Configuration["Jwt:Issuer"] = "DormitoryPlatform";
+    builder.Configuration["Jwt:Audience"] = "DormitoryPlatformClient";
+    builder.Configuration["ServiceKey:Shared"] = "TestServiceKey";
+}
+
+// 使用 EPPlus 5+ 包需要设置非商业用途授权，名称可以随意变动
+ExcelPackage.License.SetNonCommercialOrganization("DormitoryPlatform");
+
 // ===== 1. 注册 Controller（三层架构入口）=====
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        // 首字母小写驼峰（与前端对齐）
-        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-    });
+builder.Services.AddControllers(options =>
+{
+    // 添加全局审计日志过滤器
+    options.Filters.Add<AuditEventFilter>();
+})
+.AddJsonOptions(options =>
+{
+    // 首字母小写驼峰（与前端对齐）
+    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
@@ -46,11 +71,19 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "TemplateDormApi - 样板间接口", Version = "v1" });
+    c.MapType<IFormFile>(() => new OpenApiSchema { Type = "string", Format = "binary" });
+    c.OperationFilter<FormFileOperationFilter>();
 });
 
 // ===== 3. 注册 Oracle EF Core DbContext =====
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
+    if (builder.Environment.IsEnvironment("Test"))
+    {
+        options.UseInMemoryDatabase("TestDb");
+        return;
+    }
+
     var connectionString = builder.Configuration.GetConnectionString("OracleConnection");
     if (string.IsNullOrEmpty(connectionString))
     {
@@ -59,7 +92,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseOracle(connectionString);
 });
 
-// ===== 4. 注册 Repository 层 =====
+// ===== 4. 内存缓存与 HTTPContext 访问器 =====
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpContextAccessor();
+
+// ===== 5. 注册 Repository 层 =====
 builder.Services.AddScoped<BuildingRepository>();
 builder.Services.AddScoped<RoomRepository>();
 builder.Services.AddScoped<UserAccountRepository>();
@@ -75,11 +112,15 @@ builder.Services.AddScoped<StudentReportRepository>();
 builder.Services.AddScoped<AccessRepository>();
 builder.Services.AddScoped<VisitorRegistryRepository>();
 builder.Services.AddScoped<ViolationRepository>();
+builder.Services.AddScoped<VoteRepository>();
+builder.Services.AddScoped<VisitorRepository>();
+builder.Services.AddScoped<ParcelRepository>();
 builder.Services.AddScoped<LeaveRepository>();
 builder.Services.AddScoped<BedAllocationRepository>();
 builder.Services.AddScoped<CheckoutRepository>();
+builder.Services.AddScoped<AdminRepository>();
 
-// ===== 5. 注册 Service 层 =====
+// ===== 6. 注册 Service 层 =====
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IFeeSharingService, FeeSharingService>();
@@ -101,13 +142,24 @@ builder.Services.AddScoped<IStudentReportService, StudentReportService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
+builder.Services.AddScoped<IVoteService, VoteService>();
+builder.Services.AddScoped<IVisitorService, VisitorService>();
+builder.Services.AddScoped<IParcelService, ParcelService>();
 builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<ISlaDispatchService, SlaDispatchService>();
 builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
+builder.Services.AddScoped<ISharedItemService, SharedItemService>();
+builder.Services.AddScoped<ICleaningTaskService, CleaningTaskService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IImportService, ImportService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IUserAccountService, UserAccountService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
-// ===== 6. 注册 Quartz 定时任务 =====
+// ===== 7. 注册 Quartz 定时任务 =====
 builder.Services.AddQuartz(q =>
 {
     // --- 难点① 水电分摊：每月1日凌晨 ---
@@ -201,7 +253,7 @@ var storageMaxBytes = builder.Configuration.GetValue<long?>("Storage:MaxSizeByte
 builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = storageMaxBytes);
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 
-// ===== 7. CORS 配置（允许前端跨域）=====
+// ===== 8. CORS 配置（允许前端跨域）=====
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
@@ -235,11 +287,53 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(key)
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                // 检查黑名单
+                var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+                if (!string.IsNullOrEmpty(jti))
+                {
+                    using var cacheScope = context.HttpContext.RequestServices.CreateScope();
+                    var cache = cacheScope.ServiceProvider.GetRequiredService<IMemoryCache>();
+                    if (cache.Get($"revoked_token_{jti}") != null)
+                    {
+                        context.Fail("Token 已失效，请重新登录");
+                        return;
+                    }
+                }
+
+                var userIdClaim = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var accountId))
+                    return;
+
+                using var scope = context.HttpContext.RequestServices.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                var user = await dbContext.UserAccounts
+                    .FirstOrDefaultAsync(u => u.AccountId == accountId);
+
+                // 仅对管理员账号验证 TokenVersion
+                if (user != null && !string.IsNullOrEmpty(user.AdminId))
+                {
+                    // 获取 Token 中的 TokenVersion，缺失时默认 0
+                    var tokenVersionClaim = context.Principal?.FindFirst("TokenVersion")?.Value;
+                    var tokenVersionInToken = string.IsNullOrEmpty(tokenVersionClaim) ? 0 : int.Parse(tokenVersionClaim);
+
+                    var admin = await dbContext.Admins
+                        .FirstOrDefaultAsync(a => a.AdminId == user.AdminId);
+                    if (admin != null && admin.TokenVersion != tokenVersionInToken)
+                    {
+                        context.Fail("Token 已失效，请重新登录");
+                    }
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization(AuthPolicies.Register);
-builder.Services.AddScoped<VisitorService>();
-builder.Services.AddScoped<VoteService>();
 var app = builder.Build();
 
 // ===== 中间件管道 =====
@@ -250,9 +344,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//认证与授权
+// 认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
+
+// 首次登陆强制改密码中间件
+app.UseMiddleware<FirstLoginMiddleware>();
 
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -265,3 +362,6 @@ app.UseCors("DevCors");
 app.MapControllers();
 
 app.Run();
+
+// 负例测试用
+public partial class Program { }

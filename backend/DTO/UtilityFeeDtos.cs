@@ -8,8 +8,8 @@ namespace TemplateDormApi.DTO;
 /// </summary>
 public class CreateUtilityFeeRequest
 {
-    [Range(1, long.MaxValue, ErrorMessage = "房间ID必须大于0")]
-    public long RoomId { get; set; }
+    [Range(1, int.MaxValue, ErrorMessage = "房间ID必须大于0")]
+    public int RoomId { get; set; }
 
     /// <summary>账期 yyyy-MM（控制器校验格式与范围）</summary>
     public string YearMonth { get; set; } = string.Empty;
@@ -43,7 +43,7 @@ public class UpdateUtilityFeeRequest
 public class UtilityFeeListItemDto
 {
     public long FeeId { get; set; }
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
     public string YearMonth { get; set; } = string.Empty;
     public decimal? WaterFee { get; set; }
     public decimal? PowerFee { get; set; }
@@ -74,7 +74,7 @@ public class UtilityFeeDetailItemDto
 public class UtilityFeeDetailsDto
 {
     public long FeeId { get; set; }
-    public long RoomId { get; set; }
+    public int RoomId { get; set; }
     public string YearMonth { get; set; } = string.Empty;
     public List<UtilityFeeDetailItemDto> Items { get; set; } = new();
 }

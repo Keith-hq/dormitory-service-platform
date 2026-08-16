@@ -75,7 +75,7 @@ public sealed class LateEntryRepository : FrameworkRepositoryBase
         CancellationToken cancellationToken)
     {
         var studentExists = await DbContext.Students.AsNoTracking()
-            .AnyAsync(item => item.StudentId == request.StudentId, cancellationToken);
+            .CountAsync(item => item.StudentId == request.StudentId, cancellationToken) > 0;
         if (!studentExists)
         {
             throw new TemplateDormApi.Exceptions.BusinessException(404, "学生不存在", 404);

@@ -1,7 +1,12 @@
 import { resolveAuthMockAdapter } from '@/mock/auth'
 import { resolveBuildingMockAdapter } from '@/mock/building'
+import { resolveRoleServiceMockAdapter } from '@/mock/roleServices'
 
-const mockResolvers = [resolveAuthMockAdapter, resolveBuildingMockAdapter]
+const mockResolvers = [
+  resolveAuthMockAdapter,
+  resolveBuildingMockAdapter,
+  resolveRoleServiceMockAdapter
+]
 
 export const attachMockAdapter = (config) => {
   if (!import.meta.env.DEV || import.meta.env.VITE_USE_MOCK !== 'true') return config

@@ -256,7 +256,8 @@ public class InventoryTxnService : IInventoryTxnService
                 .FromSqlRaw(
                     @"SELECT Item_ID AS ""ITEM_ID"", Item_Name AS ""ITEM_NAME"",
                             Building_ID AS ""BUILDING_ID"", Total_Qty AS ""TOTAL_QTY"",
-                            Available_Qty AS ""AVAILABLE_QTY"", Status AS ""STATUS""
+                            Available_Qty AS ""AVAILABLE_QTY"", Status AS ""STATUS"",
+                            Description AS ""DESCRIPTION""
                      FROM D_Shared_Item
                      WHERE Status = '正常' AND Available_Qty > 0 AND Building_ID = {0}
                      ORDER BY Item_ID", buildingId.Value)
@@ -267,7 +268,8 @@ public class InventoryTxnService : IInventoryTxnService
             .FromSqlRaw(
                 @"SELECT Item_ID AS ""ITEM_ID"", Item_Name AS ""ITEM_NAME"",
                         Building_ID AS ""BUILDING_ID"", Total_Qty AS ""TOTAL_QTY"",
-                        Available_Qty AS ""AVAILABLE_QTY"", Status AS ""STATUS""
+                        Available_Qty AS ""AVAILABLE_QTY"", Status AS ""STATUS"",
+                        Description AS ""DESCRIPTION""
                  FROM D_Shared_Item
                  WHERE Status = '正常' AND Available_Qty > 0
                  ORDER BY Item_ID")

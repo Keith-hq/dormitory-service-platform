@@ -44,8 +44,8 @@ public class InternalFileController : ControllerBase
     [HttpPost]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> Upload(
-        [FromForm] IFormFile file,
-        [FromForm] string? module,
+        IFormFile file,
+        string? module, // 注意：module 参数未加 [FromForm]，按 C-040 保留，Swagger 展示由 OperationFilter 处理
         CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(module) && !AllowedModules.Contains(module))
