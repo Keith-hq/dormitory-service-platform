@@ -187,7 +187,6 @@ public class AdminsController : ControllerBase
 
         // 自增 TokenVersion（使旧 Token 失效）
         await _adminService.IncrementTokenVersionAsync(id);
-        await _context.SaveChangesAsync();
 
         // 5. 写入审计日志
         await _auditService.LogEventAsync(
@@ -220,8 +219,9 @@ public class AdminsController : ControllerBase
         // 3. 生成 8 位随机初始密码（字母+数字）
         string newPassword = GenerateRandomPassword(8);
 
-        // 4. 更新密码哈希
+        // 4. 更新密码哈希并标记为首登
         userAccount.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        userAccount.IsFirstLogin = "Y";
         await _context.SaveChangesAsync();
 
         // 5. 写入审计日志

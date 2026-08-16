@@ -4,18 +4,21 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.InMemory;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.OpenApi.Models;
-using Quartz;
-using System.Text;
-using System.Security.Claims;
 using OfficeOpenXml;
+using Quartz;
+using System.Security.Claims;
+using System.Text;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Filters;
 using TemplateDormApi.Jobs;
+using TemplateDormApi.Middleware;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
@@ -286,9 +289,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnTokenValidated = async context =>
             {
-                var tokenVersionClaim = context.Principal?.FindFirst("TokenVersion")?.Value;
-                if (string.IsNullOrEmpty(tokenVersionClaim))
-                    return;
+                // 检查黑名单
+                var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+                if (!string.IsNullOrEmpty(jti))
+                {
+                    using var cacheScope = context.HttpContext.RequestServices.CreateScope();
+                    var cache = cacheScope.ServiceProvider.GetRequiredService<IMemoryCache>();
+                    if (cache.Get($"revoked_token_{jti}") != null)
+                    {
+                        context.Fail("Token 已失效，请重新登录");
+                        return;
+                    }
+                }
 
                 var userIdClaim = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var accountId))
@@ -300,18 +312,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var user = await dbContext.UserAccounts
                     .FirstOrDefaultAsync(u => u.AccountId == accountId);
 
+                // 仅对管理员账号验证 TokenVersion
                 if (user != null && !string.IsNullOrEmpty(user.AdminId))
                 {
+                    // 获取 Token 中的 TokenVersion，缺失时默认 0
+                    var tokenVersionClaim = context.Principal?.FindFirst("TokenVersion")?.Value;
+                    var tokenVersionInToken = string.IsNullOrEmpty(tokenVersionClaim) ? 0 : int.Parse(tokenVersionClaim);
+
                     var admin = await dbContext.Admins
                         .FirstOrDefaultAsync(a => a.AdminId == user.AdminId);
-                    if (admin != null)
+                    if (admin != null && admin.TokenVersion != tokenVersionInToken)
                     {
-                        var currentVersion = admin.TokenVersion.ToString();
-                        if (tokenVersionClaim != currentVersion)
-                        {
-                            context.Fail("Token 已失效，请重新登录");
-                            // 注意：不要设置 context.Result，它是只读的
-                        }
+                        context.Fail("Token 已失效，请重新登录");
                     }
                 }
             }
@@ -332,6 +344,9 @@ if (app.Environment.IsDevelopment())
 // 认证与授权
 app.UseAuthentication();
 app.UseAuthorization();
+
+// 首次登陆强制改密码中间件
+app.UseMiddleware<FirstLoginMiddleware>();
 
 app.UseStaticFiles(new StaticFileOptions
 {

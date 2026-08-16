@@ -2,7 +2,6 @@
 -- 扩展表迁移 030：添加 TOKEN_VERSION 和 IS_FIRST_LOGIN 列
 -- 说明：支持停用后 5 分钟会话失效（Token 版本号）和首次登录强制修改密码
 -- 影响表：D_ADMIN, D_USER_ACCOUNT
--- 执行顺序：在 029 之后执行
 -- ============================================================
 
 -- 1. D_ADMIN 增加 TOKEN_VERSION 列
@@ -39,6 +38,8 @@ BEGIN
 END;
 /
 
+-- 3. 存量账号设为非首登
+UPDATE D_USER_ACCOUNT SET IS_FIRST_LOGIN = 'N';
 COMMIT;
 
 -- ============================================================

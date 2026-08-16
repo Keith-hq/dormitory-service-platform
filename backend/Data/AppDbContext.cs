@@ -101,6 +101,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.RoleLevel).HasColumnName("ROLE_LEVEL").HasMaxLength(20).IsRequired();
             entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
             entity.Property(e => e.Post).HasColumnName("POST").HasMaxLength(50);
+            entity.Property(e => e.TokenVersion).HasColumnName("TOKEN_VERSION");
         });
 
         // ---- Major 专业 ----
@@ -528,6 +529,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.LoginName).IsUnique().HasDatabaseName("UK_D_USER_LOGIN");
             entity.HasIndex(e => e.StudentId).IsUnique().HasDatabaseName("UK_D_USER_STUDENT");
             entity.HasIndex(e => e.AdminId).IsUnique().HasDatabaseName("UK_D_USER_ADMIN");
+            entity.Property(e => e.IsFirstLogin).HasColumnName("IS_FIRST_LOGIN").HasMaxLength(1);
 
             // 外键关系（DDL 未定义，但为完整可加，但不强制）
             // entity.HasOne<Student>().WithMany().HasForeignKey(e => e.StudentId);

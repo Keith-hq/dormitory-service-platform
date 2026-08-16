@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.IdentityModel.JsonWebTokens;
 using OfficeOpenXml.FormulaParsing.LexicalAnalysis;
 using SkiaSharp;
 using System.Linq;
@@ -129,9 +130,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// 用户登录接口
     /// </summary>
-    // TODO: 当前未实现首次登录强制修改密码。
-    // 后续需在 D_USER_ACCOUNT 表增加 IS_FIRST_LOGIN VARCHAR2(1) DEFAULT 'Y'，
-    // 并在登录响应中返回 needChangePassword = true，由前端引导跳转。
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -255,6 +253,8 @@ public class AuthController : ControllerBase
             role,
             accountId = user.AccountId,
             loginName = user.LoginName,
+            studentId = user.StudentId,
+            adminId = user.AdminId,
             needChangePassword
         }, "登录成功"));
     }
@@ -264,10 +264,19 @@ public class AuthController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpPost("logout")]
-    public IActionResult Logout()
+    public async Task<IActionResult> Logout()
     {
+        // 提取当前 Token 的 jti
+        var jti = User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+        if (!string.IsNullOrEmpty(jti))
+        {
+            // 加入黑名单，过期时间 2 小时（与 Token 有效期一致）
+            _cache.Set($"revoked_token_{jti}", true, TimeSpan.FromHours(2));
+        }
+
         return Ok(ApiResponse.Ok(new { message = "已退出登录" }));
     }
+
     /// <summary>
     /// AUTH-04：学生账号注册
     /// </summary>
