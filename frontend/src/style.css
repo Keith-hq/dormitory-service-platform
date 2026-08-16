@@ -1,22 +1,24 @@
 :root {
-  --color-canvas: #f3f1e9;
-  --color-canvas-deep: #e9e7dd;
-  --color-surface: #fffdf8;
-  --color-surface-muted: #f8f7f1;
-  --color-ink: #173136;
-  --color-text: #344b50;
-  --color-text-muted: #66777a;
-  --color-text-soft: #8c9998;
-  --color-line: #d9dfd8;
-  --color-line-strong: #c5cec5;
-  --color-brand: #168279;
-  --color-brand-strong: #0b625d;
-  --color-brand-soft: #dceee8;
-  --color-brand-border: #add4ca;
-  --color-accent: #c68742;
-  --color-danger: #b8473d;
-  --color-danger-soft: #fbe9e5;
-  --color-focus: rgba(22, 130, 121, 0.22);
+  --color-canvas: #f5f0e5;
+  --color-canvas-deep: #ece6d9;
+  --color-surface: #faf6ed;
+  --color-surface-muted: #f0ebdf;
+  --color-paper: #f6efdf;
+  --color-ink: #17231e;
+  --color-text: #334139;
+  --color-text-muted: #6d766e;
+  --color-text-soft: #90958d;
+  --color-line: #d5d0c5;
+  --color-line-strong: #b9b8ae;
+  --color-brand: #355a48;
+  --color-brand-strong: #213e31;
+  --color-brand-soft: #dfe5dc;
+  --color-brand-border: #a8b5aa;
+  --color-accent: #d06c51;
+  --color-accent-strong: #b84f39;
+  --color-danger: #b84f3f;
+  --color-danger-soft: #f5dfd8;
+  --color-focus: rgba(53, 90, 72, 0.2);
 
   --font-body:
     'Avenir Next', Avenir, 'Segoe UI Variable', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -33,13 +35,13 @@
   --space-8: 40px;
   --space-9: 48px;
 
-  --radius-sm: 7px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
-  --shadow-soft: 0 18px 45px rgba(31, 54, 52, 0.08);
-  --shadow-lift: 0 24px 70px rgba(31, 54, 52, 0.14);
-  --content-max: 1180px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 14px;
+  --shadow-soft: 0 18px 45px rgba(31, 43, 36, 0.07);
+  --shadow-lift: 0 24px 70px rgba(31, 43, 36, 0.12);
+  --content-max: 1260px;
 
   color: var(--color-text);
   background: var(--color-canvas);
@@ -67,10 +69,8 @@ body {
   min-width: 320px;
   min-height: 100svh;
   margin: 0;
-  background:
-    linear-gradient(rgba(23, 49, 54, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 49, 54, 0.025) 1px, transparent 1px), var(--color-canvas);
-  background-size: 32px 32px;
+  background: linear-gradient(rgba(36, 45, 39, 0.027) 1px, transparent 1px), var(--color-canvas);
+  background-size: 100% 28px;
 }
 
 button,
@@ -116,12 +116,12 @@ h3 {
   min-height: 38px;
   gap: var(--space-2);
   border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   padding: 7px 14px;
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(23, 49, 54, 0.05);
@@ -201,7 +201,7 @@ h3 {
 .form-select {
   min-height: 40px;
   border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   padding: 8px 12px;
   background: var(--color-surface);
   color: var(--color-ink);

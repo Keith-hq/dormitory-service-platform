@@ -7,9 +7,10 @@
 --   4) D_Shared_Item 新增 DESCRIPTION 列（契约 DORM-48/49 的 description 字段落库）；
 --   5) 上述两张新表的主键序列与触发器。
 --
--- 编号说明：028 已被其他成员占用（尚未上传），本次使用 029。
--- 在已有环境上执行于 ddl/extensions/027_add_admin_post.sql 之后；
--- 全量重建时执行顺序为 foundation/001 -> extensions/010~027 -> extensions/029。
+-- 编号说明：028（D_USER_ACCOUNT 序列）已在 develop 合入，本次使用 029；
+-- 030 为 TokenVersion / IsFirstLogin 迁移（develop 已有）。
+-- 在已有环境上执行于 ddl/extensions/028_user_account_sequence.sql 之后；
+-- 全量重建时执行顺序为 foundation/001 -> extensions/010~030。
 -- 本脚本不修改 / 不重建任何基线表（foundation 20 张冻结）。
 --
 -- 执行方式（DBeaver，JDBC 连接）：整段复制后执行。
@@ -18,7 +19,7 @@
 --     首次执行成功后无需重跑。
 --
 -- 验证：重跑 database/verify/extension_schema_checks.sql，
---   确认第 22 部分每段 SELECT 均返回对应行数。
+--   确认第 27 部分每段 SELECT 均返回对应行数。
 
 
 -- =====================================================================
@@ -256,7 +257,7 @@ CREATE TABLE D_Asset_Warning (
     Warning_ID NUMBER(10) CONSTRAINT PK_D_ASSET_WARNING PRIMARY KEY,
     Asset_ID NUMBER(10) NOT NULL,
     Create_Time DATE DEFAULT SYSDATE NOT NULL,
-    Note VARCHAR2(500),
+    Note VARCHAR2(500 CHAR),
     Handle_Action VARCHAR2(20),
     Handle_Time DATE,
     Handled VARCHAR2(10) DEFAULT '否' NOT NULL,

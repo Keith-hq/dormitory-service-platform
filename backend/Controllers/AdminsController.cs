@@ -5,6 +5,7 @@ using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
+using System.Security.Cryptography;
 
 namespace TemplateDormApi.Controllers;
 
@@ -16,34 +17,58 @@ public class AdminsController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IAuditService _auditService;
     private readonly ILogger<AdminsController> _logger;
+    private readonly IAdminService _adminService;
 
     public AdminsController(
         AppDbContext context,
         IAuditService auditService,
-        ILogger<AdminsController> logger)
+        ILogger<AdminsController> logger,
+        IAdminService adminService)
     {
         _context = context;
         _auditService = auditService;
         _logger = logger;
+        _adminService = adminService;
     }
 
     // GET /admins - 宿管列表（SUPER-04）
     [HttpGet]
     public async Task<IActionResult> GetAdmins()
     {
-        var admins = await _context.Admins
-            .Include(a => a.Building)
-            .OrderBy(a => a.AdminId)
-            .Select(a => new
+        var rows = await (
+            from admin in _context.Admins
+            join account in _context.UserAccounts on admin.AdminId equals account.AdminId into accountGroup
+            from account in accountGroup.DefaultIfEmpty()
+            join building in _context.Buildings on admin.BuildingId equals building.BuildingId into buildingGroup
+            from building in buildingGroup.DefaultIfEmpty()
+            orderby admin.AdminId
+            select new
             {
-                a.AdminId,
-                a.AdminName,
-                a.Phone,
-                a.RoleLevel,
-                BuildingId = a.BuildingId,
-                BuildingName = a.Building != null ? a.Building.BuildingName : null
-            })
-            .ToListAsync();
+                admin.AdminId,
+                admin.AdminName,
+                admin.Phone,
+                admin.RoleLevel,
+                admin.Post,
+                admin.BuildingId,
+                BuildingName = building != null ? building.BuildingName : null,
+                LoginName = account != null ? account.LoginName : null,
+                AccountStatus = account != null ? account.AccountStatus : null
+            }).ToListAsync();
+
+        // Oracle 的 VARCHAR2 列与 EF 生成的 NVARCHAR2 中文常量混用会触发
+        // ORA-12704，因此缺省状态在查询完成后补齐。
+        var admins = rows.Select(admin => new
+        {
+            admin.AdminId,
+            admin.AdminName,
+            admin.Phone,
+            admin.RoleLevel,
+            admin.Post,
+            admin.BuildingId,
+            admin.BuildingName,
+            admin.LoginName,
+            AccountStatus = admin.AccountStatus ?? "未开户"
+        }).ToList();
 
         await _auditService.LogEventAsync(
             eventType: "GET /admins",
@@ -68,9 +93,13 @@ public class AdminsController : ControllerBase
             return BadRequest(ApiResponse.Error(400, "姓名不能为空"));
 
         // 检查角色是否合法（中文值）
-        var validRoles = new[] { "超级管理员", "楼长", "维修员" };
+        var validRoles = new[] { "超级管理员", "楼长", "维修员", "辅导员" };
         if (!validRoles.Contains(request.RoleLevel))
-            return BadRequest(ApiResponse.Error(400, "角色必须是：超级管理员、楼长、维修员"));
+            return BadRequest(ApiResponse.Error(400, "角色必须是：超级管理员、楼长、维修员、辅导员"));
+
+        if (admin.RoleLevel == "超级管理员" && request.RoleLevel != "超级管理员" &&
+            !await HasAnotherActiveSuperAdminAsync(id))
+            return BadRequest(ApiResponse.Error(400, "系统必须至少保留一个正常的超级管理员"));
 
         // 如果指定了楼栋，检查是否存在
         if (request.BuildingId.HasValue)
@@ -86,6 +115,7 @@ public class AdminsController : ControllerBase
         admin.Phone = request.Phone?.Trim();
         admin.RoleLevel = request.RoleLevel;
         admin.BuildingId = request.BuildingId;
+        admin.Post = request.Post?.Trim();
 
         await _context.SaveChangesAsync();
 
@@ -104,16 +134,14 @@ public class AdminsController : ControllerBase
             admin.AdminName,
             admin.Phone,
             admin.RoleLevel,
-            admin.BuildingId
+            admin.BuildingId,
+            admin.Post
         }));
     }
 
 
     // DELETE /admins/{id}/disable - 停用宿管（SUPER-06）
     // 契约要求：楼长须先移交在办事项；停用后 5 分钟内会话失效
-    // TODO: 当前为降级实现：仅停用账号，未实现 Token 吊销机制。
-    // 后续需实现：更新 D_ADMIN.TOKEN_VERSION，使旧 Token 失效，真正实现“5 分钟内会话失效”。
-    // 需在 D_ADMIN 表增加 TOKEN_VERSION NUMBER(10) DEFAULT 0。
     [HttpPut("{id}/disable")]
     public async Task<IActionResult> DisableAdmin(string id, [FromBody] DisableAdminRequest request)
     {
@@ -125,6 +153,17 @@ public class AdminsController : ControllerBase
         var admin = await _context.Admins.FindAsync(id);
         if (admin == null)
             return NotFound(ApiResponse.Error(404, "宿管不存在"));
+
+        var currentAccountId = GetCurrentUserId();
+        var currentAdminId = currentAccountId.HasValue
+            ? await _context.UserAccounts.Where(account => account.AccountId == currentAccountId.Value)
+                .Select(account => account.AdminId).FirstOrDefaultAsync()
+            : null;
+        if (string.Equals(currentAdminId, id, StringComparison.Ordinal))
+            return BadRequest(ApiResponse.Error(400, "不能停用当前登录账号"));
+
+        if (admin.RoleLevel == "超级管理员" && !await HasAnotherActiveSuperAdminAsync(id))
+            return BadRequest(ApiResponse.Error(400, "系统必须至少保留一个正常的超级管理员"));
 
         // 3. 如果是楼长，检查是否有在办事项（已分配未完成的工单）
         if (admin.RoleLevel == "楼长")
@@ -139,17 +178,15 @@ public class AdminsController : ControllerBase
         }
 
         // 4. 停用宿管（软删除或标记状态）
-        // 由于 D_Admin 表没有 STATUS 字段，这里我们删除关联的 UserAccount 来实现“停用”
-        // 但更稳妥的是先检查是否有 UserAccount，有则设为停用状态
         var userAccount = await _context.UserAccounts
             .FirstOrDefaultAsync(u => u.AdminId == id);
         if (userAccount != null)
         {
             userAccount.AccountStatus = "停用";
-            await _context.SaveChangesAsync();
         }
 
-        // 也可以考虑直接删除 Admin 记录（但会导致关联数据问题），这里不删除
+        // 自增 TokenVersion（使旧 Token 失效）
+        await _adminService.IncrementTokenVersionAsync(id);
 
         // 5. 写入审计日志
         await _auditService.LogEventAsync(
@@ -182,8 +219,9 @@ public class AdminsController : ControllerBase
         // 3. 生成 8 位随机初始密码（字母+数字）
         string newPassword = GenerateRandomPassword(8);
 
-        // 4. 更新密码哈希
+        // 4. 更新密码哈希并标记为首登
         userAccount.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        userAccount.IsFirstLogin = "Y";
         await _context.SaveChangesAsync();
 
         // 5. 写入审计日志
@@ -210,6 +248,7 @@ public class AdminsController : ControllerBase
         public string? Phone { get; set; }
         public string RoleLevel { get; set; } = string.Empty; // 中文值：超级管理员、楼长、维修员
         public int? BuildingId { get; set; }
+        public string? Post { get; set; }
     }
 
     public class DisableAdminRequest
@@ -224,11 +263,17 @@ public class AdminsController : ControllerBase
         return int.TryParse(claim, out var id) ? id : null;
     }
 
-    private string GenerateRandomPassword(int length)
+    private async Task<bool> HasAnotherActiveSuperAdminAsync(string excludedAdminId)
+        => await (
+            from admin in _context.Admins
+            join account in _context.UserAccounts on admin.AdminId equals account.AdminId
+            where admin.AdminId != excludedAdminId && admin.RoleLevel == "超级管理员" && account.AccountStatus == "正常"
+            select admin.AdminId).CountAsync() > 0;
+
+    private static string GenerateRandomPassword(int length)
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        var random = new Random();
         return new string(Enumerable.Repeat(chars, length)
-            .Select(s => s[random.Next(s.Length)]).ToArray());
+            .Select(s => s[RandomNumberGenerator.GetInt32(s.Length)]).ToArray());
     }
 }

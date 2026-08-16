@@ -2,13 +2,16 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.IdentityModel.JsonWebTokens;
+using OfficeOpenXml.FormulaParsing.LexicalAnalysis;
+using SkiaSharp;
+using System.Linq;
+using System.Security.Cryptography;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 using TemplateDormApi.Security;
 using TemplateDormApi.Services;
-using SkiaSharp;
-using System.Linq;
 
 namespace TemplateDormApi.Controllers;
 
@@ -22,8 +25,9 @@ public class AuthController : ControllerBase
     private readonly ILogger<AuthController> _logger;
     private readonly IAuditService _auditService;
     private readonly IHostEnvironment _env;
+    private readonly IUserAccountService _userAccountService;
 
-    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IHostEnvironment env)
+    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IHostEnvironment env, IUserAccountService userAccountService)
     {
         _context = context;
         _jwtService = jwtService;
@@ -31,6 +35,7 @@ public class AuthController : ControllerBase
         _logger = logger;
         _auditService = auditService;
         _env = env;
+        _userAccountService = userAccountService;
     }
 
     /// <summary>
@@ -59,7 +64,7 @@ public class AuthController : ControllerBase
         public string AdminId { get; set; } = string.Empty; // required
         public string Name { get; set; } = string.Empty;    // required
         public string Role { get; set; } = string.Empty;    // required
-        public int BuildingId { get; set; }                 // required
+        public int? BuildingId { get; set; }                // optional for cross-building roles
         public string? Post { get; set; }                   // optional
         public string? Password { get; set; }               // optional
     }
@@ -125,9 +130,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// 用户登录接口
     /// </summary>
-    // TODO: 当前未实现首次登录强制修改密码。
-    // 后续需在 D_USER_ACCOUNT 表增加 IS_FIRST_LOGIN VARCHAR2(1) DEFAULT 'Y'，
-    // 并在登录响应中返回 needChangePassword = true，由前端引导跳转。
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -198,7 +200,8 @@ public class AuthController : ControllerBase
             {
                 "超级管理员" => "super_admin",
                 "楼长" => "admin",
-                "维修员" => "repairman",   // 与 develop 策略一致
+                "维修员" => "repairman",
+                "辅导员" => "counselor",
                 _ => null
             };
 
@@ -210,8 +213,9 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse.Error(401, "用户身份异常"));
         }
 
-        // 7. 生成 Token
-        var token = _jwtService.GenerateToken(user, role);
+        // 7. 生成 Token 并检测是否为首次登录
+        var token = await _jwtService.GenerateToken(user, role);
+        bool needChangePassword = user.IsFirstLogin == "Y";
 
         // 8. 返回统一 ApiResponse
         return Ok(ApiResponse.Ok(new
@@ -219,7 +223,8 @@ public class AuthController : ControllerBase
             token,
             role,
             accountId = user.AccountId,
-            loginName = user.LoginName
+            loginName = user.LoginName,
+            needChangePassword
         }, "登录成功"));
     }
 
@@ -241,14 +246,17 @@ public class AuthController : ControllerBase
         // 获取角色
         string role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "unknown";
 
+        bool needChangePassword = user.IsFirstLogin == "Y";
+
         return Ok(ApiResponse.Ok(new
         {
+            role,
             accountId = user.AccountId,
             loginName = user.LoginName,
-            role = role,
             studentId = user.StudentId,
-            adminId = user.AdminId
-        }));
+            adminId = user.AdminId,
+            needChangePassword
+        }, "登录成功"));
     }
 
     /// <summary>
@@ -256,16 +264,30 @@ public class AuthController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpPost("logout")]
-    public IActionResult Logout()
+    public async Task<IActionResult> Logout()
     {
+        // 提取当前 Token 的 jti
+        var jti = User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+        if (!string.IsNullOrEmpty(jti))
+        {
+            // 加入黑名单，过期时间 2 小时（与 Token 有效期一致）
+            _cache.Set($"revoked_token_{jti}", true, TimeSpan.FromHours(2));
+        }
+
         return Ok(ApiResponse.Ok(new { message = "已退出登录" }));
     }
+
     /// <summary>
     /// AUTH-04：学生账号注册
     /// </summary>
+    [Authorize(Roles = AuthPolicies.SuperAdmin)]
     [HttpPost("accounts/students")]
     public async Task<IActionResult> CreateStudentAccount([FromBody] CreateStudentAccountRequest request)
     {
+        request.StudentId = request.StudentId.Trim();
+        if (string.IsNullOrWhiteSpace(request.StudentId))
+            return BadRequest(ApiResponse.Error(400, "学号不能为空"));
+
         // 检查学生是否存在
         var student = await _context.Students.FindAsync(request.StudentId);
         if (student == null)
@@ -282,12 +304,20 @@ public class AuthController : ControllerBase
         : request.Password;
 
         // 创建账号
+        var loginName = string.IsNullOrWhiteSpace(request.LoginName)
+            ? request.StudentId
+            : request.LoginName.Trim();
+        var loginExists = await _context.UserAccounts.CountAsync(u => u.LoginName == loginName) > 0;
+        if (loginExists)
+            return BadRequest(ApiResponse.Error(400, "登录名已存在"));
+
         var account = new UserAccount
         {
-            LoginName = request.LoginName ?? request.StudentId,
+            LoginName = loginName,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
-            StudentId = request.StudentId
+            StudentId = request.StudentId,
+            IsFirstLogin = "Y"
         };
         _context.UserAccounts.Add(account);
         await _context.SaveChangesAsync();
@@ -308,6 +338,23 @@ public class AuthController : ControllerBase
     [HttpPost("accounts/admins")]
     public async Task<IActionResult> CreateAdminAccount([FromBody] CreateAdminAccountRequest request)
     {
+        request.AdminId = request.AdminId.Trim();
+        request.Name = request.Name.Trim();
+        request.Role = request.Role.Trim();
+        if (string.IsNullOrWhiteSpace(request.AdminId) || string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(ApiResponse.Error(400, "管理员编号和姓名不能为空"));
+
+        var validRoles = new[] { "超级管理员", "楼长", "维修员", "辅导员" };
+        if (!validRoles.Contains(request.Role))
+            return BadRequest(ApiResponse.Error(400, "角色必须为：超级管理员、楼长、维修员、辅导员"));
+
+        if (request.BuildingId.HasValue &&
+            await _context.Buildings.CountAsync(building => building.BuildingId == request.BuildingId.Value) == 0)
+            return BadRequest(ApiResponse.Error(400, "指定的楼栋不存在"));
+
+        if (await _context.UserAccounts.CountAsync(account => account.LoginName == request.AdminId) > 0)
+            return BadRequest(ApiResponse.Error(400, "登录名已存在"));
+
         // 1. 查找或创建 Admin
         var admin = await _context.Admins.FindAsync(request.AdminId);
         if (admin == null)
@@ -318,7 +365,7 @@ public class AuthController : ControllerBase
                 AdminName = request.Name,
                 RoleLevel = request.Role,
                 BuildingId = request.BuildingId,
-                Post = request.Post  // 新增：岗位
+                Post = request.Post,  // 新增：岗位
             };
             _context.Admins.Add(admin);
         }
@@ -342,7 +389,8 @@ public class AuthController : ControllerBase
             LoginName = request.AdminId, // 可自定义，暂用 AdminId
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             AccountStatus = "正常",
-            AdminId = request.AdminId
+            AdminId = request.AdminId,
+            IsFirstLogin = "Y"
         };
         _context.UserAccounts.Add(account);
 
@@ -396,7 +444,7 @@ public class AuthController : ControllerBase
 
         // 更新密码
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        await _context.SaveChangesAsync();
+        await _userAccountService.UpdateIsFirstLoginAsync(accountId, "N");
 
         // 审计日志（可选）
         await _auditService.LogEventAsync(
@@ -411,12 +459,11 @@ public class AuthController : ControllerBase
     }
 
     // 工具函数
-    private string GenerateRandomPassword(int length)
+    private static string GenerateRandomPassword(int length)
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        var random = new Random();
         return new string(Enumerable.Repeat(chars, length)
-            .Select(s => s[random.Next(s.Length)]).ToArray());
+            .Select(s => s[RandomNumberGenerator.GetInt32(s.Length)]).ToArray());
     }
     private int? GetCurrentUserId()
     {
