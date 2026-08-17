@@ -38,6 +38,20 @@ public sealed class OracleModelMappingTests
     }
 
     [Fact]
+    public void HygieneComment_UsesOracleCommentColumnNameWithoutEmbeddedQuotes()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseOracle("User Id=test;Password=test;Data Source=localhost:1521/test")
+            .Options;
+
+        using var context = new AppDbContext(options);
+        var entity = context.Model.FindEntityType(typeof(HygieneComment));
+        var table = StoreObjectIdentifier.Table("D_HYGIENE_COMMENT", null);
+
+        Assert.Equal("COMMENT", entity!.FindProperty(nameof(HygieneComment.CommentText))!.GetColumnName(table));
+    }
+
+    [Fact]
     public void UserAccount_IdIsGeneratedByOracle()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
