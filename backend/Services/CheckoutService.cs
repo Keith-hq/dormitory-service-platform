@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -21,23 +22,29 @@ public class CheckoutService : ICheckoutService
     private readonly CheckoutRepository _checkoutRepo;
     private readonly IFeeSharingService _feeSharing;
     private readonly INotificationService _notificationService;
+    private readonly ILogger<CheckoutService> _logger;
 
     public CheckoutService(
         AppDbContext context,
         CheckoutRepository checkoutRepo,
         IFeeSharingService feeSharing,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        ILogger<CheckoutService> logger)
     {
         _context = context;
         _checkoutRepo = checkoutRepo;
         _feeSharing = feeSharing;
         _notificationService = notificationService;
+        _logger = logger;
     }
 
-    public async Task<object> RegisterAsync(long allocationId, CheckoutRegisterDto dto)
+    public async Task<object> RegisterAsync(long allocationId, CheckoutRegisterDto dto, int? accountId, bool isDormAdmin)
     {
         var alloc = await _context.BedAllocations.FindAsync(allocationId)
             ?? throw new BusinessException(404, "住宿分配不存在", 404);
+
+        var (isAdmin, studentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        EnsureOwner(isAdmin, alloc.StudentId, studentId);
 
         if (alloc.CheckOutDate != null)
             throw new BusinessException(400, "该住宿分配已退宿");
@@ -69,17 +76,28 @@ public class CheckoutService : ICheckoutService
         return new { checkoutId = log.LogId, allocationId, status = log.Status };
     }
 
-    public async Task<object> GetAsync(int checkoutId)
+    public async Task<object> GetAsync(int checkoutId, int? accountId, bool isDormAdmin)
     {
         var log = await _checkoutRepo.GetByIdAsync(checkoutId)
             ?? throw new BusinessException(404, "清算记录不存在", 404);
+
+        var alloc = await _context.BedAllocations.FindAsync(log.AllocationId)
+            ?? throw new BusinessException(404, "住宿分配不存在", 404);
+        var (isAdmin, studentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        EnsureOwner(isAdmin, alloc.StudentId, studentId);
+
         return await BuildSummaryAsync(log);
     }
 
-    public async Task<object> SettleAsync(int checkoutId)
+    public async Task<object> SettleAsync(int checkoutId, int? accountId, bool isDormAdmin)
     {
         var log = await _checkoutRepo.GetByIdAsync(checkoutId)
             ?? throw new BusinessException(404, "清算记录不存在", 404);
+
+        var alloc = await _context.BedAllocations.FindAsync(log.AllocationId)
+            ?? throw new BusinessException(404, "住宿分配不存在", 404);
+        var (isAdmin, studentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        EnsureOwner(isAdmin, alloc.StudentId, studentId);
 
         if (log.Status == CheckoutStatuses.Confirmed)
             throw new BusinessException(400, "退宿已确认，无需重复清算");
@@ -90,25 +108,25 @@ public class CheckoutService : ICheckoutService
         if (log.FeeCheck == "通过" && log.ItemCheck == "通过")
             return new { checkoutId = log.LogId, status = log.Status, feeCheck = log.FeeCheck, itemCheck = log.ItemCheck, message = "三步校验已通过（重复清算幂等跳过），等待确认退宿" };
 
-        var alloc = await _context.BedAllocations.FindAsync(log.AllocationId)
-            ?? throw new BusinessException(404, "住宿分配不存在", 404);
-
         if (string.IsNullOrWhiteSpace(alloc.StudentId))
             throw new BusinessException(400, "住宿分配缺少学号，无法清算");
 
         // ===== 三步校验（难点⑥：任一步失败即拒绝；数据源只读，跨模块不写入）=====
+        // Oracle 兼容（评审整改，8411155 同源）：顶层 AnyAsync 被翻译为
+        // CASE WHEN EXISTS(...) THEN True ELSE False，Oracle 21c 无布尔字面量 → ORA-00904。
+        // 一律用 CountAsync(...) > 0（翻译为 COUNT(*)）。
         // ① 水电费缴清：该生欠费明细 = 0。注意排除 Bill_Type='退宿' 账单——
         //    退宿结算单由 calc 生成且待缴，属于结算本身而非欠费阻断项。
-        var feeOk = !await _context.FeeDetails.AnyAsync(f =>
-            f.StudentId == alloc.StudentId && f.IsPaid == "否" && f.BillType != "退宿");
+        var feeOk = await _context.FeeDetails.CountAsync(f =>
+            f.StudentId == alloc.StudentId && f.IsPaid == "否" && f.BillType != "退宿") == 0;
 
         // ② 快递全取走（Pickup_Time 非空）
-        var parcelOk = !await _context.ParcelRecords.AnyAsync(p =>
-            p.StudentId == alloc.StudentId && p.PickupTime == null);
+        var parcelOk = await _context.ParcelRecords.CountAsync(p =>
+            p.StudentId == alloc.StudentId && p.PickupTime == null) == 0;
 
         // ③ 共享物品全归还（Return_Time 非空）
-        var itemOk = !await _context.ItemLoans.AnyAsync(l =>
-            l.StudentId == alloc.StudentId && l.ReturnTime == null);
+        var itemOk = await _context.ItemLoans.CountAsync(l =>
+            l.StudentId == alloc.StudentId && l.ReturnTime == null) == 0;
 
         log.FeeCheck = feeOk ? "通过" : "未通过";
         log.ItemCheck = parcelOk && itemOk ? "通过" : "未通过";
@@ -173,10 +191,15 @@ public class CheckoutService : ICheckoutService
         };
     }
 
-    public async Task<object> ConfirmAsync(int checkoutId, CheckoutConfirmDto dto)
+    public async Task<object> ConfirmAsync(int checkoutId, CheckoutConfirmDto dto, int? accountId, bool isDormAdmin)
     {
         var log = await _checkoutRepo.GetByIdAsync(checkoutId)
             ?? throw new BusinessException(404, "清算记录不存在", 404);
+
+        var alloc = await _context.BedAllocations.FindAsync(log.AllocationId)
+            ?? throw new BusinessException(404, "住宿分配不存在", 404);
+        var (isAdmin, studentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        EnsureOwner(isAdmin, alloc.StudentId, studentId);
 
         // 幂等：重复确认不报错、不重复释放床位（IT-C2-001 ③）
         if (log.Status == CheckoutStatuses.Confirmed)
@@ -187,9 +210,6 @@ public class CheckoutService : ICheckoutService
 
         if (log.FeeCheck != "通过" || log.ItemCheck != "通过")
             throw new BusinessException(400, "三步校验未通过或未执行，请先完成清算（settle）");
-
-        var alloc = await _context.BedAllocations.FindAsync(log.AllocationId)
-            ?? throw new BusinessException(404, "住宿分配不存在", 404);
 
         if (!alloc.RoomId.HasValue)
             throw new BusinessException(400, "住宿分配缺少房间信息");
@@ -226,10 +246,15 @@ public class CheckoutService : ICheckoutService
         return await BuildSummaryAsync(log);
     }
 
-    public async Task<object> CancelAsync(int checkoutId)
+    public async Task<object> CancelAsync(int checkoutId, int? accountId, bool isDormAdmin)
     {
         var log = await _checkoutRepo.GetByIdAsync(checkoutId)
             ?? throw new BusinessException(404, "清算记录不存在", 404);
+
+        var alloc = await _context.BedAllocations.FindAsync(log.AllocationId)
+            ?? throw new BusinessException(404, "住宿分配不存在", 404);
+        var (isAdmin, studentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        EnsureOwner(isAdmin, alloc.StudentId, studentId);
 
         if (log.Status == CheckoutStatuses.Cancelled)
             return await BuildSummaryAsync(log); // 幂等
@@ -239,9 +264,6 @@ public class CheckoutService : ICheckoutService
 
         if (log.Status != CheckoutStatuses.Pending)
             throw new BusinessException(400, $"当前状态不可取消（{log.Status}）");
-
-        var alloc = await _context.BedAllocations.FindAsync(log.AllocationId)
-            ?? throw new BusinessException(404, "住宿分配不存在", 404);
 
         log.Status = CheckoutStatuses.Cancelled;
         log.ResultTime = DateTime.Now;
@@ -274,7 +296,8 @@ public class CheckoutService : ICheckoutService
     /// <summary>
     /// 清算通知（IT-C2-001 ⑥）：confirm 状态迁移成功后经公共服务 INotificationService 投递，
     /// 通知主键与收件人解析归通知域（数据拥有者边界，与 SlaDispatchService 同模式）。
-    /// 通知失败不阻断退宿确认（业务性失败跳过）。
+    /// 通知失败不阻断退宿确认；非业务性失败记错误日志（退宿状态已提交，接口若 500，
+    /// 重试因幂等直接返回，通知将永久丢失——与 SlaDispatchService 升级通知同口径）。
     /// </summary>
     private async Task NotifyCheckoutCompletedAsync(string studentId, int checkoutId)
     {
@@ -292,6 +315,40 @@ public class CheckoutService : ICheckoutService
         {
             // 收件人无有效账户等业务性失败 → 跳过，不阻断退宿确认
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "退宿完成通知投递失败：清算单#{CheckoutId}（学生={StudentId}）。退宿状态已提交，通知需人工或通知模块重试机制补发。",
+                checkoutId, studentId);
+        }
+    }
+
+    /// <summary>
+    /// 解析调用者身份（鉴权归属，评审整改）：DormAdmin 角色放行（宿管代办，无学生身份）；
+    /// 其余按 JWT 账户解析学生身份（WalletController.ResolveStudentId 同范式）。
+    /// </summary>
+    private async Task<(bool IsAdmin, string StudentId)> ResolveCallerAsync(int? accountId, bool isDormAdmin)
+    {
+        if (isDormAdmin) return (true, string.Empty);
+
+        if (!accountId.HasValue)
+            throw new BusinessException(401, "未登录或 Token 无效");
+
+        var studentId = await _context.UserAccounts
+            .Where(a => a.AccountId == accountId.Value)
+            .Select(a => a.StudentId)
+            .FirstOrDefaultAsync();
+        if (string.IsNullOrWhiteSpace(studentId))
+            throw new BusinessException(401, "当前账户未关联学生身份");
+
+        return (false, studentId);
+    }
+
+    /// <summary>归属校验：学生仅能操作本人分配对应的清算单，宿管放行</summary>
+    private static void EnsureOwner(bool isAdmin, string? allocStudentId, string callerStudentId)
+    {
+        if (!isAdmin && !string.Equals(allocStudentId, callerStudentId, StringComparison.Ordinal))
+            throw new BusinessException(403, "无权操作他人的退宿申请", 403);
     }
 
     /// <summary>DORM-35 响应：清算记录 + 床位分配快照</summary>

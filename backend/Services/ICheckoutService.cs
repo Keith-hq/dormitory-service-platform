@@ -25,21 +25,24 @@ public static class CheckoutStatuses
 
 public interface ICheckoutService
 {
-    /// <summary>DORM-11 退宿登记：创建「待清算」记录（同一分配唯一，UK_D_CHECKOUT_ACTIVE）</summary>
-    Task<object> RegisterAsync(long allocationId, CheckoutRegisterDto dto);
+    /// <summary>
+    /// DORM-11 退宿登记：创建「待清算」记录（同一分配唯一，UK_D_CHECKOUT_ACTIVE）。
+    /// 归属校验：学生仅能登记本人分配，宿管（isDormAdmin）放行。
+    /// </summary>
+    Task<object> RegisterAsync(long allocationId, CheckoutRegisterDto dto, int? accountId, bool isDormAdmin);
 
-    /// <summary>DORM-35 清算状态查询（含床位/房间快照）</summary>
-    Task<object> GetAsync(int checkoutId);
+    /// <summary>DORM-35 清算状态查询（含床位/房间快照，仅本人或宿管可见）</summary>
+    Task<object> GetAsync(int checkoutId, int? accountId, bool isDormAdmin);
 
     /// <summary>
     /// DORM-36 开始清算：三步校验（水电费缴清/快递取走/共享物品归还）。
     /// 任一未通过 → 已拒绝并逐项记录原因；全部通过 → 写 CheckOut_Date 再调 calc SP（同一事务）。
     /// </summary>
-    Task<object> SettleAsync(int checkoutId);
+    Task<object> SettleAsync(int checkoutId, int? accountId, bool isDormAdmin);
 
     /// <summary>DORM-37 确认退宿：释放床位（房间占用-1），幂等（重复调用不报错、不重复释放）</summary>
-    Task<object> ConfirmAsync(int checkoutId, CheckoutConfirmDto dto);
+    Task<object> ConfirmAsync(int checkoutId, CheckoutConfirmDto dto, int? accountId, bool isDormAdmin);
 
     /// <summary>DORM-38 取消清算：回滚 settle 写入的退宿日期，床位恢复在住；审计留痕待审计公共服务接入后记录（IT-C2-005 ③）</summary>
-    Task<object> CancelAsync(int checkoutId);
+    Task<object> CancelAsync(int checkoutId, int? accountId, bool isDormAdmin);
 }

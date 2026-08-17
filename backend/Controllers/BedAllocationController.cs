@@ -26,7 +26,9 @@ public class BedAllocationController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] AllocationCreateDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "参数校验失败"));
-        var alloc = await _service.CreateAsync(dto, CurrentUser.GetAccountId(User));
+        // 归属校验在服务层：学生 body studentId 必须与登录态一致；宿管（DormAdmin）可代办
+        var isDormAdmin = User.IsInRole(AuthPolicies.Admin) || User.IsInRole(AuthPolicies.SuperAdmin);
+        var alloc = await _service.CreateAsync(dto, CurrentUser.GetAccountId(User), isDormAdmin);
         return Ok(ApiResponse.Created(alloc));
     }
 
