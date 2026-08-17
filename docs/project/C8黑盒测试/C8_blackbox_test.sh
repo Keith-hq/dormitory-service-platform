@@ -20,6 +20,11 @@ req()  { # req <label> <method> <path> <token> [json]
   fi
   code=$(printf '%s' "$resp" | grep -o '__HTTP__[0-9]*' | tail -1 | cut -d'_' -f3)
   body2=$(printf '%s' "$resp" | sed 's/__HTTP__[0-9]*$//')
+  # 基础退出码校验：HTTP 5xx 视为服务端异常，计入失败
+  case "$code" in
+    5*) FAIL=$((FAIL+1)) ;;
+    *) PASS=$((PASS+1)) ;;
+  esac
   printf '[%s] %s %s -> HTTP %s\n%s\n' "$label" "$method" "$path" "$code" "$body2"
 }
 login() { # login <loginName> <password> -> token
@@ -106,3 +111,6 @@ req "C8-002-9 不存在房间(负例)" POST "/api/room-votes" "$T1" \
 
 echo ""
 echo "================ 测试结束 ================"
+echo "PASS=$PASS FAIL=$FAIL"
+# 退出码：有 5xx 服务端异常则返回 1，便于 CI 判定
+[ "$FAIL" -eq 0 ] && exit 0 || exit 1
