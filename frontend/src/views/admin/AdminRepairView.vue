@@ -94,7 +94,7 @@ onMounted(load)
           v-for="item in tickets"
           :key="item.ticketId"
           :class="{ active: selected?.ticketId === item.ticketId }"
-          @click="selected = item"
+          @click="selected = item, feedback = ''"
         >
           <small>#{{ item.ticketId }} · {{ state(item) }}</small
           ><strong>{{ item.title ?? item.category ?? item.repairType ?? '宿舍报修' }}</strong>
