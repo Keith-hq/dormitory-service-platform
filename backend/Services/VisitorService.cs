@@ -15,6 +15,7 @@ public interface IVisitorService
     Task<PagedResult<VisitorAuthorization>> GetMyListAsync(string studentId, int page, int pageSize);
     Task<VisitorAuthorization> GetCredentialAsync(int authId, string currentStudentId);
     Task<VisitorAuthorization> RevokeAsync(int authId, string currentStudentId);
+    Task<int> ExpireAsync();
 }
 
 /// <summary>
@@ -92,4 +93,9 @@ public class VisitorService : IVisitorService
         auth.Status = "已撤销";
         return await _repository.UpdateAsync(auth);
     }
+
+    /// <summary>供内部调度触发：将已到期的有效访客授权批量置为「已过期」。</summary>
+    public async Task<int> ExpireAsync()
+        => await _repository.ExpireAsync(DateTime.Now);
+
 }

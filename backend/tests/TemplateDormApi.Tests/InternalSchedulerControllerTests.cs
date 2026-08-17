@@ -59,46 +59,12 @@ public class InternalSchedulerControllerTests
     }
 
     [Fact]
-    public async Task Deduction_PassesAttemptNoAndYearMonth()
+    public void Deduction_HasNoPublicParameters()
     {
-        var billing = new FakeBillingService();
-        var controller = CreateController(new FakeCreditService(), billing);
+        var method = typeof(InternalSchedulerController).GetMethod(nameof(InternalSchedulerController.Deduction));
 
-        var actionResult = await controller.Deduction(attemptNo: 3, yearMonth: "2026-07");
-
-        Assert.IsType<OkObjectResult>(actionResult);
-        Assert.Equal(3, billing.LastAttemptNo);
-        Assert.Equal("2026-07", billing.LastYearMonth);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(4)]
-    public async Task Deduction_RejectsAttemptNoOutOfRange(int attemptNo)
-    {
-        var billing = new FakeBillingService();
-        var controller = CreateController(new FakeCreditService(), billing);
-
-        var actionResult = await controller.Deduction(attemptNo: attemptNo, yearMonth: "2026-07");
-
-        var badRequest = Assert.IsType<BadRequestObjectResult>(actionResult);
-        Assert.Equal(400, GetApiCode(badRequest.Value));
-        Assert.False(billing.AutoDeductCalled);
-    }
-
-    [Theory]
-    [InlineData("2026-7")]
-    [InlineData("2026-13")]
-    [InlineData("abc")]
-    public async Task Deduction_RejectsInvalidYearMonth(string yearMonth)
-    {
-        var billing = new FakeBillingService();
-        var controller = CreateController(new FakeCreditService(), billing);
-
-        var actionResult = await controller.Deduction(attemptNo: 1, yearMonth: yearMonth);
-
-        Assert.IsType<BadRequestObjectResult>(actionResult);
-        Assert.False(billing.AutoDeductCalled);
+        Assert.NotNull(method);
+        Assert.Empty(method.GetParameters());
     }
 
     // ==================== POST power-restore（IT-C7-003） ====================
@@ -117,6 +83,35 @@ public class InternalSchedulerControllerTests
     }
 
     [Fact]
+    public async Task VisitorExpire_CallsVisitorService()
+    {
+        var visitor = new FakeVisitorService();
+        var controller = CreateController(new FakeCreditService(), new FakeBillingService(), visitor);
+
+        var actionResult = await controller.VisitorExpire();
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        Assert.Equal(200, GetApiCode(okResult.Value));
+        Assert.True(visitor.ExpireCalled);
+    }
+
+    [Fact]
+    public async Task VisitorExpire_ReturnsProcessedCount()
+    {
+        var visitor = new FakeVisitorService { ExpiredCount = 3 };
+        var controller = CreateController(new FakeCreditService(), new FakeBillingService(), visitor);
+
+        var actionResult = await controller.VisitorExpire();
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var code = okResult.Value!.GetType().GetProperty("Code")!.GetValue(okResult.Value);
+        Assert.Equal(200, (int)code!);
+        var data = okResult.Value!.GetType().GetProperty("Data")!.GetValue(okResult.Value);
+        var expiredCount = data!.GetType().GetProperty("expiredCount")!.GetValue(data);
+        Assert.Equal(3, (int)expiredCount!);
+    }
+
+    [Fact]
     public void Controller_HasServiceKeyAuthAttribute()
     {
         Assert.NotNull(
@@ -130,11 +125,13 @@ public class InternalSchedulerControllerTests
 
     private static InternalSchedulerController CreateController(
         ICreditService creditService,
-        IBillingService billingService)
+        IBillingService billingService,
+        IVisitorService? visitorService = null)
     {
         return new InternalSchedulerController(
             creditService,
             billingService,
+            visitorService ?? new FakeVisitorService(),
             NullLogger<InternalSchedulerController>.Instance);
     }
 
@@ -200,6 +197,30 @@ public class InternalSchedulerControllerTests
             string studentId,
             int accountId,
             CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class FakeVisitorService : IVisitorService
+    {
+        public bool ExpireCalled { get; private set; }
+        public int ExpiredCount { get; set; }
+
+        public Task<int> ExpireAsync()
+        {
+            ExpireCalled = true;
+            return Task.FromResult(ExpiredCount);
+        }
+
+        public Task<VisitorAuthorization> ApplyAsync(string studentId, VisitorApplyRequest dto)
+            => throw new NotSupportedException();
+
+        public Task<PagedResult<VisitorAuthorization>> GetMyListAsync(string studentId, int page, int pageSize)
+            => throw new NotSupportedException();
+
+        public Task<VisitorAuthorization> GetCredentialAsync(int authId, string currentStudentId)
+            => throw new NotSupportedException();
+
+        public Task<VisitorAuthorization> RevokeAsync(int authId, string currentStudentId)
             => throw new NotSupportedException();
     }
 }

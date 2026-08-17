@@ -33,4 +33,25 @@ public class VisitorRepository : BaseRepository<VisitorAuthorization>
             .Where(b => b.StudentId == studentId && b.CheckOutDate == null)
             .Select(b => b.RoomId)
             .FirstOrDefaultAsync();
+
+    /// <summary>将已到期的有效授权批量置为「已过期」，返回本次处理条数。重复调用不会重复处理。</summary>
+    public async Task<int> ExpireAsync(DateTime now)
+    {
+        var expired = await _dbSet
+            .Where(v => v.Status == "有效" && v.ExpiresTime < now)
+            .ToListAsync();
+
+        foreach (var item in expired)
+        {
+            item.Status = "已过期";
+        }
+
+        if (expired.Count > 0)
+        {
+            await _context.SaveChangesAsync();
+        }
+
+        return expired.Count;
+    }
+
 }

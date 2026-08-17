@@ -150,4 +150,50 @@ public class VisitorServiceTests
         await Assert.ThrowsAsync<BusinessException>(() =>
             service.RevokeAsync(auth.AuthorizationId, "S002"));
     }
+
+    [Fact]
+    public async Task ExpireAsync_MarksExpiredAndIsIdempotent()
+    {
+        var (context, readContext) = CreateContexts();
+        await using var _ = context;
+        await using var __ = readContext;
+
+        context.VisitorAuthorizations.AddRange(
+            new VisitorAuthorization
+            {
+                StudentId = "S001",
+                RoomId = 101,
+                VisitorName = "张三",
+                AuthorizationToken = "VSR_EXPIRED_1",
+                ExpiresTime = DateTime.Now.AddMinutes(-1),
+                Status = "有效",
+                CreateTime = DateTime.Now
+            },
+            new VisitorAuthorization
+            {
+                StudentId = "S001",
+                RoomId = 101,
+                VisitorName = "李四",
+                AuthorizationToken = "VSR_VALID_1",
+                ExpiresTime = DateTime.Now.AddHours(1),
+                Status = "有效",
+                CreateTime = DateTime.Now
+            });
+        await context.SaveChangesAsync();
+
+        var service = new VisitorService(new VisitorRepository(context));
+        var first = await service.ExpireAsync();
+        var second = await service.ExpireAsync();
+
+        Assert.Equal(1, first);
+        Assert.Equal(0, second);
+
+        var expired = await readContext.VisitorAuthorizations
+            .SingleAsync(v => v.AuthorizationToken == "VSR_EXPIRED_1");
+        var valid = await readContext.VisitorAuthorizations
+            .SingleAsync(v => v.AuthorizationToken == "VSR_VALID_1");
+        Assert.Equal("已过期", expired.Status);
+        Assert.Equal("有效", valid.Status);
+    }
+
 }
