@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 using TemplateDormApi.Repository;
@@ -10,10 +11,12 @@ namespace TemplateDormApi.Services;
 public class NoticeService : INoticeService
 {
     private readonly NoticeRepository _repository;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public NoticeService(NoticeRepository repository)
+    public NoticeService(NoticeRepository repository, IHttpContextAccessor httpContextAccessor)
     {
         _repository = repository;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<PagedResult<Notice>> GetPagedAsync(int page, int pageSize)
@@ -37,7 +40,11 @@ public class NoticeService : INoticeService
         {
             Title = dto.Title,
             Content = dto.Content,
-            PublishTime = DateTime.Now
+            PublishTime = DateTime.Now,
+            // 发布人取自 JWT（ClaimTypes.Name = 登录名），避免 D_Notice.Admin_ID 落 NULL
+            // （NULL 会被 EF 读入非空 string 触发 ORA-50032 → 列表 500）
+            AdminId = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.Name)?.Value
+                      ?? throw new UnauthorizedAccessException("无法识别当前登录用户")
         };
 
         // 置顶：发布时同步写入 D_Notice_Display（1:1，共享主键由 EF 传播）
