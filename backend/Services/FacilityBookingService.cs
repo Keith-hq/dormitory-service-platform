@@ -36,7 +36,7 @@ public class FacilityBookingService : IFacilityBookingService
         if (!wasOpen) conn.Close();
 
         int code = rc.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od ? (int)od.Value : -1;
-        int bookingId = bid.Value is Oracle.ManagedDataAccess.Types.OracleDecimal bd ? (int)bd.Value : 0;
+        int bookingId = bid.Value is Oracle.ManagedDataAccess.Types.OracleDecimal bd && !bd.IsNull ? (int)bd.Value : 0;
         return (code, bookingId);
     }
 

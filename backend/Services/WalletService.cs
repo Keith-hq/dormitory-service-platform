@@ -142,6 +142,6 @@ public class WalletService : IWalletService
 
     private static int OracleValueToInt(object? value)
     {
-        return value is OracleDecimal od ? (int)od.Value : 0;
+        return value is OracleDecimal od && !od.IsNull ? (int)od.Value : 0;
     }
 }
