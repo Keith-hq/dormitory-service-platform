@@ -26,23 +26,26 @@ const activeCopy = computed(() => sections.find((section) => section.key === act
 const loadCommunity = async () => {
   loading.value = true
   failures.value = []
-  const accommodation = await studentApi.getAccommodation(studentId.value).catch(() => null)
-  const requests = [
-    ['late', studentApi.getLateEntries(studentId.value)],
-    ['leave', studentApi.getLeaveApplications(studentId.value)],
-    ['visitor', studentApi.getVisitorAuthorizations(studentId.value)],
-    ['appeals', studentApi.getCreditAppeals(studentId.value)],
-    ['credit', studentApi.getCredit(studentId.value)]
-  ]
-  if (accommodation?.roomId) requests.push(['votes', studentApi.getRoomVotes(accommodation.roomId)])
-  const results = await Promise.allSettled(requests.map(([, request]) => request))
-  results.forEach((result, index) => {
-    const key = requests[index][0]
-    if (result.status === 'rejected') failures.value.push(key)
-    else if (key === 'credit') data.value.credit = result.value
-    else data.value[key] = normalizeCollection(result.value).items
-  })
-  loading.value = false
+  try {
+    const accommodation = await studentApi.getAccommodation(studentId.value).catch(() => null)
+    const requests = [
+      ['late', studentApi.getLateEntries(studentId.value)],
+      ['leave', studentApi.getLeaveApplications(studentId.value)],
+      ['visitor', studentApi.getVisitorAuthorizations(studentId.value)],
+      ['appeals', studentApi.getCreditAppeals(studentId.value)],
+      ['credit', studentApi.getCredit(studentId.value)]
+    ]
+    if (accommodation?.roomId) requests.push(['votes', studentApi.getRoomVotes(accommodation.roomId)])
+    const results = await Promise.allSettled(requests.map(([, request]) => request))
+    results.forEach((result, index) => {
+      const key = requests[index][0]
+      if (result.status === 'rejected') failures.value.push(key)
+      else if (key === 'credit') data.value.credit = result.value
+      else data.value[key] = normalizeCollection(result.value).items
+    })
+  } finally {
+    loading.value = false
+  }
 }
 
 const itemTitle = (item) =>
