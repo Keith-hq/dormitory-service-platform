@@ -1,4 +1,4 @@
--- 扩展表迁移 031：CK_D_ADMIN_ROLE 纳入"辅导员"角色（ADR-0007）
+-- 扩展表迁移 032：CK_D_ADMIN_ROLE 纳入"辅导员"角色（ADR-0007）
 --
 -- 背景：代码层（AuthController.cs / AdminsController.cs）支持 4 类角色
 --   （超级管理员 / 楼长 / 维修员 / 辅导员），登录时映射 JWT role
@@ -9,8 +9,8 @@
 --
 -- 影响表：D_Admin.Role_Level
 -- 受影响接口：AUTH-01/02（各角色登录）、AUTH-05（建管理员账号）、COUN-01~04
--- 验证：重跑 database/verify/extension_schema_checks.sql §19d，
---   CK_D_ADMIN_ROLE 应仍返回 1 行（仅值集变化，存在性校验不变）。
+-- 验证：重跑 database/verify/extension_schema_checks.sql §19d（存在性校验，
+--   应仍返回 1 行）与 §30（值集检查，SEARCH_CONDITION 应含"辅导员"）。
 
 DECLARE
     v_has_ck NUMBER;

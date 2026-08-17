@@ -1,7 +1,7 @@
 SET DEFINE OFF;
 SET AUTOCOMMIT ON;
 -- 01 主数据：学院/专业/楼栋/房间/学生/管理员/账号/住宿分配/资产/资产预警
--- 依赖：00_cleanup.sql 已执行；foundation/001 与 extensions/010~030 已建库。
+-- 依赖：00_cleanup.sql 已执行；foundation/001 与 extensions/010~032 已建库。
 -- 主键全部落在 9xxxxx 段 / IT_ 前缀，与应用序列（1 起）互不撞号。
 
 -- ===== 1. 学院（D_College） =====
