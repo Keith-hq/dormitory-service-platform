@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
+using TemplateDormApi.Security;
 using TemplateDormApi.Services;
 
 namespace TemplateDormApi.Controllers;
@@ -7,9 +9,11 @@ namespace TemplateDormApi.Controllers;
 /// <summary>
 /// 房间管理 — DORM-04/05/06/07
 /// 路由: /api/rooms (复数，对齐契约)
+/// 鉴权：宿管端操作（admin/super_admin）
 /// </summary>
 [ApiController]
 [Route("api/rooms")]
+[Authorize(Policy = AuthPolicies.DormAdmin)]
 public class RoomController : ControllerBase
 {
     private readonly IRoomService _service;

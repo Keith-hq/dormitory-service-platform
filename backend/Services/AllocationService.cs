@@ -26,14 +26,15 @@ public class AllocationService : IAllocationService
         _allocRepo = allocRepo;
     }
 
-    public async Task<BedAllocation> CreateAsync(AllocationCreateDto dto, int? currentAccountId = null)
+    public async Task<BedAllocation> CreateAsync(AllocationCreateDto dto, int? currentAccountId = null, bool isDormAdmin = false)
     {
-        var studentId = await ResolveStudentIdAsync(dto.StudentId, currentAccountId);
+        var studentId = await ResolveStudentIdAsync(dto.StudentId, currentAccountId, isDormAdmin);
 
         var room = await _context.Rooms.FindAsync(dto.RoomId)
             ?? throw new BusinessException(404, "房间不存在", 404);
 
-        if (!await _context.Students.AnyAsync(s => s.StudentId == studentId))
+        // Oracle 兼容（8411155 同源）：顶层 AnyAsync → ORA-00904，用 CountAsync
+        if (await _context.Students.CountAsync(s => s.StudentId == studentId) == 0)
             throw new BusinessException(404, "学生不存在", 404);
 
         if (room.Capacity.HasValue && (room.Occupancy ?? 0) >= room.Capacity.Value)
@@ -170,22 +171,46 @@ public class AllocationService : IAllocationService
         return new { roomId, occupancy = room.Occupancy, items };
     }
 
-    /// <summary>studentId 契约字段缺失时（IT-C2-002 并发用例）从登录态账户解析</summary>
-    private async Task<string> ResolveStudentIdAsync(string? bodyStudentId, int? currentAccountId)
+    /// <summary>
+    /// studentId 归属解析（评审整改）：
+    /// - 宿管（DormAdmin）代办：必须显式指定 studentId；
+    /// - 学生自助：body studentId 缺省时从登录态账户解析（IT-C2-002 并发用例）；
+    ///   body 带了 studentId 时必须与登录态一致，防替他人入住（非本人 403）。
+    /// </summary>
+    private async Task<string> ResolveStudentIdAsync(string? bodyStudentId, int? currentAccountId, bool isDormAdmin)
     {
-        if (!string.IsNullOrWhiteSpace(bodyStudentId))
-            return bodyStudentId;
-
-        if (currentAccountId.HasValue)
+        if (isDormAdmin)
         {
-            var accountStudentId = await _context.UserAccounts
-                .Where(a => a.AccountId == currentAccountId.Value)
-                .Select(a => a.StudentId)
-                .FirstOrDefaultAsync();
-            if (!string.IsNullOrWhiteSpace(accountStudentId))
-                return accountStudentId;
+            if (string.IsNullOrWhiteSpace(bodyStudentId))
+                throw new BusinessException(400, "缺少学号：宿管办理入住须在请求体指定 studentId");
+            return bodyStudentId;
         }
 
-        throw new BusinessException(400, "缺少学号：请求体未带 studentId 且无法从登录态解析");
+        var accountStudentId = await ResolveAccountStudentIdAsync(currentAccountId);
+
+        if (!string.IsNullOrWhiteSpace(bodyStudentId))
+        {
+            if (!string.Equals(bodyStudentId, accountStudentId, StringComparison.Ordinal))
+                throw new BusinessException(403, "无权替他人办理入住", 403);
+            return bodyStudentId;
+        }
+
+        return accountStudentId;
+    }
+
+    /// <summary>从 JWT 账户解析学生身份（WalletController.ResolveStudentId 同范式）</summary>
+    private async Task<string> ResolveAccountStudentIdAsync(int? currentAccountId)
+    {
+        if (!currentAccountId.HasValue)
+            throw new BusinessException(401, "未登录或 Token 无效");
+
+        var accountStudentId = await _context.UserAccounts
+            .Where(a => a.AccountId == currentAccountId.Value)
+            .Select(a => a.StudentId)
+            .FirstOrDefaultAsync();
+        if (string.IsNullOrWhiteSpace(accountStudentId))
+            throw new BusinessException(401, "当前账户未关联学生身份");
+
+        return accountStudentId;
     }
 }
