@@ -65,11 +65,12 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 20. `ddl/extensions/028_user_account_sequence.sql`（D_USER_ACCOUNT 序列）
 21. `ddl/extensions/029_asset_shareditem_cleaning_sequences_and_tables.sql`（资产/共享物品/保洁主数据前置）
 22. `ddl/extensions/030_add_token_version_and_first_login.sql`（TokenVersion / IsFirstLogin）
-23. `verify/foundation_schema_checks.sql`
-24. `verify/extension_schema_checks.sql`
+23. `ddl/extensions/031_audit_event_sequence.sql`（D_Audit_Event 主键序列 + 触发器）
+24. `verify/foundation_schema_checks.sql`
+25. `verify/extension_schema_checks.sql`
 
 `010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
-`011` 至 `030` 是按编号顺序执行的增量迁移；
+`011` 至 `031` 是按编号顺序执行的增量迁移；
 已有环境只执行尚未应用的迁移，不要重复执行已完成的 `ALTER TABLE` 脚本。
 
 ## 存储过程执行顺序
