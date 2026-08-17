@@ -41,6 +41,7 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
     public DbSet<CreditLog> CreditLogs => Set<CreditLog>();
+    public DbSet<CreditAppeal> CreditAppeals => Set<CreditAppeal>();
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<FacilityBooking> FacilityBookings => Set<FacilityBooking>();
     public DbSet<PendingRepairTicketDto> PendingRepairTicketDtos => Set<PendingRepairTicketDto>();
@@ -591,6 +592,24 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.StudentId)
                   .HasConstraintName("FK_D_CREDIT_LOG_ACCOUNT")
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ---- CreditAppeal 信用分申诉（APPEAL-01/02/03）----
+        modelBuilder.Entity<CreditAppeal>(entity =>
+        {
+            entity.ToTable("D_CREDIT_APPEAL");
+            entity.HasKey(e => e.AppealId);
+            entity.Property(e => e.AppealId).HasColumnName("APPEAL_ID");
+            entity.Property(e => e.CreditLogId).HasColumnName("CREDIT_LOG_ID").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("REASON").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ResultDesc).HasColumnName("RESULT_DESC").HasMaxLength(200);
+            entity.Property(e => e.ReviewedBy).HasColumnName("REVIEWED_BY").HasMaxLength(20);
+            entity.Property(e => e.ReviewTime).HasColumnName("REVIEW_TIME");
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+
+            entity.HasIndex(e => new { e.StudentId, e.CreateTime, e.AppealId });
         });
 
         // ---- Facility 公共设施 ----

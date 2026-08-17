@@ -33,7 +33,12 @@ const form = ref({
   visitReason: '',
   visitEnd: '',
   topic: '',
-  eligibleCount: 4
+  eligibleCount: 4,
+  creditRecordId: ''
+})
+const deductibleLogs = computed(() => {
+  const items = data.value.credit?.items || data.value.credit?.Items || []
+  return items.filter((log) => Number(log.scoreChange) < 0)
 })
 const formTitle = computed(
   () =>
@@ -56,7 +61,8 @@ const openForm = (key) => {
     visitReason: '',
     visitEnd: '',
     topic: '',
-    eligibleCount: 4
+    eligibleCount: 4,
+    creditRecordId: ''
   }
   activeForm.value = key
 }
@@ -100,8 +106,9 @@ const submitForm = async () => {
       })
       feedback.value = '投票已发起'
     } else if (key === 'appeals') {
+      if (!form.value.creditRecordId) throw new Error('请选择要申诉的扣分明细')
       await studentApi.createCreditAppeal({
-        studentId: studentId.value,
+        creditRecordId: Number(form.value.creditRecordId),
         reason: form.value.reason
       })
       feedback.value = '申诉已提交'
@@ -229,7 +236,22 @@ onMounted(loadCommunity)
         </header>
         <form v-if="activeForm" class="community-form" @submit.prevent="submitForm">
           <h3>{{ formTitle }}</h3>
-          <label v-if="activeForm === 'late' || activeForm === 'appeals'">
+          <template v-if="activeForm === 'appeals'">
+            <label>
+              选择扣分明细
+              <select v-model="form.creditRecordId" required>
+                <option value="" disabled>选择要申诉的扣分明细</option>
+                <option v-for="log in deductibleLogs" :key="log.logId" :value="log.logId">
+                  {{ String(log.createTime || '').slice(0, 10) }} · {{ log.scoreChange }} 分 · {{ log.reason }}
+                </option>
+              </select>
+            </label>
+            <label>
+              申诉原因
+              <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="说明申诉事由" required></textarea>
+            </label>
+          </template>
+          <label v-else-if="activeForm === 'late'">
             说明内容
             <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="填写说明" required></textarea>
           </label>
@@ -535,7 +557,8 @@ onMounted(loadCommunity)
   font-size: 10px;
 }
 .community-form input,
-.community-form textarea {
+.community-form textarea,
+.community-form select {
   padding: 8px 10px;
   border: 1px solid var(--color-line-strong);
   background: var(--color-paper);
