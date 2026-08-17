@@ -13,6 +13,9 @@ namespace TemplateDormApi.Tests;
 /// </summary>
 public class LeaveServiceTests
 {
+    /// <summary>归属学生 S001 的登录账户（服务层按 accountId 解析学生身份）</summary>
+    private const int OwnerAccountId = 101;
+
     private static (AppDbContext Context, LeaveService Service) CreateService()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -20,6 +23,23 @@ public class LeaveServiceTests
             .Options;
         var context = new AppDbContext(options);
         context.Students.Add(new Student { StudentId = "S001", Name = "张三" });
+        context.Students.Add(new Student { StudentId = "S002", Name = "李四" });
+        context.UserAccounts.Add(new UserAccount
+        {
+            AccountId = OwnerAccountId,
+            LoginName = "stu-101",
+            PasswordHash = "h",
+            AccountStatus = "正常",
+            StudentId = "S001"
+        });
+        context.UserAccounts.Add(new UserAccount
+        {
+            AccountId = 102,
+            LoginName = "stu-102",
+            PasswordHash = "h",
+            AccountStatus = "正常",
+            StudentId = "S002"
+        });
         context.SaveChanges();
         return (context, new LeaveService(new LeaveRepository(context), context));
     }
@@ -38,7 +58,7 @@ public class LeaveServiceTests
         var (context, service) = CreateService();
         await using var _ = context;
 
-        var app = await service.SubmitAsync(ValidDto());
+        var app = await service.SubmitAsync(ValidDto(), OwnerAccountId, false);
 
         Assert.Equal("待批", app.Status);
         Assert.True(app.ApplyId > 0);
@@ -57,7 +77,7 @@ public class LeaveServiceTests
         var dto = ValidDto();
         dto.ReturnDate = dto.LeaveDate.AddDays(-1);
 
-        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.SubmitAsync(dto));
+        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.SubmitAsync(dto, OwnerAccountId, false));
         Assert.Contains("返校日期", ex.Message);
     }
 
@@ -70,7 +90,8 @@ public class LeaveServiceTests
         var dto = ValidDto();
         dto.StudentId = "NOBODY";
 
-        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.SubmitAsync(dto));
+        // 宿管代办不存在学生（isDormAdmin=true 跳过归属校验）→ 404
+        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.SubmitAsync(dto, null, true));
         Assert.Equal(404, ex.HttpStatus);
     }
 
@@ -80,7 +101,7 @@ public class LeaveServiceTests
         var (context, service) = CreateService();
         await using var _ = context;
 
-        var app = await service.SubmitAsync(ValidDto());
+        var app = await service.SubmitAsync(ValidDto(), OwnerAccountId, false);
         var approved = await service.ApproveAsync(app.ApplyId);
         Assert.Equal("已通过", approved.Status);
 
@@ -94,14 +115,14 @@ public class LeaveServiceTests
         var (context, service) = CreateService();
         await using var _ = context;
 
-        var app = await service.SubmitAsync(ValidDto());
+        var app = await service.SubmitAsync(ValidDto(), OwnerAccountId, false);
         var rejected = await service.RejectAsync(app.ApplyId, "行程冲突");
         Assert.Equal("已驳回", rejected.Status);
         Assert.Equal("行程冲突", rejected.Reason);
 
         // 已驳回后不可再修改
         await Assert.ThrowsAsync<BusinessException>(() =>
-            service.UpdateAsync(app.ApplyId, new LeaveUpdateDto { Destination = "上海" }));
+            service.UpdateAsync(app.ApplyId, new LeaveUpdateDto { Destination = "上海" }, OwnerAccountId, false));
     }
 
     [Fact]
@@ -110,13 +131,13 @@ public class LeaveServiceTests
         var (context, service) = CreateService();
         await using var _ = context;
 
-        var app = await service.SubmitAsync(ValidDto());
-        var updated = await service.UpdateAsync(app.ApplyId, new LeaveUpdateDto { Destination = "上海" });
+        var app = await service.SubmitAsync(ValidDto(), OwnerAccountId, false);
+        var updated = await service.UpdateAsync(app.ApplyId, new LeaveUpdateDto { Destination = "上海" }, OwnerAccountId, false);
         Assert.Equal("上海", updated.Destination);
 
         await service.ApproveAsync(app.ApplyId);
         await Assert.ThrowsAsync<BusinessException>(() =>
-            service.UpdateAsync(app.ApplyId, new LeaveUpdateDto { Destination = "广州" }));
+            service.UpdateAsync(app.ApplyId, new LeaveUpdateDto { Destination = "广州" }, OwnerAccountId, false));
     }
 
     [Fact]
@@ -125,11 +146,11 @@ public class LeaveServiceTests
         var (context, service) = CreateService();
         await using var _ = context;
 
-        var app = await service.SubmitAsync(ValidDto());
-        var withdrawn = await service.CancelAsync(app.ApplyId);
+        var app = await service.SubmitAsync(ValidDto(), OwnerAccountId, false);
+        var withdrawn = await service.CancelAsync(app.ApplyId, OwnerAccountId, false);
         Assert.Equal("已撤回", withdrawn.Status);
 
-        await Assert.ThrowsAsync<BusinessException>(() => service.CancelAsync(app.ApplyId));
+        await Assert.ThrowsAsync<BusinessException>(() => service.CancelAsync(app.ApplyId, OwnerAccountId, false));
     }
 
     [Fact]
@@ -138,15 +159,12 @@ public class LeaveServiceTests
         var (context, service) = CreateService();
         await using var _ = context;
 
-        context.Students.Add(new Student { StudentId = "S002", Name = "李四" });
-        await context.SaveChangesAsync();
-
-        await service.SubmitAsync(ValidDto());
+        await service.SubmitAsync(ValidDto(), OwnerAccountId, false);
         var dto2 = ValidDto();
         dto2.StudentId = "S002";
-        await service.SubmitAsync(dto2);
+        await service.SubmitAsync(dto2, 102, false); // S002 本人提交
 
-        var mine = await service.GetByStudentPagedAsync("S001", 1, 10);
+        var mine = await service.GetByStudentPagedAsync("S001", 1, 10, OwnerAccountId, false);
         Assert.Equal(1, mine.Total);
         Assert.Equal("S001", mine.Items.Single().StudentId);
 
@@ -155,5 +173,75 @@ public class LeaveServiceTests
         Assert.Equal(2, all.Total);
         var pendingOnly = await service.GetPagedAsync(1, 10, "待批");
         Assert.Equal(2, pendingOnly.Total);
+    }
+
+    // ==================== 归属校验（评审整改：学生仅本人 / 宿管放行） ====================
+
+    private static async Task AssertForbidden(Func<Task> act)
+    {
+        var ex = await Assert.ThrowsAsync<BusinessException>(act);
+        Assert.Equal(403, ex.Code);
+    }
+
+    [Fact]
+    public async Task Submit_ForOtherStudent_Throws403()
+    {
+        var (context, service) = CreateService();
+        await using var _ = context;
+
+        // 学生 A（账户 101）替学生 B（S002）提交 → 403
+        var dto = ValidDto();
+        dto.StudentId = "S002";
+        await AssertForbidden(() => service.SubmitAsync(dto, OwnerAccountId, false));
+    }
+
+    [Fact]
+    public async Task GetByStudent_OtherStudent_Throws403()
+    {
+        var (context, service) = CreateService();
+        await using var _ = context;
+
+        await AssertForbidden(() => service.GetByStudentPagedAsync("S002", 1, 10, OwnerAccountId, false));
+    }
+
+    [Fact]
+    public async Task Update_OtherStudentsApplication_Throws403()
+    {
+        var (context, service) = CreateService();
+        await using var _ = context;
+
+        var dto = ValidDto();
+        dto.StudentId = "S002";
+        var app = await service.SubmitAsync(dto, 102, false); // S002 的报备
+
+        await AssertForbidden(() =>
+            service.UpdateAsync(app.ApplyId, new LeaveUpdateDto { Destination = "上海" }, OwnerAccountId, false));
+    }
+
+    [Fact]
+    public async Task Cancel_OtherStudentsApplication_Throws403()
+    {
+        var (context, service) = CreateService();
+        await using var _ = context;
+
+        var dto = ValidDto();
+        dto.StudentId = "S002";
+        var app = await service.SubmitAsync(dto, 102, false);
+
+        await AssertForbidden(() => service.CancelAsync(app.ApplyId, OwnerAccountId, false));
+    }
+
+    [Fact]
+    public async Task DormAdmin_CanSubmitForOthers()
+    {
+        var (context, service) = CreateService();
+        await using var _ = context;
+
+        var dto = ValidDto();
+        dto.StudentId = "S002";
+        var app = await service.SubmitAsync(dto, null, true); // 宿管代办
+
+        Assert.Equal("S002", app.StudentId);
+        Assert.Equal("待批", app.Status);
     }
 }

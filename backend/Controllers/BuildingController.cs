@@ -20,8 +20,9 @@ public class BuildingController : ControllerBase
         _service = service;
     }
 
-    /// <summary>DORM-01 楼栋列表 — 分页查询</summary>
+    /// <summary>DORM-01 楼栋列表 — 分页查询（宿管端，IT-C1-001 学生 token 应 403）</summary>
     [HttpGet]
+    [Authorize(Policy = AuthPolicies.DormAdmin)]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetPaged(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
@@ -34,8 +35,9 @@ public class BuildingController : ControllerBase
         return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>根据 ID 查询楼栋详情</summary>
+    /// <summary>根据 ID 查询楼栋详情（宿管端）</summary>
     [HttpGet("{id}")]
+    [Authorize(Policy = AuthPolicies.DormAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> GetById(int id)
     {
         var building = await _service.GetByIdAsync(id);

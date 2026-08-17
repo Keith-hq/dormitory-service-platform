@@ -39,11 +39,31 @@ public class AllocationServiceTests
         PowerStatus = "正常"
     };
 
+    /// <summary>归属学生 S001/S002 的登录账户（服务层按 accountId 解析学生身份）</summary>
+    private const int S001AccountId = 101;
+    private const int S002AccountId = 102;
+
     private static void SeedBasic(AppDbContext context)
     {
         context.Rooms.AddRange(MakeRoom(101, 4), MakeRoom(201, 4));
         context.Students.Add(new Student { StudentId = "S001", Name = "张三" });
         context.Students.Add(new Student { StudentId = "S002", Name = "李四" });
+        context.UserAccounts.Add(new UserAccount
+        {
+            AccountId = S001AccountId,
+            LoginName = "stu-101",
+            PasswordHash = "h",
+            AccountStatus = "正常",
+            StudentId = "S001"
+        });
+        context.UserAccounts.Add(new UserAccount
+        {
+            AccountId = S002AccountId,
+            LoginName = "stu-102",
+            PasswordHash = "h",
+            AccountStatus = "正常",
+            StudentId = "S002"
+        });
     }
 
     private static AllocationCreateDto ValidDto(string studentId = "S001") => new()
@@ -60,7 +80,7 @@ public class AllocationServiceTests
         var (context, service) = CreateService(SeedBasic);
         await using var _ = context;
 
-        var alloc = await service.CreateAsync(ValidDto());
+        var alloc = await service.CreateAsync(ValidDto(), S001AccountId);
 
         Assert.True(alloc.AllocationId > 0);
         Assert.Equal(101, alloc.RoomId);
@@ -74,10 +94,10 @@ public class AllocationServiceTests
         var (context, service) = CreateService(SeedBasic);
         await using var _ = context;
 
-        await service.CreateAsync(ValidDto("S001"));
+        await service.CreateAsync(ValidDto("S001"), S001AccountId);
 
         var ex = await Assert.ThrowsAsync<BusinessException>(
-            () => service.CreateAsync(ValidDto("S002")));
+            () => service.CreateAsync(ValidDto("S002"), S002AccountId));
         Assert.Contains("床位已占用", ex.Message);
 
         // 失败不残留占用数变化
@@ -91,11 +111,11 @@ public class AllocationServiceTests
         var (context, service) = CreateService(SeedBasic);
         await using var _ = context;
 
-        await service.CreateAsync(ValidDto("S001"));
+        await service.CreateAsync(ValidDto("S001"), S001AccountId);
 
         var dto = ValidDto("S001");
         dto.RoomId = 201;
-        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.CreateAsync(dto));
+        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.CreateAsync(dto, S001AccountId));
         Assert.Contains("已有在住床位", ex.Message);
     }
 
@@ -106,10 +126,18 @@ public class AllocationServiceTests
         {
             c.Rooms.Add(MakeRoom(101, 1, 1));
             c.Students.Add(new Student { StudentId = "S001", Name = "张三" });
+            c.UserAccounts.Add(new UserAccount
+            {
+                AccountId = S001AccountId,
+                LoginName = "stu-101",
+                PasswordHash = "h",
+                AccountStatus = "正常",
+                StudentId = "S001"
+            });
         });
         await using var _ = context;
 
-        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.CreateAsync(ValidDto()));
+        var ex = await Assert.ThrowsAsync<BusinessException>(() => service.CreateAsync(ValidDto(), S001AccountId));
         Assert.Contains("房间已满", ex.Message);
     }
 
@@ -227,5 +255,62 @@ public class AllocationServiceTests
         Assert.Contains("张三", json);
         Assert.Contains("\"bedNo\":2", json);
         Assert.DoesNotContain("\"bedNo\":3", json);
+    }
+
+    // ==================== 归属校验（评审整改：学生仅本人 / 宿管放行） ====================
+
+    [Fact]
+    public async Task Create_BodyStudentIdMismatchToken_Throws403()
+    {
+        var (context, service) = CreateService(SeedBasic);
+        await using var _ = context;
+
+        // 学生 A（账户 101）body 带学生 B（S002）→ 403（防替他人入住）
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => service.CreateAsync(ValidDto("S002"), S001AccountId));
+        Assert.Equal(403, ex.Code);
+
+        // 拦截生效：无分配落库、占用数未变
+        Assert.False(await context.BedAllocations.AnyAsync());
+        Assert.Equal(0, (await context.Rooms.FindAsync(101))!.Occupancy);
+    }
+
+    [Fact]
+    public async Task Create_MissingBodyStudentId_ResolvesFromToken()
+    {
+        var (context, service) = CreateService(SeedBasic);
+        await using var _ = context;
+
+        // IT-C2-002 并发用例口径：body 缺省 studentId → 从登录态解析本人
+        var dto = ValidDto();
+        dto.StudentId = null;
+        var alloc = await service.CreateAsync(dto, S001AccountId);
+
+        Assert.Equal("S001", alloc.StudentId);
+    }
+
+    [Fact]
+    public async Task Create_DormAdminWithBodyStudentId_Succeeds()
+    {
+        var (context, service) = CreateService(SeedBasic);
+        await using var _ = context;
+
+        // 宿管代办：显式指定学生 B（无学生账户）
+        var alloc = await service.CreateAsync(ValidDto("S002"), null, isDormAdmin: true);
+
+        Assert.Equal("S002", alloc.StudentId);
+    }
+
+    [Fact]
+    public async Task Create_DormAdminWithoutStudentId_Throws400()
+    {
+        var (context, service) = CreateService(SeedBasic);
+        await using var _ = context;
+
+        var dto = ValidDto();
+        dto.StudentId = null;
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => service.CreateAsync(dto, null, isDormAdmin: true));
+        Assert.Contains("studentId", ex.Message);
     }
 }

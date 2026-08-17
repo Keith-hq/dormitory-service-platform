@@ -22,12 +22,18 @@ public class LeaveService : ILeaveService
         _context = context;
     }
 
-    public async Task<LeaveApplication> SubmitAsync(LeaveSubmitDto dto)
+    public async Task<LeaveApplication> SubmitAsync(LeaveSubmitDto dto, int? accountId, bool isDormAdmin)
     {
         if (dto.ReturnDate < dto.LeaveDate)
             throw new BusinessException(400, "返校日期不能早于离校日期");
 
-        if (!await _context.Students.AnyAsync(s => s.StudentId == dto.StudentId))
+        // 归属校验（评审整改）：学生只能替自己提交，宿管（DormAdmin）可代办
+        var (isAdmin, callerStudentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        if (!isAdmin && !string.Equals(dto.StudentId, callerStudentId, StringComparison.Ordinal))
+            throw new BusinessException(403, "无权替他人提交离校报备", 403);
+
+        // Oracle 兼容（8411155 同源）：顶层 AnyAsync → ORA-00904，用 CountAsync
+        if (await _context.Students.CountAsync(s => s.StudentId == dto.StudentId) == 0)
             throw new BusinessException(404, "学生不存在", 404);
 
         return await _repo.AddAsync(new LeaveApplication
@@ -47,8 +53,13 @@ public class LeaveService : ILeaveService
         return new PagedResult<LeaveApplication> { Items = items, Total = total, Page = page, PageSize = pageSize };
     }
 
-    public async Task<PagedResult<LeaveApplication>> GetByStudentPagedAsync(string studentId, int page, int pageSize)
+    public async Task<PagedResult<LeaveApplication>> GetByStudentPagedAsync(
+        string studentId, int page, int pageSize, int? accountId, bool isDormAdmin)
     {
+        var (isAdmin, callerStudentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        if (!isAdmin && !string.Equals(studentId, callerStudentId, StringComparison.Ordinal))
+            throw new BusinessException(403, "无权查看他人的报备", 403);
+
         var (items, total) = await _repo.GetPagedFilteredAsync(page, pageSize, studentId: studentId);
         return new PagedResult<LeaveApplication> { Items = items, Total = total, Page = page, PageSize = pageSize };
     }
@@ -68,9 +79,11 @@ public class LeaveService : ILeaveService
         return await _repo.UpdateAsync(app);
     }
 
-    public async Task<LeaveApplication> UpdateAsync(int applyId, LeaveUpdateDto dto)
+    public async Task<LeaveApplication> UpdateAsync(int applyId, LeaveUpdateDto dto, int? accountId, bool isDormAdmin)
     {
         var app = await RequirePendingAsync(applyId);
+        var (isAdmin, callerStudentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        EnsureOwner(isAdmin, app.StudentId, callerStudentId);
 
         var newLeave = dto.LeaveDate ?? app.LeaveDate;
         var newReturn = dto.ReturnDate ?? app.ReturnDate;
@@ -84,9 +97,12 @@ public class LeaveService : ILeaveService
         return await _repo.UpdateAsync(app);
     }
 
-    public async Task<LeaveApplication> CancelAsync(int applyId)
+    public async Task<LeaveApplication> CancelAsync(int applyId, int? accountId, bool isDormAdmin)
     {
         var app = await RequirePendingAsync(applyId);
+        var (isAdmin, callerStudentId) = await ResolveCallerAsync(accountId, isDormAdmin);
+        EnsureOwner(isAdmin, app.StudentId, callerStudentId);
+
         app.Status = LeaveStatuses.Withdrawn;
         return await _repo.UpdateAsync(app);
     }
@@ -124,5 +140,30 @@ public class LeaveService : ILeaveService
         if (app.Status != LeaveStatuses.Pending)
             throw new BusinessException(400, $"仅待批状态的报备可操作（当前：{app.Status}）");
         return app;
+    }
+
+    /// <summary>解析调用者身份：DormAdmin 放行；其余按 JWT 账户解析学生身份（与 CheckoutService 同范式）</summary>
+    private async Task<(bool IsAdmin, string StudentId)> ResolveCallerAsync(int? accountId, bool isDormAdmin)
+    {
+        if (isDormAdmin) return (true, string.Empty);
+
+        if (!accountId.HasValue)
+            throw new BusinessException(401, "未登录或 Token 无效");
+
+        var studentId = await _context.UserAccounts
+            .Where(a => a.AccountId == accountId.Value)
+            .Select(a => a.StudentId)
+            .FirstOrDefaultAsync();
+        if (string.IsNullOrWhiteSpace(studentId))
+            throw new BusinessException(401, "当前账户未关联学生身份");
+
+        return (false, studentId);
+    }
+
+    /// <summary>归属校验：学生仅能操作本人的报备，宿管放行</summary>
+    private static void EnsureOwner(bool isAdmin, string? appStudentId, string callerStudentId)
+    {
+        if (!isAdmin && !string.Equals(appStudentId, callerStudentId, StringComparison.Ordinal))
+            throw new BusinessException(403, "无权操作他人的报备", 403);
     }
 }
