@@ -51,6 +51,8 @@ builder.Services.AddControllers(options =>
 {
     // 首字母小写驼峰（与前端对齐）
     options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    // 1:1 导航属性（如 Notice <-> NoticeDisplay）序列化时忽略循环引用，避免对象环 500
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
