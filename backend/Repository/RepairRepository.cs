@@ -110,11 +110,29 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         };
     }
 
-    public Task<RepairTicket?> FindByIdAsync(long ticketId, CancellationToken cancellationToken)
-        => DbContext.RepairTickets
-            .Include(item => item.Log)
-            .Include(item => item.Attachments)
+    public async Task<RepairTicket?> FindByIdAsync(long ticketId, CancellationToken cancellationToken)
+    {
+        // 四审真实 Oracle 实测（IT-C4-001 执行现场）：Include 导航会让 EF 在投影中
+        // 追加影子列 "TicketId1"，Oracle provider 将其作为物理列拼入 SELECT →
+        // ORA-00904（InMemory 单测无法暴露）。改为三段独立查询手动挂载，
+        // 彻底避开导航 Include。
+        var ticket = await DbContext.RepairTickets
             .SingleOrDefaultAsync(item => item.TicketId == ticketId, cancellationToken);
+        if (ticket is null)
+        {
+            return null;
+        }
+
+        ticket.Log = await DbContext.RepairLogs
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.TicketId == ticketId, cancellationToken);
+
+        ticket.Attachments = await DbContext.RepairAttachments
+            .AsNoTracking()
+            .Where(item => item.TicketId == ticketId)
+            .ToListAsync(cancellationToken);
+        return ticket;
+    }
 
     public async Task<RepairTicketDto> CancelAsync(RepairTicket ticket, CancellationToken cancellationToken)
     {

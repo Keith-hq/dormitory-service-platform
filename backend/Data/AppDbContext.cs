@@ -133,8 +133,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PowerStatus).HasColumnName("POWER_STATUS").HasMaxLength(10).IsRequired();
 
-            entity.HasOne<Building>()
-                  .WithMany()
+            entity.HasOne(e => e.Building)
+                  .WithMany(b => b.Rooms)
                   .HasForeignKey(e => e.BuildingId)
                   .HasConstraintName("FK_D_ROOM_BUILDING");
         });
@@ -361,12 +361,12 @@ public class AppDbContext : DbContext
                   .HasConstraintName("FK_D_REPAIR_TICKET_ASSIGNED_ADMIN");
 
             entity.HasOne(t => t.Log)
-                  .WithOne()
+                  .WithOne(l => l.Ticket)
                   .HasForeignKey<RepairLog>(l => l.TicketId)
                   .HasConstraintName("FK_D_REPAIR_LOG_TICKET");
 
             entity.HasMany(t => t.Attachments)
-                  .WithOne()
+                  .WithOne(a => a.Ticket)
                   .HasForeignKey(a => a.TicketId)
                   .HasConstraintName("FK_D_REPAIR_ATTACHMENT_TICKET");
         });
@@ -384,10 +384,10 @@ public class AppDbContext : DbContext
             entity.Property(e => e.RepairResult).HasColumnName("REPAIR_RESULT").HasMaxLength(200);
             entity.Property(e => e.ResolveTime).HasColumnName("RESOLVE_TIME").IsRequired();
 
-            entity.HasOne<RepairTicket>()
-                  .WithOne(t => t.Log)
-                  .HasForeignKey<RepairLog>(e => e.TicketId)
-                  .HasConstraintName("FK_D_REPAIR_LOG_TICKET");
+            // 四审真实 Oracle 实测（IT-C4-001 执行现场）：同一关系若在两侧实体
+            // 各配置一次（即使签名相同），EF 会额外生成影子 FK 属性 "TicketId1"，
+            // Oracle provider 将其作为物理列拼入 SELECT → ORA-00904。
+            // 该关系统一只在 RepairTicket 侧配置（WithOne(l => l.Ticket)），此处不再重复。
 
             entity.HasOne<Admin>()
                   .WithMany()
@@ -412,10 +412,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.FileSize).HasColumnName("FILE_SIZE");
             entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
 
-            entity.HasOne<RepairTicket>()
-                  .WithMany(e => e.Attachments)
-                  .HasForeignKey(e => e.TicketId)
-                  .HasConstraintName("FK_D_REPAIR_ATTACHMENT_TICKET");
+            // 关系已统一在 RepairTicket 侧配置（WithOne(a => a.Ticket)），此处不重复配置，
+            // 避免 EF 生成影子 FK 列（同 RepairLog 注释，IT-C4-001 执行现场 ORA-00904）。
         });
 
         // ---- LateEntry 晚归记录 ----
