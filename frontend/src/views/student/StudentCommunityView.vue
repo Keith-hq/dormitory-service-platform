@@ -237,19 +237,28 @@ onMounted(loadCommunity)
         <form v-if="activeForm" class="community-form" @submit.prevent="submitForm">
           <h3>{{ formTitle }}</h3>
           <template v-if="activeForm === 'appeals'">
-            <label>
-              选择扣分明细
-              <select v-model="form.creditRecordId" required>
-                <option value="" disabled>选择要申诉的扣分明细</option>
-                <option v-for="log in deductibleLogs" :key="log.logId" :value="log.logId">
-                  {{ String(log.createTime || '').slice(0, 10) }} · {{ log.scoreChange }} 分 · {{ log.reason }}
-                </option>
-              </select>
-            </label>
-            <label>
-              申诉原因
-              <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="说明申诉事由" required></textarea>
-            </label>
+            <p class="appeal-hint">
+              当前信用分：
+              {{ data.credit?.currentScore ?? data.credit?.CurrentScore ?? data.credit?.score ?? '—' }}
+            </p>
+            <template v-if="deductibleLogs.length">
+              <label>
+                选择扣分明细
+                <select v-model="form.creditRecordId" required>
+                  <option value="" disabled>选择要申诉的扣分明细</option>
+                  <option v-for="log in deductibleLogs" :key="log.logId" :value="log.logId">
+                    {{ String(log.createTime || '').slice(0, 10) }} · {{ log.scoreChange }} 分 · {{ log.reason }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                申诉原因
+                <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="说明申诉事由" required></textarea>
+              </label>
+            </template>
+            <p v-else class="appeal-hint appeal-empty">
+              当前信用分无扣减记录，暂无可申诉的扣分明细。
+            </p>
           </template>
           <label v-else-if="activeForm === 'late'">
             说明内容
@@ -272,7 +281,11 @@ onMounted(loadCommunity)
           <p v-if="feedback" class="form-feedback" role="status">{{ feedback }}</p>
           <div class="form-actions">
             <button type="button" class="btn" @click="closeForm">取消</button>
-            <button type="submit" class="btn btn-primary" :disabled="formLoading">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              :disabled="formLoading || (activeForm === 'appeals' && !deductibleLogs.length)"
+            >
               {{ formLoading ? '提交中…' : '提交' }}
             </button>
           </div>
@@ -575,6 +588,17 @@ onMounted(loadCommunity)
   background: var(--color-brand-soft);
   color: var(--color-brand);
   font-size: 10px;
+}
+.appeal-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.appeal-empty {
+  padding: 9px 11px;
+  border-left: 3px solid var(--color-line-strong);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
 }
 .form-actions {
   display: flex;
