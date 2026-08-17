@@ -4,6 +4,7 @@ import { studentApi } from '@/api/student'
 import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
+import { toUserMessage } from '@/utils/errorMessage'
 
 const userStore = useUserStore()
 const activeSection = ref('late')
@@ -18,6 +19,111 @@ const sections = [
   { key: 'votes', code: '04', label: '房间投票', hint: '寝室共识' },
   { key: 'credit', code: '05', label: '信用与申诉', hint: '分值与复核' }
 ]
+const activeForm = ref(null) // 'late' | 'leave' | 'visitor' | 'votes' | 'appeals' | null
+const formLoading = ref(false)
+const feedback = ref('')
+const expandedId = ref(null)
+const roomId = ref(null)
+const form = ref({
+  reason: '',
+  leaveDate: '',
+  returnDate: '',
+  destination: '',
+  visitorName: '',
+  visitReason: '',
+  visitEnd: '',
+  topic: '',
+  eligibleCount: 4
+})
+const formTitle = computed(
+  () =>
+    ({
+      late: '补充晚归说明',
+      leave: '新建离校报备',
+      visitor: '申请访客码',
+      votes: '发起房间投票',
+      appeals: '发起信用申诉'
+    })[activeForm.value] || ''
+)
+const openForm = (key) => {
+  feedback.value = ''
+  form.value = {
+    reason: '',
+    leaveDate: '',
+    returnDate: '',
+    destination: '',
+    visitorName: '',
+    visitReason: '',
+    visitEnd: '',
+    topic: '',
+    eligibleCount: 4
+  }
+  activeForm.value = key
+}
+const closeForm = () => {
+  activeForm.value = null
+  formLoading.value = false
+  feedback.value = ''
+}
+const submitForm = async () => {
+  const key = activeForm.value
+  if (!key || formLoading.value) return
+  formLoading.value = true
+  feedback.value = ''
+  try {
+    if (key === 'late') {
+      const record = data.value.late[0]
+      if (!record?.recordId) throw new Error('暂无可补充说明的晚归记录')
+      await studentApi.updateLateEntryReason(record.recordId, form.value.reason)
+      feedback.value = '晚归说明已补充'
+    } else if (key === 'leave') {
+      await studentApi.createLeaveApplication({
+        studentId: studentId.value,
+        leaveDate: form.value.leaveDate,
+        returnDate: form.value.returnDate,
+        destination: form.value.destination
+      })
+      feedback.value = '离校报备已提交，等待审批'
+    } else if (key === 'visitor') {
+      await studentApi.createVisitorAuthorization({
+        visitorName: form.value.visitorName,
+        visitReason: form.value.visitReason || null,
+        endTime: form.value.visitEnd
+      })
+      feedback.value = '访客码已申请'
+    } else if (key === 'votes') {
+      if (!roomId.value) throw new Error('暂无房间信息，无法发起投票')
+      await studentApi.createRoomVote({
+        roomId: roomId.value,
+        topic: form.value.topic,
+        eligibleCount: Number(form.value.eligibleCount)
+      })
+      feedback.value = '投票已发起'
+    } else if (key === 'appeals') {
+      await studentApi.createCreditAppeal({
+        studentId: studentId.value,
+        reason: form.value.reason
+      })
+      feedback.value = '申诉已提交'
+    }
+    await loadCommunity()
+    closeForm()
+  } catch (requestError) {
+    if (key === 'appeals' && requestError?.status === 404) {
+      feedback.value = '申诉接口后端未实现（BUG-104），待补后可用'
+    } else {
+      feedback.value = toUserMessage(requestError, '提交失败，请稍后重试')
+    }
+  } finally {
+    formLoading.value = false
+  }
+}
+const itemKey = (item) =>
+  item.recordId || item.applyId || item.authId || item.voteId || item.appealId || item.id
+const toggleDetail = (item) => {
+  const key = itemKey(item)
+  expandedId.value = expandedId.value === key ? null : key
+}
 const currentItems = computed(() =>
   activeSection.value === 'credit' ? data.value.appeals : data.value[activeSection.value]
 )
@@ -35,6 +141,7 @@ const loadCommunity = async () => {
       ['appeals', studentApi.getCreditAppeals(studentId.value)],
       ['credit', studentApi.getCredit(studentId.value)]
     ]
+    roomId.value = accommodation?.roomId || null
     if (accommodation?.roomId) requests.push(['votes', studentApi.getRoomVotes(accommodation.roomId)])
     const results = await Promise.allSettled(requests.map(([, request]) => request))
     results.forEach((result, index) => {
@@ -106,7 +213,7 @@ onMounted(loadCommunity)
             <h2>{{ activeCopy.label }}</h2>
             <p>{{ activeCopy.hint }}相关记录集中显示在这里。</p>
           </div>
-          <button class="btn btn-primary">
+          <button class="btn btn-primary" @click="openForm(activeSection)">
             {{
               activeSection === 'late'
                 ? '补充说明'
@@ -120,6 +227,34 @@ onMounted(loadCommunity)
             }}
           </button>
         </header>
+        <form v-if="activeForm" class="community-form" @submit.prevent="submitForm">
+          <h3>{{ formTitle }}</h3>
+          <label v-if="activeForm === 'late' || activeForm === 'appeals'">
+            说明内容
+            <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="填写说明" required></textarea>
+          </label>
+          <template v-else-if="activeForm === 'leave'">
+            <label>离校日期 <input type="date" v-model="form.leaveDate" required /></label>
+            <label>返校日期 <input type="date" v-model="form.returnDate" required /></label>
+            <label>目的地 <input v-model="form.destination" maxlength="200" required placeholder="目的地" /></label>
+          </template>
+          <template v-else-if="activeForm === 'visitor'">
+            <label>访客姓名 <input v-model="form.visitorName" maxlength="50" required placeholder="访客姓名" /></label>
+            <label>来访事由 <input v-model="form.visitReason" maxlength="200" placeholder="选填" /></label>
+            <label>授权截止 <input type="datetime-local" v-model="form.visitEnd" required /></label>
+          </template>
+          <template v-else-if="activeForm === 'votes'">
+            <label>投票议题 <input v-model="form.topic" maxlength="200" required placeholder="发起什么投票" /></label>
+            <label>应参与人数 <input type="number" v-model="form.eligibleCount" min="1" max="99" /></label>
+          </template>
+          <p v-if="feedback" class="form-feedback" role="status">{{ feedback }}</p>
+          <div class="form-actions">
+            <button type="button" class="btn" @click="closeForm">取消</button>
+            <button type="submit" class="btn btn-primary" :disabled="formLoading">
+              {{ formLoading ? '提交中…' : '提交' }}
+            </button>
+          </div>
+        </form>
         <InlineState
           :loading="loading"
           :error="failures.includes(activeSection) ? `${activeCopy.label}暂时无法同步` : ''"
@@ -138,9 +273,17 @@ onMounted(loadCommunity)
               <h3>{{ itemTitle(item) }}</h3>
               <p>{{ itemMeta(item) }}</p>
             </div>
-            <StatusTag :label="itemStatus(item)" tone="info" size="small" /><button type="button">
+            <StatusTag :label="itemStatus(item)" tone="info" size="small" /><button type="button" @click="toggleDetail(item)">
               查看详情 ↗
             </button>
+            <dl v-if="expandedId === itemKey(item)" class="record-detail">
+              <template v-for="(value, field) in item" :key="field">
+                <div v-if="value !== null && value !== undefined && value !== ''">
+                  <dt>{{ field }}</dt>
+                  <dd>{{ value }}</dd>
+                </div>
+              </template>
+            </dl>
           </article>
         </div>
       </section>
@@ -371,5 +514,69 @@ onMounted(loadCommunity)
   .community-records article > button {
     grid-column: 2;
   }
+}
+.community-form {
+  display: grid;
+  gap: 10px;
+  margin: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface-muted);
+}
+.community-form h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+.community-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.community-form input,
+.community-form textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 12px;
+}
+.community-form textarea {
+  resize: vertical;
+}
+.form-feedback {
+  margin: 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 10px;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.record-detail {
+  grid-column: 2;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--color-accent);
+  background: var(--color-surface-muted);
+}
+.record-detail div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 9px;
+}
+.record-detail dt {
+  color: var(--color-text-muted);
+}
+.record-detail dd {
+  margin: 0;
+  text-align: right;
 }
 </style>
