@@ -23,7 +23,8 @@ public sealed class SharedItemService : ISharedItemService
 
     public async Task<SharedItemDto> CreateAsync(CreateSharedItemRequest request, CancellationToken cancellationToken)
     {
-        if (!await _context.Buildings.AnyAsync(item => item.BuildingId == request.BuildingId, cancellationToken))
+        // Oracle 兼容（评审整改 8411155 同源）：顶层 AnyAsync → ORA-00904，用 CountAsync
+        if (await _context.Buildings.CountAsync(item => item.BuildingId == request.BuildingId, cancellationToken) == 0)
         {
             throw new BusinessException(404, "所属楼栋不存在", StatusCodes.Status404NotFound);
         }
@@ -102,8 +103,9 @@ public sealed class SharedItemService : ISharedItemService
         var item = await GetItemAsync(itemId, cancellationToken);
 
         // DORM-49 删除口径：仅「有未归还借出记录」时禁止删除；已归还的历史借出不阻断。
+        // Oracle 兼容（评审整改 8411155 同源）：顶层 AnyAsync → ORA-00904，用 CountAsync
         var hasUnreturnedLoan = await _context.ItemLoans
-            .AnyAsync(loan => loan.ItemId == itemId && loan.ReturnTime == null, cancellationToken);
+            .CountAsync(loan => loan.ItemId == itemId && loan.ReturnTime == null, cancellationToken) > 0;
         if (hasUnreturnedLoan)
         {
             throw new BusinessException(409, "有未归还借出记录时禁止删除", StatusCodes.Status409Conflict);
