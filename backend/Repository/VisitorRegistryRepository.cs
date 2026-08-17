@@ -20,11 +20,23 @@ public sealed class VisitorRegistryRepository : FrameworkRepositoryBase
         CreateVisitorRegistryRequest request,
         CancellationToken cancellationToken)
     {
+        // 规范化学号：空串 → null（不关联外键）；非空须存在于 D_Student，否则给出友好提示而非 FK 500
+        var studentId = string.IsNullOrWhiteSpace(request.StudentId) ? null : request.StudentId.Trim();
+        if (studentId is not null)
+        {
+            var exists = await DbContext.Set<Student>()
+                .CountAsync(s => s.StudentId == studentId, cancellationToken) > 0;
+            if (!exists)
+            {
+                throw new BusinessException(400, "被访学生不存在，请核对学号");
+            }
+        }
+
         var registry = new VisitorRegistry
         {
             VisitorName = request.VisitorName,
             Phone = request.Phone,
-            StudentId = request.StudentId,
+            StudentId = studentId,
             EnterTime = DateTime.Now,
             Status = "待核验",
             CreateTime = DateTime.Now
