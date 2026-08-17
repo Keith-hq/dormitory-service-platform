@@ -30,9 +30,14 @@ public class VoteServiceTests
         await using var _ = context;
         await using var __ = readContext;
 
-        // 预置一个房间（CreateVoteAsync 会校验房间存在）
+        // 预置一个房间 + 两名在住成员（发起/投票均校验"本房间在住"）
         var room = new Room { BuildingId = 1, RoomNumber = "101", Status = "正常", PowerStatus = "正常" };
         context.Rooms.Add(room);
+        await context.SaveChangesAsync();
+
+        context.BedAllocations.AddRange(
+            new BedAllocation { StudentId = "S001", RoomId = room.RoomId, BedNo = 1, CheckInDate = DateTime.Now },
+            new BedAllocation { StudentId = "S002", RoomId = room.RoomId, BedNo = 2, CheckInDate = DateTime.Now });
         await context.SaveChangesAsync();
 
         var service = new VoteService(new VoteRepository(context), new RoomRepository(context));
@@ -81,6 +86,10 @@ public class VoteServiceTests
 
         var room = new Room { BuildingId = 1, RoomNumber = "102", Status = "正常", PowerStatus = "正常" };
         context.Rooms.Add(room);
+        await context.SaveChangesAsync();
+
+        context.BedAllocations.Add(
+            new BedAllocation { StudentId = "S001", RoomId = room.RoomId, BedNo = 1, CheckInDate = DateTime.Now });
         await context.SaveChangesAsync();
 
         var service = new VoteService(new VoteRepository(context), new RoomRepository(context));
