@@ -69,6 +69,10 @@ public class VoteService : IVoteService
         if (DateTime.Now > vote.Deadline)
             throw new BusinessException(400, "该投票已超过截止时间");
 
+        // 对齐 IT-C8-002 通过判定②：非本房间学生不可投。
+        if (!await _repository.IsRoomMemberAsync(vote.RoomId, studentId))
+            throw new BusinessException(403, "非本房间学生不可参与投票", StatusCodes.Status403Forbidden);
+
         if (await _repository.HasRespondedAsync(voteId, studentId))
             throw new BusinessException(400, "您已参与过该投票，不能重复投票");
 
