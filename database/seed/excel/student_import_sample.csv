@@ -1,4 +1,4 @@
-学号,姓名,性别,学院,专业,手机号,邮箱
+﻿学号,姓名,性别,学院,专业,手机号,邮箱
 IT_IMP_001,张一,M,信息技术学院,计算机科学与技术,13810000001,zhangyi@stu.example.edu.cn
 IT_IMP_002,王二,M,信息技术学院,软件工程,13810000002,wanger@stu.example.edu.cn
 IT_IMP_003,李三,F,机电工程学院,电气工程及其自动化,13810000003,lisan@stu.example.edu.cn

@@ -1,6 +1,10 @@
+SET DEFINE OFF;
+SET AUTOCOMMIT ON;
 -- 伪数据集清理脚本（幂等，先清预留段再插入）。
 -- 清理规则：
---   - 数值主键表：删除主键 >= 900000 的行（伪数据统一落在 9xxxxx 段，应用序列 1 起不撞号）；
+--   - 数值主键表：删除伪数据段的行。
+--     主键段分两种：学院/专业/楼栋用 4 位 9001..9006（阈值 >=9000）；
+--     其余表用 6 位 900101..（阈值 >=900000）。应用序列 1 起，不撞号。
 --   - 字符串主键表（学生/管理员/钱包/信用分/账号）：删除 IT_ 前缀。
 -- 执行顺序：子表在前、父表在后，避免外键冲突。
 -- 本脚本不触碰 DDL 基线（foundation 20 表冻结），仅做 DML 清理。
@@ -14,6 +18,8 @@ DELETE FROM D_Fee_Deduction_Attempt  WHERE Attempt_ID >= 900000;
 DELETE FROM D_Wallet_Log             WHERE Log_ID >= 900000;
 DELETE FROM D_Fee_Detail             WHERE Detail_ID >= 900000;
 DELETE FROM D_Wallet_Account         WHERE Student_ID LIKE 'IT\_%' ESCAPE '\';
+DELETE FROM D_Credit_Log             WHERE Log_ID >= 900000;
+DELETE FROM D_Credit_Account         WHERE Student_ID LIKE 'IT\_%' ESCAPE '\';
 DELETE FROM D_Utility_Fee            WHERE Fee_ID >= 900000;
 DELETE FROM D_Asset_Repair           WHERE Link_ID >= 900000;
 DELETE FROM D_Asset_Warning          WHERE Warning_ID >= 900000;
@@ -48,9 +54,9 @@ DELETE FROM D_Notice                 WHERE Notice_ID >= 900000;
 DELETE FROM D_Student   WHERE Student_ID LIKE 'IT\_%' ESCAPE '\';
 DELETE FROM D_Admin     WHERE Admin_ID   LIKE 'IT\_%' ESCAPE '\';
 DELETE FROM D_Room      WHERE Room_ID >= 900000;
-DELETE FROM D_Major     WHERE Major_ID >= 900000;
-DELETE FROM D_Building  WHERE Building_ID >= 900000;
-DELETE FROM D_College   WHERE College_ID >= 900000;
+DELETE FROM D_Major     WHERE Major_ID >= 9000;
+DELETE FROM D_Building  WHERE Building_ID >= 9000;
+DELETE FROM D_College   WHERE College_ID >= 9000;
 
 -- 完成后返回清理结果汇总
 SELECT 'CLEANUP DONE: 伪数据预留段（9xxxxx / IT_%）已清空' AS MESSAGE FROM DUAL;

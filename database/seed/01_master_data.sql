@@ -1,3 +1,5 @@
+SET DEFINE OFF;
+SET AUTOCOMMIT ON;
 -- 01 主数据：学院/专业/楼栋/房间/学生/管理员/账号/住宿分配/资产/资产预警
 -- 依赖：00_cleanup.sql 已执行；foundation/001 与 extensions/010~030 已建库。
 -- 主键全部落在 9xxxxx 段 / IT_ 前缀，与应用序列（1 起）互不撞号。
@@ -32,9 +34,8 @@ SELECT 900200 + n, 9002, LPAD(n, 2, '0'), 4, 0, '正常', 1 + TRUNC((n - 1) / 4)
 FROM (SELECT LEVEL n FROM DUAL CONNECT BY LEVEL <= 24);
 
 -- ===== 5. 管理员（D_Admin） =====
--- 注意：IT_COUN_001（辅导员）按代码口径写入；若目标库已启用 CK_D_ADMIN_ROLE
--- 三值约束（楼长/维修员/超级管理员），此处会 ORA-02290 —— 属已知风险 R1，
--- 需登记矛盾清单后处理，未启用则正常。
+-- 注意：IT_COUN_001（辅导员）按代码口径写入。需目标库已应用迁移 031
+-- （CK_D_ADMIN_ROLE 纳入"辅导员"，ADR-0007）；未应用则 ORA-02290。
 INSERT INTO D_Admin (Admin_ID, Admin_Name, Phone, Role_Level, Building_ID, POST) VALUES ('IT_ADMIN_001', '王建国', '13900000001', '楼长',       9001, '楼长');
 INSERT INTO D_Admin (Admin_ID, Admin_Name, Phone, Role_Level, Building_ID, POST) VALUES ('IT_REPAIR_001', '张建军', '13900000002', '维修员',     9001, '维修员');
 INSERT INTO D_Admin (Admin_ID, Admin_Name, Phone, Role_Level, Building_ID, POST) VALUES ('IT_REPAIR_002', '李铁柱', '13900000003', '维修员',     9002, '维修员');
@@ -73,7 +74,7 @@ INSERT INTO D_Student (Student_ID, Name, Gender, Major_ID, Phone, Email) VALUES 
 INSERT INTO D_Student (Student_ID, Name, Gender, Major_ID, Phone, Email) VALUES ('IT_STU_028',  '马慧', 'F', 9005, '13800000028', 'mahui@stu.example.edu.cn');
 INSERT INTO D_Student (Student_ID, Name, Gender, Major_ID, Phone, Email) VALUES ('IT_STU_029',  '朱萍', 'F', 9006, '13800000029', 'zhuping@stu.example.edu.cn');
 INSERT INTO D_Student (Student_ID, Name, Gender, Major_ID, Phone, Email) VALUES ('IT_STU_030',  '胡珊', 'F', 9005, '13800000030', 'hushan@stu.example.edu.cn');
-INSERT INTO D_Student (Student_ID, Name, Gender, Major_ID, Phone, Email) VALUES ('IT_STU_031',  '刘志强', 'M', 9004, '13800000031', 'liuzhiqiang@stu.example.edu.cn'); -- 已退宿历史学生（无账号）
+INSERT INTO D_Student (Student_ID, Name, Gender, Major_ID, Phone, Email) VALUES ('IT_STU_031',  '刘志强', 'M', 9004, '13800000031', 'liuzhiqiang@stu.example.edu.cn');
 
 -- ===== 7. 登录账号（D_User_Account）35 个 =====
 -- 演示密码统一明文 Temp@123（BCrypt），Is_First_Login='N' 登录即用；
@@ -110,8 +111,8 @@ INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckI
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500003, 'IT_STU_004', 900102, 2, DATE '2026-02-01', NULL);
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500004, 'IT_STU_006', 900103, 1, DATE '2026-02-01', NULL);
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500005, 'IT_STU_007', 900103, 2, DATE '2026-02-01', NULL);
-INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500006, 'IT_STU_008', 900103, 3, DATE '2026-02-01', DATE '2026-08-10'); -- 008 中途退宿 900103
-INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500007, 'IT_STU_008', 900104, 1, DATE '2026-08-10', NULL);                    -- 008 换寝至 900104
+INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500006, 'IT_STU_008', 900103, 3, DATE '2026-02-01', DATE '2026-08-10');
+INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500007, 'IT_STU_008', 900104, 1, DATE '2026-08-10', NULL);
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500008, 'IT_STU_009', 900105, 1, DATE '2026-02-01', NULL);
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500009, 'IT_STU_010', 900105, 2, DATE '2026-02-01', NULL);
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500010, 'IT_STU_011', 900105, 3, DATE '2026-02-01', NULL);
@@ -134,7 +135,7 @@ INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckI
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500027, 'IT_STU_028', 900206, 1, DATE '2026-02-01', NULL);
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500028, 'IT_STU_029', 900206, 2, DATE '2026-02-01', NULL);
 INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500029, 'IT_STU_030', 900206, 3, DATE '2026-02-01', NULL);
-INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500030, 'IT_STU_031', 900107, 2, DATE '2026-02-01', DATE '2026-07-31'); -- 031 已退宿
+INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date, CheckOut_Date) VALUES (9500030, 'IT_STU_031', 900107, 2, DATE '2026-02-01', DATE '2026-07-31');
 
 -- ===== 9. 资产（D_Asset）每房 4 件标准家具 + 3 件特殊 =====
 INSERT INTO D_Asset (Asset_ID, Room_ID, Asset_Name, Quantity, Status)

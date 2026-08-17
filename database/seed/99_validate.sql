@@ -1,3 +1,5 @@
+SET DEFINE OFF;
+SET AUTOCOMMIT ON;
 -- 99 伪数据集校验：断言 + 汇总。
 -- 用法：执行完 00~05 后运行本脚本。
 -- 第一部分「断言」每个查询应返回 0 行（有行 = 数据问题）；第二部分「汇总」为计数核对。
@@ -179,7 +181,7 @@ WHERE si.Available_Qty <> si.Total_Qty
 SELECT '账号数(学生30+管理员5)' AS ITEM, COUNT(*) AS CNT FROM D_User_Account WHERE Login_Name LIKE 'IT\_%' ESCAPE '\';
 SELECT '学生(31=30在册+1已退宿)' AS ITEM, COUNT(*) AS CNT FROM D_Student WHERE Student_ID LIKE 'IT\_%' ESCAPE '\';
 SELECT '管理员(5)' AS ITEM, COUNT(*) AS CNT FROM D_Admin WHERE Admin_ID LIKE 'IT\_%' ESCAPE '\';
-SELECT '楼栋(2)' AS ITEM, COUNT(*) AS CNT FROM D_Building WHERE Building_ID >= 900000;
+SELECT '楼栋(2)' AS ITEM, COUNT(*) AS CNT FROM D_Building WHERE Building_ID >= 9000;
 SELECT '房间(48)' AS ITEM, COUNT(*) AS CNT FROM D_Room WHERE Room_ID >= 900000;
 SELECT '活动住宿分配(28)' AS ITEM, COUNT(*) AS CNT FROM D_Bed_Allocation WHERE Allocation_ID >= 900000 AND CheckOut_Date IS NULL;
 SELECT '水电账单(144=3月×48房)' AS ITEM, COUNT(*) AS CNT FROM D_Utility_Fee WHERE Fee_ID >= 900000;

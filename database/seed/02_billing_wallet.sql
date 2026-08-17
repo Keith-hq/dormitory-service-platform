@@ -1,57 +1,51 @@
+SET DEFINE OFF;
+SET AUTOCOMMIT ON;
 -- 02 缴费钱包：水电账单(3月)/分摊明细/钱包/钱包日志/扣款尝试
 -- 依赖：01_master_data.sql 已执行（房间、住宿分配、账号已建）。
 -- P0 链路 C3（缴费划扣）：001 可现场缴费；003 欠费阻断（余额不足）。
 
 -- ===== 1. 水电账单 D_Utility_Fee（3 个月 × 48 房） =====
 -- 房序 seq：9001 楼 1..24，9002 楼 25..48。Fee_ID = 920000 + 月偏移×100 + 房序。
+-- （用内联子查询 rs 代替 WITH，兼容 sqlplus 管道执行。）
 -- 2026-05：全部已发布、全部已缴（历史）。
-WITH room_seq AS (
-    SELECT Room_ID,
-           CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
-                ELSE 24 + MOD(Room_ID, 100) END AS seq
-    FROM D_Room
-    WHERE Room_ID BETWEEN 900101 AND 900124
-       OR Room_ID BETWEEN 900201 AND 900224
-)
 INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-SELECT 920000 + seq, Room_ID, '2026-05',
-       20 + MOD(seq * 3, 16), 50 + MOD(seq * 7, 41),
+SELECT 920000 + rs.seq, rs.Room_ID, '2026-05',
+       20 + MOD(rs.seq * 3, 16), 50 + MOD(rs.seq * 7, 41),
        '是', '已发布'
-FROM room_seq;
+FROM (SELECT Room_ID,
+             CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
+                  ELSE 24 + MOD(Room_ID, 100) END AS seq
+      FROM D_Room
+      WHERE Room_ID BETWEEN 900101 AND 900124
+         OR Room_ID BETWEEN 900201 AND 900224) rs;
 
 -- 2026-06：全部已发布，少数历史欠费。
-WITH room_seq AS (
-    SELECT Room_ID,
-           CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
-                ELSE 24 + MOD(Room_ID, 100) END AS seq
-    FROM D_Room
-    WHERE Room_ID BETWEEN 900101 AND 900124
-       OR Room_ID BETWEEN 900201 AND 900224
-)
 INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-SELECT 920000 + 100 + seq, Room_ID, '2026-06',
-       20 + MOD(seq * 6, 16), 50 + MOD(seq * 7 + 5, 41),
-       CASE WHEN MOD(seq, 11) = 0 THEN '否' ELSE '是' END, '已发布'
-FROM room_seq;
+SELECT 920000 + 100 + rs.seq, rs.Room_ID, '2026-06',
+       20 + MOD(rs.seq * 6, 16), 50 + MOD(rs.seq * 7 + 5, 41),
+       CASE WHEN MOD(rs.seq, 11) = 0 THEN '否' ELSE '是' END, '已发布'
+FROM (SELECT Room_ID,
+             CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
+                  ELSE 24 + MOD(Room_ID, 100) END AS seq
+      FROM D_Room
+      WHERE Room_ID BETWEEN 900101 AND 900124
+         OR Room_ID BETWEEN 900201 AND 900224) rs;
 
 -- 2026-07（演示月）：
 --   - 900101 / 900102 已发布但未缴（001 现场缴费、003 欠费阻断）；
 --   - MOD(房序,7)=0 的房间未发布（供 S3-4 现场录入发布 + 智能分摊，如 900107）；
 --   - 其余已发布已缴。
-WITH room_seq AS (
-    SELECT Room_ID,
-           CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
-                ELSE 24 + MOD(Room_ID, 100) END AS seq
-    FROM D_Room
-    WHERE Room_ID BETWEEN 900101 AND 900124
-       OR Room_ID BETWEEN 900201 AND 900224
-)
 INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-SELECT 920000 + 200 + seq, Room_ID, '2026-07',
-       20 + MOD(seq * 9, 16), 50 + MOD(seq * 7 + 10, 41),
-       CASE WHEN Room_ID IN (900101, 900102) OR MOD(seq, 7) = 0 THEN '否' ELSE '是' END,
-       CASE WHEN MOD(seq, 7) = 0 THEN '未发布' ELSE '已发布' END
-FROM room_seq;
+SELECT 920000 + 200 + rs.seq, rs.Room_ID, '2026-07',
+       20 + MOD(rs.seq * 9, 16), 50 + MOD(rs.seq * 7 + 10, 41),
+       CASE WHEN rs.Room_ID IN (900101, 900102) OR MOD(rs.seq, 7) = 0 THEN '否' ELSE '是' END,
+       CASE WHEN MOD(rs.seq, 7) = 0 THEN '未发布' ELSE '已发布' END
+FROM (SELECT Room_ID,
+             CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
+                  ELSE 24 + MOD(Room_ID, 100) END AS seq
+      FROM D_Room
+      WHERE Room_ID BETWEEN 900101 AND 900124
+         OR Room_ID BETWEEN 900201 AND 900224) rs;
 
 -- 对齐契约样本：900101 7月 water30/elec70；900102 欠费断电房间 water40/elec90。
 UPDATE D_Utility_Fee SET Water_Fee = 30, Power_Fee = 70 WHERE Room_ID = 900101 AND Year_Month = '2026-07';
@@ -142,11 +136,15 @@ VALUES (9600007, 'IT_STU_009', 30.00,  '人工缴费',   150.00, 120.00, NULL, '
 INSERT INTO D_Wallet_Log (Log_ID, Student_ID, Amount, Transaction_Type, Before_Balance, After_Balance, Detail_ID, Idempotency_Key, Create_Time)
 VALUES (9600008, 'IT_STU_016', 120.00, '充值',       0.00, 120.00, NULL, 'IT-C3-016-1', DATE '2026-08-01');
 
--- ===== 5. 扣款尝试 D_Fee_Deduction_Attempt（003 余额不足，C3 欠费阻断样本） =====
-INSERT INTO D_Fee_Deduction_Attempt (Attempt_ID, Detail_ID, Attempt_No, Attempt_Time, Result)
-VALUES (9601001, 940002, 1, DATE '2026-08-01', '余额不足');
-INSERT INTO D_Fee_Deduction_Attempt (Attempt_ID, Detail_ID, Attempt_No, Attempt_Time, Result)
-VALUES (9601002, 940002, 2, DATE '2026-08-05', '余额不足');
+-- ===== 5. 扣款尝试 D_Fee_Deduction_Attempt（留空，不造样本） =====
+-- ⚠️ schema 缺陷（待登记矛盾清单）：D_Fee_Deduction_Attempt.RESULT 为
+--    VARCHAR2(10) 字节语义，但 CHECK 允许的合法值 '余额不足' 是 4 个汉字
+--    = 12 字节，ORA-12899 存不进去。应用定时划扣（SP_BILLING）写
+--    '余额不足' 时同样会失败。在修正该列语义（改 VARCHAR2(20 CHAR)）前，
+--    本脚本不造扣款尝试样本，避免重跑报错；003 欠费阻断仍由
+--    "未缴账单 + 钱包余额 20 < 账单"体现。
+--    建议处置：新增迁移把 RESULT 改为 VARCHAR2(10 CHAR)（或更大），并复核
+--    sp_billing.sql 的写入。此问题不影响本次种子数据加载。
 
 -- 完成确认
 SELECT 'BILLING & WALLET DONE' AS MESSAGE FROM DUAL;
