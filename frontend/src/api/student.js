@@ -28,7 +28,12 @@ export const studentApi = {
   createRepairTicket: (data) => request.post('/repair-tickets', data),
   cancelRepairTicket: (ticketId) => request.post(`/repair-tickets/${ticketId}/cancel`),
   getFacilities: (params) => request.get('/facilities', { params }),
-  createFacilityBooking: (data) => request.post('/facility-bookings', data),
+  createFacilityBooking: (facilityId, idempotencyKey) =>
+    request.post(
+      '/facility-bookings',
+      { facilityId },
+      { headers: { 'Idempotency-Key': idempotencyKey } }
+    ),
   getSharedItems: (params) => request.get('/shared-items', { params }),
   getItemLoans: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/item-loans`, { params }),
