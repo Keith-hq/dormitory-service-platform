@@ -133,8 +133,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PowerStatus).HasColumnName("POWER_STATUS").HasMaxLength(10).IsRequired();
 
-            entity.HasOne<Building>()
-                  .WithMany()
+            entity.HasOne(e => e.Building)
+                  .WithMany(b => b.Rooms)
                   .HasForeignKey(e => e.BuildingId)
                   .HasConstraintName("FK_D_ROOM_BUILDING");
         });
