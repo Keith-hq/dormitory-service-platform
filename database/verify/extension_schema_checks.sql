@@ -318,7 +318,9 @@ SELECT SEQUENCE_NAME FROM USER_SEQUENCES
 WHERE SEQUENCE_NAME = 'SEQ_SLA_LOG';
 
 -- 19d. 两个 CHECK 约束（状态集 待处理/已派单/已完成/已撤销；角色 楼长/维修员/
---      超级管理员，无卫生检查员岗位）：各返回 1 行，CONSTRAINT_TYPE='C'。
+--      超级管理员，迁移 032 生效后纳入辅导员，无卫生检查员岗位）：各返回 1 行，
+--      CONSTRAINT_TYPE='C'。值集含"辅导员"的专项检查见 §30（未应用 032 时 §30
+--      返回 0 行为预期，§19d 仍应返回 1 行，不应误判迁移失败）。
 --      ⚠️ Part C 依赖 PR #45 状态机改造完成后执行；未执行时本段返回 0 行
 --      为预期，不应误判迁移失败。
 SELECT TABLE_NAME, CONSTRAINT_NAME, SEARCH_CONDITION
@@ -461,3 +463,20 @@ FROM USER_TAB_COLUMNS
 WHERE (TABLE_NAME = 'D_ADMIN' AND COLUMN_NAME = 'TOKEN_VERSION')
    OR (TABLE_NAME = 'D_USER_ACCOUNT' AND COLUMN_NAME = 'IS_FIRST_LOGIN')
 ORDER BY TABLE_NAME, COLUMN_NAME;
+
+-- 29. 检查迁移 031 的 D_Audit_Event 主键序列与触发器
+--     （C4 执行现场 ORA-01400 修复：审计表主键此前无生成器）。
+--     序列 1 行；触发器 1 行。
+SELECT SEQUENCE_NAME FROM USER_SEQUENCES
+WHERE SEQUENCE_NAME = 'SEQ_D_AUDIT_EVENT_ID';
+
+SELECT TRIGGER_NAME, STATUS FROM USER_TRIGGERS
+WHERE TRIGGER_NAME = 'TRG_D_AUDIT_EVENT_ID_BI';
+
+-- 30. 检查迁移 032 的 CK_D_ADMIN_ROLE 值集已纳入"辅导员"（ADR-0007）。
+--     迁移前约束为三值集（楼长/维修员/超级管理员），辅导员在 D_Admin 落库时
+--     会被 ORA-02290 拦截；本段应返回 1 行，且 SEARCH_CONDITION 含"辅导员"。
+SELECT CONSTRAINT_NAME, SEARCH_CONDITION
+FROM USER_CONSTRAINTS
+WHERE CONSTRAINT_NAME = 'CK_D_ADMIN_ROLE'
+  AND INSTR(SEARCH_CONDITION, '辅导员') > 0;
