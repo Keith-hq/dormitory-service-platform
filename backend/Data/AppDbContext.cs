@@ -272,9 +272,9 @@ public class AppDbContext : DbContext
             entity.ToTable("D_HYGIENE_COMMENT");
             entity.HasKey(e => e.RecordId);
             entity.Property(e => e.RecordId).HasColumnName("RECORD_ID");
-            entity.Property(e => e.CommentText).HasColumnName("\"COMMENT\"").HasMaxLength(500); // 注意引号
+            entity.Property(e => e.CommentText).HasColumnName("COMMENT").HasMaxLength(500);
 
-            entity.HasOne<HygieneRecord>()
+            entity.HasOne(e => e.Record)
                   .WithOne(e => e.Comment)
                   .HasForeignKey<HygieneComment>(e => e.RecordId)
                   .HasConstraintName("FK_D_HYGIENE_COMMENT_RECORD");
