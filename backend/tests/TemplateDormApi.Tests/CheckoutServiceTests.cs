@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Encodings.Web;
@@ -87,8 +88,9 @@ public class CheckoutServiceTests
                 .UseInMemoryDatabase($"checkout-tests-{Guid.NewGuid():N}")
                 .Options;
             Context = new AppDbContext(options);
+            // 审计走真实 AuditService（共用同一 Context，验证跨模块公共服务路径）
             Service = new CheckoutService(Context, new CheckoutRepository(Context), FeeSharing, Notifications,
-                NullLogger<CheckoutService>.Instance);
+                new AuditService(Context, new HttpContextAccessor()), NullLogger<CheckoutService>.Instance);
 
             Context.Rooms.Add(new Room
             {
@@ -304,12 +306,19 @@ public class CheckoutServiceTests
         var alloc = await f.Context.BedAllocations.FindAsync(1L);
         Assert.Null(alloc!.CheckOutDate);
 
-        // 审计留痕（IT-C2-005 ③）：D_Audit_Event 属审计域，跨模块写入必须走其公共服务；
-        // 服务未合入前按复审要求不直接落表（CheckoutService.CancelAsync 有 TODO 标注）。
+        // 审计留痕（IT-C2-005 ③）：经审计公共服务（IAuditService）写入 D_Audit_Event，
+        // 不直接落表（跨模块架构红线）。actor 为调用者账户。
+        var audit = Assert.Single(f.Context.AuditEvents);
+        Assert.Equal("CHECKOUT_CANCEL", audit.EventType);
+        Assert.Equal("D_CHECKOUT_LOG", audit.TargetType);
+        Assert.Equal("1", audit.TargetId);
+        Assert.Equal(OwnerAccountId, audit.ActorAccountId);
+        Assert.Contains("S001", audit.Details);
 
         // 幂等取消
         var again = await f.Service.CancelAsync(1, OwnerAccountId, false);
         Assert.Contains("已取消", Serialize(again));
+        Assert.Single(f.Context.AuditEvents); // 幂等重放不重复留痕
 
         // 已取消后不可确认
         await Assert.ThrowsAsync<BusinessException>(
