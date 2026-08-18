@@ -44,6 +44,16 @@ public class ModuleAuthAttributeTests
         }
     }
 
+    private static void AssertRoles(Type controllerType, string roles, params string[] methodNames)
+    {
+        foreach (var m in methodNames)
+        {
+            var attr = AuthOf(controllerType, m);
+            Assert.True(attr != null, $"{controllerType.Name}.{m} 缺少 [Authorize]");
+            Assert.Equal(roles, attr.Roles);
+        }
+    }
+
     // ==================== 退宿清算（DORM-11/35~38） ====================
 
     [Fact]
@@ -58,8 +68,10 @@ public class ModuleAuthAttributeTests
     // ==================== 离校报备（COUN-01~04 / STU-15~17,40） ====================
 
     [Fact]
-    public void Leave_CounselorEndpoints_RequireDormAdmin()
-        => AssertDormAdmin(typeof(LeaveController),
+    public void Leave_CounselorEndpoints_RequireLeaveApprovalRoles()
+        // COUN-01~04：辅导员端审批由 LeaveApprovalRoles（admin/super_admin/counselor）放行，
+        // 见 AuthPolicies.LeaveApprovalRoles 与 LeaveController（f642cbf 修复辅导员 403）。
+        => AssertRoles(typeof(LeaveController), AuthPolicies.LeaveApprovalRoles,
             nameof(LeaveController.List),
             nameof(LeaveController.Approve),
             nameof(LeaveController.Reject),

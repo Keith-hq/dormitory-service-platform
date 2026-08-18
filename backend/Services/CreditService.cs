@@ -145,6 +145,103 @@ public class CreditService : ICreditService
         return result;
     }
 
+    public async Task<CreditResultDto> RestoreAsync(
+        string studentId,
+        int restoreScore,
+        string eventKey,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        await EnsureActiveStudentAsync(studentId, cancellationToken);
+
+        var existingLog = await _creditRepository.FindLogByEventKeyAsync(
+            eventKey,
+            cancellationToken);
+        if (existingLog is not null)
+        {
+            var account = await GetOrCreateAccountAsync(studentId, cancellationToken);
+            return ToResult(account);
+        }
+
+        IDbContextTransaction? transaction = null;
+        CreditResultDto result;
+
+        try
+        {
+            transaction = await _creditRepository.BeginTransactionAsync(cancellationToken);
+            _creditRepository.ClearTracking();
+            await _creditRepository.LockStudentAsync(studentId, cancellationToken);
+            var account = await _creditRepository.GetAccountForUpdateAsync(
+                studentId,
+                cancellationToken);
+            if (account is null)
+            {
+                throw new BusinessException(400, "信用账户不存在");
+            }
+
+            var newScore = account.CurrentScore + restoreScore;
+            if (newScore is < 0 or > InitialScore)
+            {
+                throw new BusinessException(400, "信用分变更后超出 0 到 100 范围");
+            }
+
+            account.CurrentScore = newScore;
+            account.UpdatedTime = DateTime.Now;
+            _creditRepository.AddLog(new CreditLog
+            {
+                StudentId = studentId,
+                ScoreChange = restoreScore,
+                Reason = reason,
+                EventKey = eventKey
+            });
+
+            await _creditRepository.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            result = ToResult(account);
+        }
+        catch (Exception exception) when (HasOracleNumber(exception, 1))
+        {
+            await RollbackAsync(transaction, CancellationToken.None);
+            _creditRepository.ClearTracking();
+            var conflictLog = await _creditRepository.FindLogByEventKeyAsync(
+                eventKey,
+                cancellationToken);
+            if (conflictLog is null)
+            {
+                throw new BusinessException(400, "数据冲突，请重试");
+            }
+
+            var account = await GetOrCreateAccountAsync(studentId, cancellationToken);
+            result = ToResult(account);
+        }
+        catch (Exception exception) when (
+            HasOracleNumber(exception, 54) || HasOracleNumber(exception, 30006))
+        {
+            await RollbackAsync(transaction, CancellationToken.None);
+            _creditRepository.ClearTracking();
+            throw new BusinessException(400, "系统繁忙，请重试");
+        }
+        catch
+        {
+            await RollbackAsync(transaction, CancellationToken.None);
+            _creditRepository.ClearTracking();
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
+
+        return result;
+    }
+
     public async Task<CreditStatusDto> GetStatusAsync(
         string studentId,
         CancellationToken cancellationToken)
@@ -187,6 +284,7 @@ public class CreditService : ICreditService
             IsFrozen = account.CurrentScore < FrozenThreshold,
             Items = logs.Select(log => new CreditLogItemDto
             {
+                LogId = log.LogId,
                 Reason = log.Reason,
                 ScoreChange = log.ScoreChange,
                 CreateTime = log.CreateTime

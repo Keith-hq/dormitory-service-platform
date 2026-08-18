@@ -440,6 +440,6 @@ public class InventoryTxnService : IInventoryTxnService
     /// <summary>OracleDecimal.Value → int 安全转换</summary>
     private static int OracleValueToInt(object? value)
     {
-        return value is Oracle.ManagedDataAccess.Types.OracleDecimal od ? (int)od.Value : 0;
+        return value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull ? (int)od.Value : 0;
     }
 }

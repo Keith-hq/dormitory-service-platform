@@ -26,7 +26,7 @@ foundation 脚本是可复现的正式来源。DBeaver 只用于执行和检查�
 
 ## 当前扩展基线
 
-已裁决的扩展表共 25 张：`010_extension_tables.sql` 定义 23 张，迁移 029 新增 `D_Asset_Repair` / `D_Asset_Warning`（资产管理扩展，见迁移 029）：
+已裁决的扩展表共 27 张：`010_extension_tables.sql` 定义 23 张，迁移 029 新增 `D_Asset_Repair` / `D_Asset_Warning`（资产管理扩展），迁移 033 新增 `D_Credit_Appeal`（信用分申诉，APPEAL-01/02/03），迁移 034 新增 `D_Visitor_Registry`（门岗登记，VST-01/02/03）：
 
 - 费用与钱包：`D_Fee_Detail`、`D_Wallet_Account`、`D_Wallet_Log`、`D_Fee_Deduction_Attempt`
 - 信用与共享物品：`D_Credit_Account`、`D_Credit_Log`、`D_Shared_Item`、`D_Item_Loan`
@@ -34,6 +34,7 @@ foundation 脚本是可复现的正式来源。DBeaver 只用于执行和检查�
 - 维修扩展：`D_Repair_Material`、`D_Repair_Material_Usage`、`D_Repair_Attachment`
 - 账号与治理：`D_User_Account`、`D_Notification`、`D_Visitor_Authorization`、`D_Audit_Event`
 - 宿舍治理与退宿：`D_Room_Vote`、`D_Room_Vote_Response`、`D_Checkout_Log`、`D_Notice_Display`、`D_Hygiene_Comment`
+- 申诉与门岗：`D_Credit_Appeal`（033，信用分申诉）、`D_Visitor_Registry`（034，门岗访客登记）
 
 扩展脚本不修改 foundation，也不创建 `D_Facility_Usage`、`D_Repair_SLA_Event`、`D_Role`、`D_Notification_Recipient` 或 `D_Fee_Adjustment`。设施使用次数直接由预约记录统计，SLA 升级事件写入审计事件，公告置顶和卫生评语分别放在扩展表中。退宿检查只保留水电和共享物品，快递业务暂缓。
 
@@ -67,11 +68,13 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 22. `ddl/extensions/030_add_token_version_and_first_login.sql`（TokenVersion / IsFirstLogin）
 23. `ddl/extensions/031_audit_event_sequence.sql`（D_Audit_Event 主键序列 + 触发器）
 24. `ddl/extensions/032_admin_role_include_counselor.sql`（CK_D_ADMIN_ROLE 纳入"辅导员"，ADR-0007）
-25. `verify/foundation_schema_checks.sql`
-26. `verify/extension_schema_checks.sql`
+25. `ddl/extensions/033_credit_appeal.sql`（D_Credit_Appeal 信用分申诉表，APPEAL-01/02/03）
+26. `ddl/extensions/034_visitor_registry.sql`（D_Visitor_Registry 门岗登记表，VST-01/02/03）
+27. `verify/foundation_schema_checks.sql`
+28. `verify/extension_schema_checks.sql`
 
 `010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
-`011` 至 `032` 是按编号顺序执行的增量迁移；
+`011` 至 `034` 是按编号顺序执行的增量迁移；
 已有环境只执行尚未应用的迁移，不要重复执行已完成的 `ALTER TABLE` 脚本。
 
 ## 存储过程执行顺序

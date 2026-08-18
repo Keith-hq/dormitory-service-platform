@@ -73,6 +73,14 @@ public class CreditResetJobTests
             CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
+        public Task<CreditResultDto> RestoreAsync(
+            string studentId,
+            int restoreScore,
+            string eventKey,
+            string reason,
+            CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
         public Task<CreditStatusDto> GetStatusAsync(
             string studentId,
             CancellationToken cancellationToken)
