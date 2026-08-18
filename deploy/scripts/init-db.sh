@@ -9,9 +9,10 @@
 #
 # 唯一初始化路径：
 #   用户创建  → gvenzl 镜像首次启动（APP_USER/APP_USER_PASSWORD 环境变量）
-#   授权      → 本脚本 [2/6]（SYSTEM 身份，幂等 GRANT）
-#   DDL/SP    → 本脚本 [3/6]（DORM_OPER 身份，WHENEVER SQLERROR 严格传播）
-#   校验      → 本脚本 [4/6]（两组 verify，失败即退出）
+#   授权      → 本脚本 [2/7]（SYSTEM 身份，幂等 GRANT）
+#   内存压制  → 本脚本 [3/7]（SYSTEM 身份，SGA 1G / PGA 512M，幂等）
+#   DDL/SP    → 本脚本 [4/7]（DORM_OPER 身份，WHENEVER SQLERROR 严格传播）
+#   校验      → 本脚本 [6/7]（两组 verify，失败即退出）
 #
 # 错误策略：任何 SQL 失败 → sqlplus 非零退出 → 脚本立即中止（set -euo pipefail）
 # 幂等策略：仅两类操作允许重复执行（白名单）——
@@ -134,8 +135,32 @@ run_sql_system /tmp/initdb_grants.sql
 rm -f /tmp/initdb_grants.sql
 echo "  ✓ DORM_OPER 存在，授权完成"
 
-# ---- [3/6] DDL + 存储过程（仅空 schema 执行）----
-echo "[3/6] 检查 schema 状态..."
+# ---- [3/7] Oracle 内存参数压制（SYSTEM，幂等）----
+# 4G 轻量服务器：镜像默认 SGA/PGA 合计可逼近 2G+，与 .NET/nginx/OS 抢内存
+# → swap 抖动 → CPU 飙升。先按现状条件清零 memory_target（AMM 模式下
+# sga_target/pga_aggregate_target 不允许单独设置），再设 SGA=1G / PGA=512M。
+# SCOPE=BOTH：立即生效 + 持久化到 spfile，容器重启后仍有效。
+echo "[3/7] 设置 Oracle 内存参数（SGA 1G / PGA 512M）..."
+cat > /tmp/initdb_memory.sql <<'EOSQL'
+DECLARE
+  v_mt NUMBER;
+BEGIN
+  SELECT TO_NUMBER(value) INTO v_mt FROM v$parameter WHERE name = 'memory_target';
+  IF v_mt > 0 THEN
+    EXECUTE IMMEDIATE 'ALTER SYSTEM SET MEMORY_TARGET=0 SCOPE=BOTH';
+  END IF;
+  EXECUTE IMMEDIATE 'ALTER SYSTEM SET SGA_TARGET=1073741824 SCOPE=BOTH';
+  EXECUTE IMMEDIATE 'ALTER SYSTEM SET PGA_AGGREGATE_TARGET=536870912 SCOPE=BOTH';
+END;
+/
+EXIT;
+EOSQL
+run_sql_system /tmp/initdb_memory.sql
+rm -f /tmp/initdb_memory.sql
+echo "  ✓ 内存参数已设置（SGA_TARGET=1G, PGA_AGGREGATE_TARGET=512M）"
+
+# ---- [4/7] DDL + 存储过程（仅空 schema 执行）----
+echo "[4/7] 检查 schema 状态..."
 cat > /tmp/initdb_table_cnt.sql <<'EOSQL'
 SET HEADING OFF FEEDBACK OFF PAGESIZE 0
 SELECT COUNT(*) FROM user_tables;
@@ -162,7 +187,15 @@ SCRIPTS=(
     "ddl/extensions/021_sla_dispatch.sql"
     "ddl/extensions/022_fee_detail_dedup_uk.sql"
     "ddl/extensions/023_dorm_checkout_sequences_room_unique.sql"
+    "ddl/extensions/024_vote_visitor_parcel_sequences.sql"
+    "ddl/extensions/025_audit_details_college_major_sequences.sql"
     "ddl/extensions/026_utility_fee_sequence.sql"
+    "ddl/extensions/027_add_admin_post.sql"
+    "ddl/extensions/028_user_account_sequence.sql"
+    "ddl/extensions/029_asset_shareditem_cleaning_sequences_and_tables.sql"
+    "ddl/extensions/030_add_token_version_and_first_login.sql"
+    "ddl/extensions/031_audit_event_sequence.sql"
+    "ddl/extensions/032_admin_role_include_counselor.sql"
     # 存储过程
     "sp/sp_fee_sharing.sql"
     "sp/sp_billing.sql"
@@ -188,8 +221,8 @@ else
     echo "  ✓ DDL 与存储过程全部执行成功"
 fi
 
-# ---- [4/6] 序列补建（幂等白名单：先查存在性）----
-echo "[4/6] 序列与主键触发器检查与补建..."
+# ---- [5/7] 序列补建（幂等白名单：先查存在性）----
+echo "[5/7] 序列与主键触发器检查与补建..."
 cat > /tmp/initdb_seq.sql <<'EOSQL'
 DECLARE
   cnt NUMBER;
@@ -229,8 +262,8 @@ run_sql_oper /tmp/initdb_seq.sql
 rm -f /tmp/initdb_seq.sql
 echo "  ✓ 序列与触发器检查完成"
 
-# ---- [5/6] 校验脚本（严格模式：任一异常即失败）----
-echo "[5/6] 执行校验脚本..."
+# ---- [6/7] 校验脚本（严格模式：任一异常即失败）----
+echo "[6/7] 执行校验脚本..."
 VERIFY_SCRIPTS=(
     "verify/foundation_schema_checks.sql"
     "verify/extension_schema_checks.sql"
@@ -246,8 +279,8 @@ for verify_file in "${VERIFY_SCRIPTS[@]}"; do
 done
 echo "  ✓ 全部校验通过"
 
-# ---- [6/6] 汇总 ----
-echo "[6/6] 数据库初始化完成！"
+# ---- [7/7] 汇总 ----
+echo "[7/7] 数据库初始化完成！"
 echo ""
 echo "  对象统计:"
 cat > /tmp/initdb_summary.sql <<'EOSQL'

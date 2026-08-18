@@ -19,7 +19,9 @@ services:
   # 1. Oracle 数据库（来自 gvenzl 官方镜像）
   # ==========================================
   oracle-db:
-    image: gvenzl/oracle-xe:21-full
+    # 21-slim：轻量变体（去掉大量可选组件），后台进程与内存占用明显小于 21-full，
+    # 4G 轻量服务器必选。注意：full 建的库不能直接挂 slim 镜像，需重建数据卷。
+    image: gvenzl/oracle-xe:21-slim
     container_name: dorm-oracle-db
     ports:
       - "1521:1521"   # Oracle 监听（生产环境建议仅暴露给内网）
@@ -37,6 +39,14 @@ services:
       # 会把表建进 SYS schema。DDL/SP 统一由 deploy/scripts/init-db.sh
       # 以 DORM_OPER 身份执行（唯一初始化路径）。
     restart: unless-stopped
+    # 资源硬限（4G 轻量服务器止血核心）：Oracle 失控时只被 CPU throttle /
+    # 容器内 OOM，宿主机不再被打崩。cpus 按 nproc 调整（2 核 → 1.5）。
+    # memory 2304M = 留 ~1.7G 给系统 + dorm-api + dorm-web + swap 余量。
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2304M
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
       interval: 30s
