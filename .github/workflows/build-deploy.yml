@@ -24,6 +24,13 @@ on:
       - master
       - develop
 
+# 连续合入 PR 时串行部署：同一时刻只允许一个 run 进 deploy job，
+# 防止两个 run 抢推 latest 镜像 / 并发跑迁移。
+# cancel-in-progress: false —— 排队等待而非取消（每个合入都必须落地上线）
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   # GHCR 要求仓库名全小写：github.repository_owner 会保留原始大小写
@@ -162,6 +169,8 @@ jobs:
     needs: [build-docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     environment: production
+    # 部署含迁移 + 健康检查重试，全程约 3~8 分钟；30 分钟上限防挂死占用并发槽
+    timeout-minutes: 30
 
     steps:
       - name: 检出代码（部署配置）
@@ -199,29 +208,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -e
+            # 统一入口：拉镜像 → 增量迁移（失败即中止，旧容器继续服务）
+            # → up → 健康检查 + 旧镜像清理，全流程见 scripts/deploy.sh
             cd /opt/dorm-platform
-
-            # 拉取最新镜像
-            docker compose -f docker/docker-compose.yml pull
-
-            # 重启服务
-            docker compose -f docker/docker-compose.yml up -d --remove-orphans
-
-            # 清理旧镜像（保留最近 2 个版本）
-            docker image prune -af --filter "until=48h"
-
-            # 健康检查：有上限重试，最终不健康则非零退出（job 变红）
-            check_ready() {
-              url="$1"; name="$2"; retries="${3:-30}"
-              for i in $(seq 1 "$retries"); do
-                if curl -fsS "$url" > /dev/null 2>&1; then
-                  echo "✓ $name 就绪"; return 0
-                fi
-                echo "… $name 未就绪（$i/$retries）"
-                sleep 5
-              done
-              echo "✗ $name 最终不健康"; return 1
-            }
-
-            check_ready "http://localhost:5000/health" "后端 /health" 30
-            check_ready "http://localhost:80/" "前端首页" 30
+            bash scripts/deploy.sh --pull-images

@@ -205,6 +205,8 @@ SCRIPTS=(
     "ddl/extensions/030_add_token_version_and_first_login.sql"
     "ddl/extensions/031_audit_event_sequence.sql"
     "ddl/extensions/032_admin_role_include_counselor.sql"
+    "ddl/extensions/033_credit_appeal.sql"
+    "ddl/extensions/034_visitor_registry.sql"
     # 存储过程
     "sp/sp_fee_sharing.sql"
     "sp/sp_billing.sql"

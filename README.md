@@ -14,7 +14,7 @@
 
 | 路径 | 内容与职责 |
 |---|---|
-| `.github/workflows/build-deploy.yml` | CI 工作流：编译后端项目、构建前端项目并上传构建产物 |
+| `.github/workflows/build-deploy.yml` | CI/CD 工作流：编译 → 构建镜像 → 推送 GHCR → SSH 部署（含增量数据库迁移） |
 | `backend/` | 后端 ASP.NET Core .NET 8 项目（TemplateDormApi），含业务代码与测试（`backend/tests/`） |
 | `frontend/` | 前端 Vue 3 + Vite + Pinia 项目，业务页面与通用组件 |
 | `database/` | 数据库脚本目录：DDL、迁移、存储过程和结构校验 |
@@ -259,6 +259,27 @@ git push -u origin feature/模块名-功能描述
 
 ---
 
-## CI
+## CI / CD 自动部署
 
-`.github/workflows/build-deploy.yml` 会在面向 `master` 或 `develop` 的 PR，以及 `develop` 的推送事件中检查两个项目：后端执行 `dotnet restore/build/publish`，前端执行 `npm ci` 和 `npm run check`。云端部署部分按运维阶段计划启用。
+`.github/workflows/build-deploy.yml` 两种触发：
+
+- **PR → `master` / `develop`**：仅构建验证（后端 `dotnet restore/build/publish`，前端 `npm ci` + `npm run check`，可镜像化验证），不推送、不部署。
+- **push `develop`（PR 合入）**：全链路自动上线——编译 → 构建镜像 → 推送 GHCR → SSH 服务器执行 `scripts/deploy.sh --pull-images`：
+
+```
+[1/6] .env 校验 → [2/6] 拉镜像 → [3/6] 首次部署路径（--init-db 才走）
+→ [4/6] 拉起 oracle-db + scripts/migrate-db.sh 增量迁移   ← 每次部署恒执行
+→ [5/6] compose up -d（应用容器滚动更新）→ [6/6] 健康检查 + 旧镜像清理
+```
+
+关键语义：**迁移失败 = 部署中止 = CI 红**。步骤 [4/6] 失败时不执行 [5/6]，旧容器继续服务；连续合入 PR 由 `concurrency` 串行排队，不会互相抢推镜像。
+
+### 数据库迁移纪律（新增表/字段/序列/触发器必读）
+
+增量迁移由 `deploy/scripts/migrate-db.sh` 管理，记录表 `D_APP_MIGRATION`（DORM_OPER 下）是唯一真相——**只跑不在记录表里的新编号脚本**，绝不整体重放。
+
+1. **新迁移 = `database/ddl/extensions/` 下新三位数编号文件**（如 `035_xxx.sql`），按编号升序自动应用；首次在既有环境运行时会把已发现的迁移全部标记为已应用（backfill），之后只跑新增。
+2. **PL/SQL 块必须带 `/` 结束符**（`DECLARE ... END;` 后独立一行 `/`）。缺 `/` 的 DBeaver 风格脚本会被 sqlplus 静默吞掉，部署脚本检测到会 WARN 并自动补齐临时副本执行，但请勿依赖兜底，提交前自查。
+3. **不得修改 / 删除 / 改名已应用的迁移文件**。旧脚本重跑非幂等语句（CREATE TABLE / ALTER TABLE 等）必然 ORA 报错 → 部署红。新需求一律新增编号文件，历史文件视为冻结。
+4. **存储过程改动直接改 `database/sp/sp_*.sql`**（`CREATE OR REPLACE`，每次部署恒重跑，无需编号）。
+5. **新增迁移同时补 `deploy/scripts/init-db.sh` 的 SCRIPTS 清单**（全新环境首次部署路径仍需全量清单）；本地联调可先跑 `bash deploy/scripts/migrate-db.sh` 验证幂等。
