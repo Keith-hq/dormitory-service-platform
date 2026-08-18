@@ -139,7 +139,13 @@ public class RoomService : IRoomService
                 if (newRooms.Count == 0)
                     return; // 全部被并发批次抢先：按"已存在跳过"语义收尾，不再保存
                 foreach (var room in newRooms)
+                {
+                    // 防御：EF 只在双方都受跟踪时维护导航，Detach 不清从端导航引用；
+                    // 残留的 Building 引用会在重新 Add 时把已脱离跟踪的 Building 连带拉回跟踪器（Added 态），
+                    // 再次保存会重复插入主表（Oracle 报 PK 冲突，InMemory 报重复键）。
+                    room.Building = null;
                     _repo.TrackNew(room);
+                }
             }
         }
     }
