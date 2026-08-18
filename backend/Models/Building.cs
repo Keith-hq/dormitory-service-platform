@@ -19,6 +19,6 @@ public class Building
     /// <summary>楼层数量（DDL 列 Total_Floors，可空，无创建时间列）</summary>
     public int? FloorCount { get; set; }
     
-    /// <summary>导航至房间
+    /// <summary>导航至房间（一对多，配合 AppDbContext 中 Room→Building 的显式关系配置）</summary>
     public ICollection<Room> Rooms { get; set; } = new List<Room>();
 }

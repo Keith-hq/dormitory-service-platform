@@ -39,6 +39,10 @@ public class VoteService : IVoteService
         if (await _roomRepository.GetByIdAsync(dto.RoomId) == null)
             throw new BusinessException(404, "房间不存在", StatusCodes.Status404NotFound);
 
+        // 对齐 IT-C8-002 通过判定②：仅本房间在住学生可发起投票（同房本人）。
+        if (!await _repository.IsRoomMemberAsync(dto.RoomId, initiatorStudentId))
+            throw new BusinessException(403, "非本房间学生不可发起投票", StatusCodes.Status403Forbidden);
+
         var now = DateTime.Now;
         // 对齐 DDL Deadline：不传截止时间时默认 3 天后
         var deadline = dto.Deadline ?? now.AddDays(3);
@@ -68,6 +72,10 @@ public class VoteService : IVoteService
 
         if (DateTime.Now > vote.Deadline)
             throw new BusinessException(400, "该投票已超过截止时间");
+
+        // 对齐 IT-C8-002 通过判定②：非本房间学生不可投。
+        if (!await _repository.IsRoomMemberAsync(vote.RoomId, studentId))
+            throw new BusinessException(403, "非本房间学生不可参与投票", StatusCodes.Status403Forbidden);
 
         if (await _repository.HasRespondedAsync(voteId, studentId))
             throw new BusinessException(400, "您已参与过该投票，不能重复投票");

@@ -135,8 +135,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired();
             entity.Property(e => e.PowerStatus).HasColumnName("POWER_STATUS").HasMaxLength(10).IsRequired();
 
-            entity.HasOne<Building>()
-                  .WithMany()
+            entity.HasOne(e => e.Building)
+                  .WithMany(b => b.Rooms)
                   .HasForeignKey(e => e.BuildingId)
                   .HasConstraintName("FK_D_ROOM_BUILDING");
         });
@@ -234,7 +234,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsPaid).HasColumnName("IS_PAID").HasMaxLength(10).HasDefaultValue("否");
             entity.Property(e => e.PublishStatus).HasColumnName("PUBLISH_STATUS").HasMaxLength(10).IsRequired().HasDefaultValue("未发布");
 
-            entity.HasOne<Room>()
+            entity.HasOne(e => e.Room)
                   .WithMany()
                   .HasForeignKey(e => e.RoomId)
                   .HasConstraintName("FK_D_UTILITY_FEE_ROOM");
@@ -274,9 +274,9 @@ public class AppDbContext : DbContext
             entity.ToTable("D_HYGIENE_COMMENT");
             entity.HasKey(e => e.RecordId);
             entity.Property(e => e.RecordId).HasColumnName("RECORD_ID");
-            entity.Property(e => e.CommentText).HasColumnName("\"COMMENT\"").HasMaxLength(500); // 注意引号
+            entity.Property(e => e.CommentText).HasColumnName("COMMENT").HasMaxLength(500);
 
-            entity.HasOne<HygieneRecord>()
+            entity.HasOne(e => e.Record)
                   .WithOne(e => e.Comment)
                   .HasForeignKey<HygieneComment>(e => e.RecordId)
                   .HasConstraintName("FK_D_HYGIENE_COMMENT_RECORD");
@@ -485,7 +485,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
             entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
 
-            entity.HasOne<Student>()
+            entity.HasOne(e => e.Student)
                   .WithMany()
                   .HasForeignKey(e => e.StudentId)
                   .HasConstraintName("FK_D_PARCEL_RECORD_STUDENT");

@@ -22,6 +22,7 @@ public class CheckoutService : ICheckoutService
     private readonly CheckoutRepository _checkoutRepo;
     private readonly IFeeSharingService _feeSharing;
     private readonly INotificationService _notificationService;
+    private readonly IAuditService _auditService;
     private readonly ILogger<CheckoutService> _logger;
 
     public CheckoutService(
@@ -29,12 +30,14 @@ public class CheckoutService : ICheckoutService
         CheckoutRepository checkoutRepo,
         IFeeSharingService feeSharing,
         INotificationService notificationService,
+        IAuditService auditService,
         ILogger<CheckoutService> logger)
     {
         _context = context;
         _checkoutRepo = checkoutRepo;
         _feeSharing = feeSharing;
         _notificationService = notificationService;
+        _auditService = auditService;
         _logger = logger;
     }
 
@@ -270,12 +273,17 @@ public class CheckoutService : ICheckoutService
         if (alloc.CheckOutDate != null)
             alloc.CheckOutDate = null; // 回滚 settle 写入的退宿日期，床位恢复在住（IT-C2-005 ②）
 
-        // 审计留痕（IT-C2-005 ③）：D_Audit_Event 属审计域（FP5-4 徐亦尘），跨模块写入必须走
-        // 其对外接口/公共服务（架构红线）。复审要求：服务未合入前不得直接落表，先移除。
-        // TODO(审计模块接口就绪后): 调用审计公共服务记录"退宿清算取消"（D_CHECKOUT_LOG / LogId）
-
         try
         {
+            // 审计留痕（IT-C2-005 ③）：D_Audit_Event 属审计域，跨模块写入走审计公共服务（架构红线）。
+            // LogEventAsync 与业务变更共用同一 DbContext，其内部 SaveChanges 一并提交（同一原子批次）。
+            await _auditService.LogEventAsync(
+                eventType: "CHECKOUT_CANCEL",
+                targetType: "D_CHECKOUT_LOG",
+                targetId: log.LogId.ToString(),
+                actorAccountId: accountId,
+                details: $"取消退宿清算：清算单#{log.LogId}（学生={alloc.StudentId}），退宿日期已回滚");
+
             await _context.SaveChangesAsync();
         }
         catch (DbUpdateConcurrencyException)
