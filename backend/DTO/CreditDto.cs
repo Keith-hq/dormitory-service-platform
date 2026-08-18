@@ -67,6 +67,7 @@ public class CreditResultDto : CreditStatusDto
 
 public class CreditLogItemDto
 {
+    public int LogId { get; set; }
     public string Reason { get; set; } = string.Empty;
     public int ScoreChange { get; set; }
     public DateTime CreateTime { get; set; }

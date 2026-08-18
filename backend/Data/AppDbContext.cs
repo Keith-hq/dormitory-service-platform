@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<RoomVote> RoomVotes => Set<RoomVote>();
     public DbSet<RoomVoteResponse> RoomVoteResponses => Set<RoomVoteResponse>();
     public DbSet<VisitorAuthorization> VisitorAuthorizations => Set<VisitorAuthorization>();
+    public DbSet<VisitorRegistry> VisitorRegistries => Set<VisitorRegistry>();
     public DbSet<BedAllocation> BedAllocations => Set<BedAllocation>();
     public DbSet<RepairTicket> RepairTickets => Set<RepairTicket>();
     public DbSet<LateEntry> LateEntries => Set<LateEntry>();
@@ -41,6 +42,7 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<CreditAccount> CreditAccounts => Set<CreditAccount>();
     public DbSet<CreditLog> CreditLogs => Set<CreditLog>();
+    public DbSet<CreditAppeal> CreditAppeals => Set<CreditAppeal>();
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<FacilityBooking> FacilityBookings => Set<FacilityBooking>();
     public DbSet<PendingRepairTicketDto> PendingRepairTicketDtos => Set<PendingRepairTicketDto>();
@@ -593,6 +595,24 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // ---- CreditAppeal 信用分申诉（APPEAL-01/02/03）----
+        modelBuilder.Entity<CreditAppeal>(entity =>
+        {
+            entity.ToTable("D_CREDIT_APPEAL");
+            entity.HasKey(e => e.AppealId);
+            entity.Property(e => e.AppealId).HasColumnName("APPEAL_ID");
+            entity.Property(e => e.CreditLogId).HasColumnName("CREDIT_LOG_ID").IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("REASON").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ResultDesc).HasColumnName("RESULT_DESC").HasMaxLength(200);
+            entity.Property(e => e.ReviewedBy).HasColumnName("REVIEWED_BY").HasMaxLength(20);
+            entity.Property(e => e.ReviewTime).HasColumnName("REVIEW_TIME");
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+
+            entity.HasIndex(e => new { e.StudentId, e.CreateTime, e.AppealId });
+        });
+
         // ---- Facility 公共设施 ----
         modelBuilder.Entity<Facility>(entity =>
         {
@@ -707,6 +727,24 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.RoomId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("FK_D_VISITOR_AUTH_ROOM");
+        });
+
+        // ===== VisitorRegistry 门岗登记实体映射（D_VISITOR_REGISTRY，VST-01/02/03）=====
+        modelBuilder.Entity<VisitorRegistry>(entity =>
+        {
+            entity.ToTable("D_VISITOR_REGISTRY");
+            entity.HasKey(e => e.RegistryId);
+            entity.Property(e => e.RegistryId).HasColumnName("REGISTRY_ID");
+            entity.Property(e => e.QrToken).HasColumnName("QR_TOKEN").HasMaxLength(100);
+            entity.Property(e => e.VisitorName).HasColumnName("VISITOR_NAME").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Phone).HasColumnName("PHONE").HasMaxLength(20);
+            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
+            entity.Property(e => e.EnterTime).HasColumnName("ENTER_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+            entity.Property(e => e.ExitTime).HasColumnName("EXIT_TIME");
+            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+
+            entity.HasIndex(e => e.QrToken).IsUnique();
         });
 
         // ===== LeaveApplication 离校报备（D_LEAVE_APPLICATION，迁移 017 加 REASON 列）=====

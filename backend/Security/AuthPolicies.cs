@@ -31,6 +31,9 @@ public static class AuthPolicies
     /// <summary>DormAdmin 策略允许的角色（宿管 / 超级管理员）。</summary>
     public const string DormAdminRoles = "admin,super_admin";
 
+    /// <summary>离校审批允许的角色（宿管 / 超管 / 辅导员）——COUN-01~04 辅导员端。</summary>
+    public const string LeaveApprovalRoles = DormAdminRoles + "," + Counselor;
+
     /// <summary>报修派单策略（DORM-26~28）：要求已登录且角色为楼长/维修员/超级管理员。</summary>
     public const string RepairStaff = "RepairStaff";
 

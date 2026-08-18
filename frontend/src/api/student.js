@@ -28,7 +28,8 @@ export const studentApi = {
   createRepairTicket: (data) => request.post('/repair-tickets', data),
   cancelRepairTicket: (ticketId) => request.post(`/repair-tickets/${ticketId}/cancel`),
   getFacilities: (params) => request.get('/facilities', { params }),
-  createFacilityBooking: (data) => request.post('/facility-bookings', data),
+  // STU-20 契约无 Idempotency-Key 要求：预约按 facilityId 即可（幂等由后端活跃预约唯一兜底）
+  createFacilityBooking: (facilityId) => request.post('/facility-bookings', { facilityId }),
   getSharedItems: (params) => request.get('/shared-items', { params }),
   getItemLoans: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/item-loans`, { params }),
@@ -54,6 +55,9 @@ export const studentApi = {
     request.get(`/students/${encodeURIComponent(studentId)}/visitor-authorizations`, { params }),
   createVisitorAuthorization: (data) => request.post('/visitor-authorizations', data),
   getCredit: (studentId) => request.get(`/students/${encodeURIComponent(studentId)}/credit`),
+  getCreditAppeals: (studentId) =>
+    request.get(`/students/${encodeURIComponent(studentId)}/credit-appeals`),
+  createCreditAppeal: (data) => request.post('/credit-appeals', data),
   getMonthlyFeeReport: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/reports/monthly-fee`, { params }),
   getFacilityUsageReport: (studentId, params) =>

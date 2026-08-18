@@ -30,7 +30,7 @@ public class LeaveController : ControllerBase
 
     /// <summary>COUN-01 报备列表 — 契约 GET /leave-applications?status=（待批/已通过/已驳回/已撤回）</summary>
     [HttpGet]
-    [Authorize(Policy = AuthPolicies.DormAdmin)]
+    [Authorize(Roles = AuthPolicies.LeaveApprovalRoles)]
     public async Task<ActionResult<ApiResponse<object>>> List(
         [FromQuery] string? status,
         [FromQuery] int page = 1,
@@ -42,7 +42,7 @@ public class LeaveController : ControllerBase
 
     /// <summary>COUN-02 通过报备 — 契约 PUT /leave-applications/{applyId}/approve（仅待批）</summary>
     [HttpPut("{applyId}/approve")]
-    [Authorize(Policy = AuthPolicies.DormAdmin)]
+    [Authorize(Roles = AuthPolicies.LeaveApprovalRoles)]
     public async Task<ActionResult<ApiResponse<object>>> Approve(int applyId)
     {
         var app = await _service.ApproveAsync(applyId);
@@ -51,7 +51,7 @@ public class LeaveController : ControllerBase
 
     /// <summary>COUN-03 驳回报备 — 契约 PUT /leave-applications/{applyId}/reject（驳回必填原因）</summary>
     [HttpPut("{applyId}/reject")]
-    [Authorize(Policy = AuthPolicies.DormAdmin)]
+    [Authorize(Roles = AuthPolicies.LeaveApprovalRoles)]
     public async Task<ActionResult<ApiResponse<object>>> Reject(int applyId, [FromBody] LeaveRejectDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ApiResponse.Error(400, "驳回原因不能为空"));
@@ -61,7 +61,7 @@ public class LeaveController : ControllerBase
 
     /// <summary>COUN-04 离校统计 — 契约 GET /leave-applications/stats</summary>
     [HttpGet("stats")]
-    [Authorize(Policy = AuthPolicies.DormAdmin)]
+    [Authorize(Roles = AuthPolicies.LeaveApprovalRoles)]
     public async Task<ActionResult<ApiResponse<object>>> Statistics()
     {
         var stats = await _service.GetStatsAsync();
