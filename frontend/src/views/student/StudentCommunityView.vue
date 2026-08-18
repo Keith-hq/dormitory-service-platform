@@ -149,7 +149,8 @@ const loadCommunity = async () => {
       ['credit', studentApi.getCredit(studentId.value)]
     ]
     roomId.value = accommodation?.roomId || null
-    if (accommodation?.roomId) requests.push(['votes', studentApi.getRoomVotes(accommodation.roomId)])
+    if (accommodation?.roomId)
+      requests.push(['votes', studentApi.getRoomVotes(accommodation.roomId)])
     const results = await Promise.allSettled(requests.map(([, request]) => request))
     results.forEach((result, index) => {
       const key = requests[index][0]
@@ -239,7 +240,9 @@ onMounted(loadCommunity)
           <template v-if="activeForm === 'appeals'">
             <p class="appeal-hint">
               当前信用分：
-              {{ data.credit?.currentScore ?? data.credit?.CurrentScore ?? data.credit?.score ?? '—' }}
+              {{
+                data.credit?.currentScore ?? data.credit?.CurrentScore ?? data.credit?.score ?? '—'
+              }}
             </p>
             <template v-if="deductibleLogs.length">
               <label>
@@ -247,13 +250,20 @@ onMounted(loadCommunity)
                 <select v-model="form.creditRecordId" required>
                   <option value="" disabled>选择要申诉的扣分明细</option>
                   <option v-for="log in deductibleLogs" :key="log.logId" :value="log.logId">
-                    {{ String(log.createTime || '').slice(0, 10) }} · {{ log.scoreChange }} 分 · {{ log.reason }}
+                    {{ String(log.createTime || '').slice(0, 10) }} · {{ log.scoreChange }} 分 ·
+                    {{ log.reason }}
                   </option>
                 </select>
               </label>
               <label>
                 申诉原因
-                <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="说明申诉事由" required></textarea>
+                <textarea
+                  v-model="form.reason"
+                  rows="3"
+                  maxlength="200"
+                  placeholder="说明申诉事由"
+                  required
+                ></textarea>
               </label>
             </template>
             <p v-else class="appeal-hint appeal-empty">
@@ -262,21 +272,40 @@ onMounted(loadCommunity)
           </template>
           <label v-else-if="activeForm === 'late'">
             说明内容
-            <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="填写说明" required></textarea>
+            <textarea
+              v-model="form.reason"
+              rows="3"
+              maxlength="200"
+              placeholder="填写说明"
+              required
+            ></textarea>
           </label>
           <template v-else-if="activeForm === 'leave'">
             <label>离校日期 <input v-model="form.leaveDate" type="date" required /></label>
             <label>返校日期 <input v-model="form.returnDate" type="date" required /></label>
-            <label>目的地 <input v-model="form.destination" maxlength="200" required placeholder="目的地" /></label>
+            <label
+              >目的地
+              <input v-model="form.destination" maxlength="200" required placeholder="目的地"
+            /></label>
           </template>
           <template v-else-if="activeForm === 'visitor'">
-            <label>访客姓名 <input v-model="form.visitorName" maxlength="50" required placeholder="访客姓名" /></label>
-            <label>来访事由 <input v-model="form.visitReason" maxlength="200" placeholder="选填" /></label>
+            <label
+              >访客姓名
+              <input v-model="form.visitorName" maxlength="50" required placeholder="访客姓名"
+            /></label>
+            <label
+              >来访事由 <input v-model="form.visitReason" maxlength="200" placeholder="选填"
+            /></label>
             <label>授权截止 <input v-model="form.visitEnd" type="datetime-local" required /></label>
           </template>
           <template v-else-if="activeForm === 'votes'">
-            <label>投票议题 <input v-model="form.topic" maxlength="200" required placeholder="发起什么投票" /></label>
-            <label>应参与人数 <input v-model="form.eligibleCount" type="number" min="1" max="99" /></label>
+            <label
+              >投票议题
+              <input v-model="form.topic" maxlength="200" required placeholder="发起什么投票"
+            /></label>
+            <label
+              >应参与人数 <input v-model="form.eligibleCount" type="number" min="1" max="99"
+            /></label>
           </template>
           <p v-if="feedback" class="form-feedback" role="status">{{ feedback }}</p>
           <div class="form-actions">
@@ -308,7 +337,10 @@ onMounted(loadCommunity)
               <h3>{{ itemTitle(item) }}</h3>
               <p>{{ itemMeta(item) }}</p>
             </div>
-            <StatusTag :label="itemStatus(item)" tone="info" size="small" /><button type="button" @click="toggleDetail(item)">
+            <StatusTag :label="itemStatus(item)" tone="info" size="small" /><button
+              type="button"
+              @click="toggleDetail(item)"
+            >
               查看详情 ↗
             </button>
             <dl v-if="expandedId === itemKey(item)" class="record-detail">
