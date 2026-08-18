@@ -35,8 +35,8 @@ public class FacilityBookingService : IFacilityBookingService
 
         if (!wasOpen) conn.Close();
 
-        int code = rc.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od ? (int)od.Value : -1;
-        int bookingId = bid.Value is Oracle.ManagedDataAccess.Types.OracleDecimal bd ? (int)bd.Value : 0;
+        int code = rc.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull ? (int)od.Value : -1;
+        int bookingId = bid.Value is Oracle.ManagedDataAccess.Types.OracleDecimal bd && !bd.IsNull ? (int)bd.Value : 0;
         return (code, bookingId);
     }
 
@@ -88,6 +88,6 @@ public class FacilityBookingService : IFacilityBookingService
 
         if (!wasOpen) conn.Close();
 
-        return rc.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od ? (int)od.Value : -1;
+        return rc.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull ? (int)od.Value : -1;
     }
 }
