@@ -6,6 +6,7 @@ test('exposes the three admin business workspaces in the sidebar', () => {
   const routes = APP_NAVIGATION.admin.map((item) => item.to)
 
   assert.ok(routes.includes('/admin/accommodation'))
+  assert.ok(routes.includes('/admin/assets'))
   assert.ok(routes.includes('/admin/billing'))
   assert.ok(routes.includes('/admin/safety'))
 })

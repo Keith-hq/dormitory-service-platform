@@ -89,6 +89,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '水电账单' }
   },
   {
+    path: '/admin/assets',
+    name: 'AdminAssets',
+    component: () => import('@/views/admin/AdminAssetsView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '资产与保洁' }
+  },
+  {
     path: '/admin/safety',
     name: 'AdminSafety',
     component: () => import('@/views/admin/AdminSafetyView.vue'),
