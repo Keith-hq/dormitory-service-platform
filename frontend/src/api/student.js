@@ -28,12 +28,8 @@ export const studentApi = {
   createRepairTicket: (data) => request.post('/repair-tickets', data),
   cancelRepairTicket: (ticketId) => request.post(`/repair-tickets/${ticketId}/cancel`),
   getFacilities: (params) => request.get('/facilities', { params }),
-  createFacilityBooking: (facilityId, idempotencyKey) =>
-    request.post(
-      '/facility-bookings',
-      { facilityId },
-      { headers: { 'Idempotency-Key': idempotencyKey } }
-    ),
+  // STU-20 契约无 Idempotency-Key 要求：预约按 facilityId 即可（幂等由后端活跃预约唯一兜底）
+  createFacilityBooking: (facilityId) => request.post('/facility-bookings', { facilityId }),
   getSharedItems: (params) => request.get('/shared-items', { params }),
   getItemLoans: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/item-loans`, { params }),

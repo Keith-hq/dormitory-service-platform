@@ -55,7 +55,7 @@ const submitBooking = async () => {
   actionLoading.value = true
   feedback.value = ''
   try {
-    await studentApi.createFacilityBooking(selectedResource.value.facilityId, crypto.randomUUID())
+    await studentApi.createFacilityBooking(selectedResource.value.facilityId)
     feedback.value = '预约成功，可在设施列表查看占用状态'
     await loadResources()
   } catch (requestError) {
@@ -129,7 +129,10 @@ onMounted(loadResources)
           <h2>{{ selectedResource ? resourceName(selectedResource) : '选择一项资源' }}</h2>
         </header>
         <template v-if="selectedResource && activeMode === 'booking'"
-          ><div class="date-line">
+          ><p class="schedule-note">
+            示例交互：当前预约按设施即时占位，日期/时段仅供展示，不随请求提交
+          </p>
+          <div class="date-line">
             <button
               v-for="day in DATE_OPTIONS"
               :key="day"
@@ -304,6 +307,12 @@ onMounted(loadResources)
 }
 .schedule-panel > header {
   border-color: #405249;
+}
+.schedule-note {
+  margin: 14px 18px 0;
+  color: #83968a;
+  font-size: 9px;
+  line-height: 1.6;
 }
 .date-line {
   display: grid;

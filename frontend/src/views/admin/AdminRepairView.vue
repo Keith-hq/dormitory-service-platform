@@ -15,6 +15,10 @@ const store = useUserStore(),
   feedback = ref('')
 const completion = ref({ content: '', repairResult: '已修复' })
 const state = (item) => String(item.status ?? item.ticketStatus ?? '待处理')
+const selectTicket = (item) => {
+  selected.value = item
+  feedback.value = ''
+}
 const metrics = computed(() => [
   { label: '工单总量', value: tickets.value.length, hint: '当前队列' },
   {
@@ -94,7 +98,7 @@ onMounted(load)
           v-for="item in tickets"
           :key="item.ticketId"
           :class="{ active: selected?.ticketId === item.ticketId }"
-          @click="selected = item, feedback = ''"
+          @click="selectTicket(item)"
         >
           <small>#{{ item.ticketId }} · {{ state(item) }}</small
           ><strong>{{ item.title ?? item.category ?? item.repairType ?? '宿舍报修' }}</strong>

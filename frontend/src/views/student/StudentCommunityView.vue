@@ -265,18 +265,18 @@ onMounted(loadCommunity)
             <textarea v-model="form.reason" rows="3" maxlength="200" placeholder="填写说明" required></textarea>
           </label>
           <template v-else-if="activeForm === 'leave'">
-            <label>离校日期 <input type="date" v-model="form.leaveDate" required /></label>
-            <label>返校日期 <input type="date" v-model="form.returnDate" required /></label>
+            <label>离校日期 <input v-model="form.leaveDate" type="date" required /></label>
+            <label>返校日期 <input v-model="form.returnDate" type="date" required /></label>
             <label>目的地 <input v-model="form.destination" maxlength="200" required placeholder="目的地" /></label>
           </template>
           <template v-else-if="activeForm === 'visitor'">
             <label>访客姓名 <input v-model="form.visitorName" maxlength="50" required placeholder="访客姓名" /></label>
             <label>来访事由 <input v-model="form.visitReason" maxlength="200" placeholder="选填" /></label>
-            <label>授权截止 <input type="datetime-local" v-model="form.visitEnd" required /></label>
+            <label>授权截止 <input v-model="form.visitEnd" type="datetime-local" required /></label>
           </template>
           <template v-else-if="activeForm === 'votes'">
             <label>投票议题 <input v-model="form.topic" maxlength="200" required placeholder="发起什么投票" /></label>
-            <label>应参与人数 <input type="number" v-model="form.eligibleCount" min="1" max="99" /></label>
+            <label>应参与人数 <input v-model="form.eligibleCount" type="number" min="1" max="99" /></label>
           </template>
           <p v-if="feedback" class="form-feedback" role="status">{{ feedback }}</p>
           <div class="form-actions">
