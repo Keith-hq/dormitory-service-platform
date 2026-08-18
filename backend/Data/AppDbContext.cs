@@ -232,7 +232,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsPaid).HasColumnName("IS_PAID").HasMaxLength(10).HasDefaultValue("否");
             entity.Property(e => e.PublishStatus).HasColumnName("PUBLISH_STATUS").HasMaxLength(10).IsRequired().HasDefaultValue("未发布");
 
-            entity.HasOne<Room>()
+            entity.HasOne(e => e.Room)
                   .WithMany()
                   .HasForeignKey(e => e.RoomId)
                   .HasConstraintName("FK_D_UTILITY_FEE_ROOM");
@@ -483,7 +483,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
             entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
 
-            entity.HasOne<Student>()
+            entity.HasOne(e => e.Student)
                   .WithMany()
                   .HasForeignKey(e => e.StudentId)
                   .HasConstraintName("FK_D_PARCEL_RECORD_STUDENT");
