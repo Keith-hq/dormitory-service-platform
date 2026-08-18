@@ -48,6 +48,7 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -70,6 +71,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Notice =====
 DECLARE
@@ -91,6 +93,7 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -113,6 +116,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Notice_Display =====
 -- 主键列名为 NOTICE_ID（与 D_Notice 共享同一主键域），序列按表主键语义命名，
@@ -136,6 +140,7 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -158,3 +163,4 @@ BEGIN
             'END;';
     END IF;
 END;
+/

@@ -1,15 +1,19 @@
 # ============================================================
-# CI/CD 自动化流水线（M1 雏形，阶段二完善云端部署）
+# CI/CD 自动化流水线（阶段二：编译 → 构建镜像 → 推送 → 部署）
 # ============================================================
-# 触发器：监听 develop 分支 push 事件
+# 触发器：
+#   push develop → 编译 + 构建镜像 + 推送 GHCR + SSH 部署
+#   PR master/develop → 编译 + 构建镜像验证（不推送、不部署）
+#
 # 流程：
 #   1. 编译后端 .NET 项目 → 输出 dll
 #   2. 编译前端项目 → 输出 dist/
-#   3. 构建 Docker 应用镜像（后端 + 前端 分离）
-#   4. （阶段二）推送镜像 → 云端部署
+#   3. 构建 Docker 应用镜像（后端 + 前端）
+#   4. 推送镜像到 GitHub Container Registry
+#   5. SSH 到云端服务器 → docker compose 更新部署
 # ============================================================
 
-name: Build & Deploy (M1)
+name: Build & Deploy
 
 on:
   push:
@@ -19,6 +23,20 @@ on:
     branches:
       - master
       - develop
+
+# 连续合入 PR 时串行部署：同一时刻只允许一个 run 进 deploy job，
+# 防止两个 run 抢推 latest 镜像 / 并发跑迁移。
+# cancel-in-progress: false —— 排队等待而非取消（每个合入都必须落地上线）
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # GHCR 要求仓库名全小写：github.repository_owner 会保留原始大小写
+  # （Keith-hq）导致 buildx 拒绝，故此处硬编码小写
+  API_IMAGE_NAME: keith-hq/dorm-api
+  WEB_IMAGE_NAME: keith-hq/dorm-web
 
 jobs:
   # ==========================================
@@ -56,7 +74,7 @@ jobs:
   # Job 2：编译前端 Vue3 项目
   # ==========================================
   build-frontend:
-    name: 编译前端
+    name: build-vue
     runs-on: ubuntu-latest
 
     steps:
@@ -73,7 +91,7 @@ jobs:
           cd frontend
           npm ci
 
-      - name: 检查并编译前端项目
+      - name: Lint 检查 + 生产构建
         run: |
           cd frontend
           npm run check
@@ -85,36 +103,119 @@ jobs:
           path: frontend/dist/
 
   # ==========================================
-  # Job 3：构建 Docker 镜像（阶段二启用）
+  # Job 3：构建 Docker 镜像（PR 构建验证；push develop 时额外推送 GHCR）
   # ==========================================
-  # build-docker:
-  #   name: 构建 Docker 镜像
-  #   runs-on: ubuntu-latest
-  #   needs: [build-backend, build-frontend]
-  #
-  #   steps:
-  #     - name: 检出代码
-  #       uses: actions/checkout@v4
-  #
-  #     - name: 下载后端产物
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: backend-publish
-  #         path: publish/backend/
-  #
-  #     - name: 下载前端产物
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: frontend-dist
-  #         path: frontend/dist/
-  #
-  #     - name: 构建后端镜像
-  #       run: |
-  #         docker build -t dorm-api:latest -f deploy/docker/Dockerfile.backend .
-  #
-  #     - name: 构建前端镜像
-  #       run: |
-  #         docker build -t dorm-web:latest -f deploy/docker/Dockerfile.frontend .
-  #
-  #     - name: 推送镜像到容器仓库（阶段二配置）
-  #       run: echo "镜像构建完成，待阶段二配置云端推送"
+  build-docker:
+    name: build-and-push-docker
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 登录 GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 下载后端构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-publish
+          path: publish/backend/
+
+      - name: 下载前端构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      # PR 时仅构建验证可镜像化（不推送）；push develop 时构建并推送 GHCR
+      - name: 构建后端镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.backend
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:latest
+
+      - name: 构建前端镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.frontend
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}:latest
+
+  # ==========================================
+  # Job 4：云端部署（阶段二）
+  # SSH 到服务器，拉取最新镜像并重启服务
+  # ==========================================
+  deploy:
+    name: deploy-to-server
+    runs-on: ubuntu-latest
+    needs: [build-docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment: production
+    # 部署含迁移 + 健康检查重试，全程约 3~8 分钟；30 分钟上限防挂死占用并发槽
+    timeout-minutes: 30
+
+    steps:
+      - name: 检出代码（部署配置）
+        uses: actions/checkout@v4
+
+      # 传输改用 runner 原生 tar+scp：scp-action v0.1.7（drone-scp 1.6.14）
+      # 在真实仓库上首次运行即报"TAR：空档案"打包失败（2026-08-18 实测），
+      # 路径映射自己控制，不再依赖该外部 action。
+      - name: 打包部署文件
+        run: |
+          # 包内即服务器扁平布局：docker/ nginx/ scripts/（-C deploy 剥掉前缀）
+          tar czf /tmp/deploy-app.tar.gz -C deploy docker nginx scripts
+          # 数据库脚本保持 database/ 前缀
+          tar czf /tmp/deploy-db.tar.gz database
+
+      - name: 上传部署包到服务器
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          scp -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no \
+            /tmp/deploy-app.tar.gz /tmp/deploy-db.tar.gz \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}":/tmp/
+
+      - name: SSH 远程部署
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # 引号定界符 REMOTE → 本地不做变量展开，脚本原样交给远端 bash
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
+          set -e
+          cd /opt/dorm-platform
+
+          # 解包部署文件（--no-same-owner 使文件归 root，保持与既有目录一致）
+          tar xzf /tmp/deploy-app.tar.gz -C /opt/dorm-platform --no-same-owner
+          tar xzf /tmp/deploy-db.tar.gz -C /opt/dorm-platform --no-same-owner
+          rm -f /tmp/deploy-app.tar.gz /tmp/deploy-db.tar.gz
+
+          # 统一入口：拉镜像 → 增量迁移（失败即中止，旧容器继续服务）
+          # → up → 健康检查 + 旧镜像清理，全流程见 scripts/deploy.sh
+          bash scripts/deploy.sh --pull-images
+          REMOTE

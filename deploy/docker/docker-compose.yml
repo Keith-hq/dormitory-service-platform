@@ -1,0 +1,117 @@
+# ============================================================
+# 云端多服务 Docker Compose 编排
+# 服务：Oracle XE 21 + ASP.NET Core 后端 + Nginx 前端
+#
+# 使用方式：
+#   1. 复制 .env.example 为 .env 并填写密码/密钥
+#   2. docker compose up -d
+#   3. docker compose ps     # 确认所有服务 healthy
+#   4. docker compose logs -f dorm-api  # 查看后端日志
+#
+# 前置条件：
+#   - 宿主机已安装 Docker + Docker Compose v2
+#   - 内存 ≥ 5GB（Oracle XE 需 ≥ 2GB）
+#   - 端口 80/443 未被占用
+# ============================================================
+
+services:
+  # ==========================================
+  # 1. Oracle 数据库（来自 gvenzl 官方镜像）
+  # ==========================================
+  oracle-db:
+    # 21-slim：轻量变体（去掉大量可选组件），后台进程与内存占用明显小于 21-full，
+    # 4G 轻量服务器必选。注意：full 建的库不能直接挂 slim 镜像，需重建数据卷。
+    image: gvenzl/oracle-xe:21-slim
+    container_name: dorm-oracle-db
+    ports:
+      - "1521:1521"   # Oracle 监听（生产环境建议仅暴露给内网）
+    environment:
+      ORACLE_DATABASE: DORMPDB
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:?Set ORACLE_PASSWORD in .env}
+      # 首次启动自动在 PDB（DORMPDB）内创建业务用户
+      APP_USER: DORM_OPER
+      APP_USER_PASSWORD: ${ORACLE_PASSWORD:?Set ORACLE_PASSWORD in .env}
+      ORACLE_CHARACTERSET: AL32UTF8
+      TZ: Asia/Shanghai
+    volumes:
+      - oracle-data:/opt/oracle/oradata       # 数据持久化
+      # 不挂载 initdb 目录：gvenzl 的初始化脚本以 SYS 执行，
+      # 会把表建进 SYS schema。DDL/SP 统一由 deploy/scripts/init-db.sh
+      # 以 DORM_OPER 身份执行（唯一初始化路径）。
+    restart: unless-stopped
+    # 资源硬限（4G 轻量服务器止血核心）：Oracle 失控时只被 CPU throttle /
+    # 容器内 OOM，宿主机不再被打崩。cpus 按 nproc 调整（2 核 → 1.5）。
+    # memory 2304M = 留 ~1.7G 给系统 + dorm-api + dorm-web + swap 余量。
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2304M
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 5
+    networks:
+      - dorm-net
+
+  # ==========================================
+  # 2. ASP.NET Core 后端 API
+  # ==========================================
+  dorm-api:
+    image: ${DOCKER_REGISTRY:-ghcr.io/keith-hq}/dorm-api:${API_TAG:-latest}
+    container_name: dorm-api
+    ports:
+      - "5000:5000"    # Kestrel 端口（仅本地，Nginx 反代用）
+    environment:
+      TZ: Asia/Shanghai
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5000
+      # ---- 敏感配置通过环境变量注入（不写入镜像）----
+      ConnectionStrings__OracleConnection: >-
+        User Id=DORM_OPER;Password=${ORACLE_PASSWORD:?};Data Source=oracle-db:1521/DORMPDB;
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY (>=32 chars) in .env}
+      Jwt__Issuer: DormitoryPlatform
+      Jwt__Audience: DormitoryClient
+      ServiceKey__Shared: ${SERVICE_KEY:?Set SERVICE_KEY in .env}
+      Storage__RootPath: /app/uploads
+    volumes:
+      - uploads-data:/app/uploads             # 上传文件持久化（重建容器不丢失）
+    depends_on:
+      oracle-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dorm-net
+
+  # ==========================================
+  # 3. 前端 Nginx 静态文件 + 反代
+  # ==========================================
+  dorm-web:
+    image: ${DOCKER_REGISTRY:-ghcr.io/keith-hq}/dorm-web:${WEB_TAG:-latest}
+    container_name: dorm-web
+    ports:
+      - "80:80"
+      - "443:443"
+    # 自签名证书挂载（deploy/scripts/ssl-gen.sh 生成到宿主机 nginx/certs/）
+    volumes:
+      - ../nginx/certs:/etc/nginx/certs:ro
+    environment:
+      TZ: Asia/Shanghai
+    depends_on:
+      - dorm-api
+    restart: unless-stopped
+    networks:
+      - dorm-net
+
+volumes:
+  oracle-data:
+    name: dorm-oracle-data
+  uploads-data:
+    name: dorm-uploads-data
+
+networks:
+  dorm-net:
+    name: dorm-net
+    driver: bridge
