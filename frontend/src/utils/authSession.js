@@ -20,7 +20,10 @@ export const normalizeAuthSession = (loginResult, currentUser = null) => {
       ...source,
       id,
       name,
-      role
+      role,
+      needChangePassword: Boolean(
+        source.needChangePassword ?? loginResult?.needChangePassword ?? false
+      )
     }
   }
 }

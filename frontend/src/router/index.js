@@ -15,6 +15,12 @@ const routes = [
     meta: { public: true, layout: 'auth' }
   },
   {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: () => import('@/views/ChangePasswordView.vue'),
+    meta: { requiresAuth: true, layout: 'auth', title: '首次登录修改密码' }
+  },
+  {
     path: '/student',
     name: 'StudentHome',
     component: () => import('@/views/student/StudentHomeView.vue'),
@@ -160,6 +166,14 @@ router.beforeEach((to) => {
 
   if (to.meta.requiresAuth && !isRoleAllowed(userStore.userInfo?.role, to.meta.roles)) {
     return roleHome
+  }
+
+  if (
+    userStore.isLoggedIn &&
+    userStore.userInfo?.needChangePassword &&
+    to.name !== 'ChangePassword'
+  ) {
+    return { name: 'ChangePassword' }
   }
 
   if (to.name === 'Login' && userStore.isLoggedIn) {

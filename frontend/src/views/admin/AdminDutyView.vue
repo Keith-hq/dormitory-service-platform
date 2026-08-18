@@ -1,26 +1,64 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { adminApi } from '@/api/admin'
-import { WorkspaceHeader } from '@/components'
+import { MetricStrip, WorkspaceHeader } from '@/components'
 import { toUserMessage } from '@/utils/errorMessage'
 
-const visitor = ref({ visitorName: '', phone: '', studentId: '', visitReason: '' })
+const visitor = ref({ visitorName: '', phone: '', studentId: '' })
+const registry = ref({ registryId: '', qrToken: '' })
+const latestRecord = ref(null)
 const feedback = ref('')
-const submitting = ref(false)
+const working = ref('')
 
-const submitVisitor = async () => {
-  submitting.value = true
+const metrics = computed(() => [
+  { label: '登记编号', value: registry.value.registryId || '—', hint: '本次值守' },
+  { label: '通行状态', value: latestRecord.value?.status || '待登记', hint: '扫码核验' },
+  { label: '离场时间', value: latestRecord.value?.exitTime ? '已记录' : '—', hint: '闭环状态' }
+])
+
+const run = async (key, action, success) => {
+  working.value = key
   feedback.value = ''
   try {
-    await adminApi.registerVisitor(visitor.value)
-    feedback.value = '访客登记已提交'
-    visitor.value = { visitorName: '', phone: '', studentId: '', visitReason: '' }
-  } catch (e) {
-    feedback.value = toUserMessage(e, '访客登记失败')
+    const data = await action()
+    latestRecord.value = data
+    if (data?.registryId) registry.value.registryId = String(data.registryId)
+    if (data?.qrToken) registry.value.qrToken = data.qrToken
+    feedback.value = success
+  } catch (error) {
+    feedback.value = toUserMessage(error, '门岗操作失败，请核对登记编号与通行码')
   } finally {
-    submitting.value = false
+    working.value = ''
   }
 }
+
+const submitVisitor = async () => {
+  await run(
+    'register',
+    () =>
+      adminApi.registerVisitor({
+        visitorName: visitor.value.visitorName,
+        phone: visitor.value.phone || null,
+        studentId: visitor.value.studentId || null
+      }),
+    '访客登记已提交，登记编号与通行码已带入核验区'
+  )
+  if (latestRecord.value) visitor.value = { visitorName: '', phone: '', studentId: '' }
+}
+
+const verifyVisitor = () =>
+  run(
+    'verify',
+    () => adminApi.verifyVisitor(registry.value.registryId, { qrToken: registry.value.qrToken }),
+    '访客通行码核验成功'
+  )
+
+const recordExit = () =>
+  run(
+    'exit',
+    () => adminApi.recordVisitorExit(registry.value.registryId),
+    '访客离场时间已登记，本次来访闭环完成'
+  )
 </script>
 
 <template>
@@ -28,39 +66,86 @@ const submitVisitor = async () => {
     <WorkspaceHeader
       eyebrow="VISITOR DUTY DESK"
       title="访客值守"
-      description="把现场登记集中到一张表单，核对来访人、被访学生和访问事由后直接提交。"
+      description="登记、扫码核验与离场共用同一编号，让一次来访在门岗完成闭环。"
     >
       <span class="live-dot">值班在线</span>
     </WorkspaceHeader>
-    <section class="visitor-desk">
-      <div class="visitor-copy">
-        <span>ON-SITE REGISTRATION</span>
-        <h2>现场访客登记</h2>
-        <p>核对来访人身份和被访学生后提交。后续扫码核验与离场记录沿用同一登记编号。</p>
-      </div>
-      <form @submit.prevent="submitVisitor">
-        <label
-          >访客姓名<input v-model.trim="visitor.visitorName" required placeholder="请输入真实姓名"
-        /></label>
-        <label
-          >联系电话<input v-model.trim="visitor.phone" required placeholder="用于现场核验"
-        /></label>
-        <label
-          >被访学生学号<input v-model.trim="visitor.studentId" required placeholder="如 20260001"
-        /></label>
-        <label class="wide"
-          >来访事由<textarea
-            v-model.trim="visitor.visitReason"
-            required
-            rows="3"
-            placeholder="简要说明来访事项"
-          ></textarea>
-        </label>
-        <p v-if="feedback" class="feedback">{{ feedback }}</p>
-        <button class="btn btn-primary" :disabled="submitting">
-          {{ submitting ? '提交中…' : '登记访客' }}
+    <MetricStrip :metrics="metrics" style="--metric-count: 3" />
+    <p v-if="feedback" class="feedback" role="status">{{ feedback }}</p>
+
+    <section class="duty-flow">
+      <article class="register-card">
+        <header>
+          <span>01 / ON-SITE REGISTRATION</span>
+          <h2>现场访客登记</h2>
+          <p>核对来访人和被访学生后生成门岗记录。</p>
+        </header>
+        <form @submit.prevent="submitVisitor">
+          <label
+            >访客姓名<input
+              v-model.trim="visitor.visitorName"
+              required
+              placeholder="请输入真实姓名"
+          /></label>
+          <label
+            >联系电话<input
+              v-model.trim="visitor.phone"
+              maxlength="20"
+              placeholder="可选，用于现场核验"
+          /></label>
+          <label class="wide"
+            >被访学生学号<input
+              v-model.trim="visitor.studentId"
+              maxlength="20"
+              placeholder="可选，如 TST_STU_81501"
+          /></label>
+          <button class="btn btn-primary" :disabled="working === 'register'">
+            {{ working === 'register' ? '登记中…' : '登记并生成编号' }}
+          </button>
+        </form>
+      </article>
+
+      <article class="checkpoint-card">
+        <header>
+          <span>02 / CHECKPOINT</span>
+          <h2>通行核验</h2>
+          <p>扫码得到通行码后，与登记编号一起核验。</p>
+        </header>
+        <form @submit.prevent="verifyVisitor">
+          <label
+            >登记编号<input
+              v-model="registry.registryId"
+              required
+              min="1"
+              type="number"
+              placeholder="Registry ID"
+          /></label>
+          <label
+            >二维码通行码<input
+              v-model.trim="registry.qrToken"
+              required
+              placeholder="扫描或粘贴 QR Token"
+          /></label>
+          <button class="btn" :disabled="working === 'verify'">
+            {{ working === 'verify' ? '核验中…' : '核验通行码' }}
+          </button>
+        </form>
+      </article>
+
+      <article class="exit-card">
+        <div>
+          <span>03 / EXIT LOG</span>
+          <h2>离场登记</h2>
+          <p>访客离开时记录离场时间，关闭本次来访。</p>
+        </div>
+        <button
+          class="btn"
+          :disabled="!registry.registryId || working === 'exit'"
+          @click="recordExit"
+        >
+          {{ working === 'exit' ? '记录中…' : '确认访客离场' }}
         </button>
-      </form>
+      </article>
     </section>
   </main>
 </template>
@@ -74,9 +159,9 @@ const submitVisitor = async () => {
 .live-dot {
   display: flex;
   align-items: center;
-  gap: 8px;
+  color: var(--color-brand);
   font: 10px var(--font-mono);
-  color: var(--color-success);
+  gap: 8px;
 }
 .live-dot:before {
   content: '';
@@ -84,67 +169,132 @@ const submitVisitor = async () => {
   height: 7px;
   border-radius: 50%;
   background: currentColor;
+  box-shadow: 0 0 0 4px rgba(53, 90, 72, 0.12);
 }
-.visitor-desk {
+.feedback {
+  margin: 18px 0 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-brand-soft);
+  font-size: 11px;
+}
+.duty-flow {
   display: grid;
-  grid-template-columns: 0.7fr 1.3fr;
-  gap: 48px;
+  grid-template-columns: 1.08fr 0.92fr;
+  gap: 20px;
   margin-top: 28px;
-  padding: 38px;
+}
+.duty-flow article {
+  border: 1px solid var(--color-line-strong);
+}
+.register-card,
+.checkpoint-card {
+  min-height: 390px;
+  padding: 30px;
+}
+.register-card {
   background: var(--color-ink);
   color: #fff;
 }
-.visitor-copy span {
+.checkpoint-card {
+  background: rgba(255, 255, 255, 0.28);
+}
+.duty-flow header {
+  min-height: 110px;
+  border-bottom: 1px solid var(--color-line);
+}
+.register-card header {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.duty-flow header span,
+.exit-card span {
   color: var(--color-accent);
   font: 8px var(--font-mono);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.15em;
 }
-.visitor-copy h2 {
-  margin: 12px 0;
-  font: 500 30px var(--font-display);
+.duty-flow h2 {
+  margin: 10px 0 6px;
+  font: 500 28px var(--font-display);
 }
-.visitor-copy p {
-  color: #aaa39a;
-  font-size: 11px;
-  line-height: 1.8;
+.duty-flow header p,
+.exit-card p {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 1.7;
 }
-.visitor-desk form {
+.register-card header p {
+  color: #9aa49e;
+}
+.duty-flow form {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  gap: 15px;
+  margin-top: 24px;
 }
-.visitor-desk label {
+.duty-flow label {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 10px;
-  color: #c7c0b6;
+  color: var(--color-text-muted);
+  font-size: 9px;
+  gap: 7px;
 }
-.visitor-desk .wide {
+.register-card label {
+  color: #b2bbb5;
+}
+.duty-flow label.wide,
+.duty-flow form button {
   grid-column: 1/-1;
 }
-.visitor-desk input,
-.visitor-desk textarea {
-  border: 1px solid #4c4944;
-  background: #252422;
-  color: #fff;
-  padding: 12px;
-  font: 12px var(--font-body);
-}
-.feedback {
-  margin: 0;
-  color: var(--color-accent);
+.duty-flow input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
   font-size: 11px;
 }
-@media (max-width: 760px) {
-  .visitor-desk {
+.register-card input {
+  border-color: #46534c;
+  background: #233129;
+  color: #fff;
+}
+.checkpoint-card form {
+  grid-template-columns: 1fr;
+}
+.checkpoint-card form button {
+  grid-column: auto;
+  margin-top: 8px;
+}
+.exit-card {
+  display: flex;
+  grid-column: 1/-1;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 30px;
+  background: var(--color-surface-muted);
+}
+.exit-card h2 {
+  font-size: 22px;
+}
+.exit-card p {
+  margin: 0;
+}
+@media (max-width: 780px) {
+  .duty-flow {
     grid-template-columns: 1fr;
-    padding: 25px;
   }
-  .visitor-desk form {
+  .exit-card {
+    grid-column: auto;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .duty-flow form {
     grid-template-columns: 1fr;
   }
-  .visitor-desk .wide {
+  .duty-flow label.wide,
+  .duty-flow form button {
     grid-column: auto;
   }
 }
