@@ -53,6 +53,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -75,6 +76,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Shared_Item =====
 DECLARE
@@ -102,6 +104,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -124,6 +127,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Cleaning_Task =====
 DECLARE
@@ -151,6 +155,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -173,6 +178,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 
 -- =====================================================================
@@ -222,6 +228,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -244,6 +251,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 
 -- =====================================================================
@@ -300,6 +308,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -322,6 +331,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 
 -- =====================================================================

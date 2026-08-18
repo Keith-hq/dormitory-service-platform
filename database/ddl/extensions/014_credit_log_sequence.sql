@@ -41,6 +41,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -63,6 +64,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -78,6 +80,7 @@ BEGIN
             'ON D_Credit_Log(Student_ID, Create_Time, Log_ID)';
     END IF;
 END;
+/
 
 ALTER TABLE D_Credit_Log
     MODIFY (Reason VARCHAR2(200 CHAR),
