@@ -44,6 +44,17 @@ public class UserAccountRepository
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public Task<string?> GetAdminIdByAccountIdAsync(
+        int accountId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.UserAccounts
+            .AsNoTracking()
+            .Where(account => account.AccountId == accountId)
+            .Select(account => account.AdminId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     public Task<int?> GetByAdminIdAsync(string adminId)
     {
         return _context.UserAccounts

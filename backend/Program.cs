@@ -129,6 +129,7 @@ builder.Services.AddScoped<IWalletService, WalletService>();
 builder.Services.AddScoped<IUtilityFeeService, UtilityFeeService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<ICreditAppealService, CreditAppealService>();
 builder.Services.AddScoped<IFacilityService, FacilityService>();
 builder.Services.AddScoped<INoticeService, NoticeService>();
 builder.Services.AddScoped<IFreezeNotifier, NotificationFreezeNotifier>();

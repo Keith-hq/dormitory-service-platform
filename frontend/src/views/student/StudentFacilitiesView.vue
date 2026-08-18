@@ -4,6 +4,7 @@ import { studentApi } from '@/api/student'
 import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
+import { toUserMessage } from '@/utils/errorMessage'
 
 const userStore = useUserStore()
 const activeMode = ref('booking')
@@ -13,6 +14,13 @@ const facilities = ref([])
 const sharedItems = ref([])
 const loans = ref([])
 const selectedResource = ref(null)
+const selectedDate = ref('明天')
+const selectedTime = ref('')
+const feedback = ref('')
+const actionLoading = ref(false)
+const DATE_OPTIONS = ['今天', '明天', '周日']
+const TIME_SLOTS = ['08:00', '10:00', '14:00', '16:00', '19:00', '21:00']
+const isOccupiedSlot = (time) => ['10:00', '19:00'].includes(time)
 const studentId = computed(() => userStore.userInfo?.id || '')
 
 const loadResources = async () => {
@@ -42,6 +50,20 @@ const resourceName = (item) =>
   `资源 #${item.facilityId || item.itemId || item.id}`
 const resourceStatus = (item) =>
   item.status || (Number(item.quantity || item.stock || 0) > 0 ? '可用' : '暂无库存')
+const submitBooking = async () => {
+  if (!selectedResource.value?.facilityId) return
+  actionLoading.value = true
+  feedback.value = ''
+  try {
+    await studentApi.createFacilityBooking(selectedResource.value.facilityId)
+    feedback.value = '预约成功，可在设施列表查看占用状态'
+    await loadResources()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '预约失败，请稍后重试')
+  } finally {
+    actionLoading.value = false
+  }
+}
 onMounted(loadResources)
 </script>
 
@@ -107,19 +129,38 @@ onMounted(loadResources)
           <h2>{{ selectedResource ? resourceName(selectedResource) : '选择一项资源' }}</h2>
         </header>
         <template v-if="selectedResource && activeMode === 'booking'"
-          ><div class="date-line">
-            <button>今天</button><button class="active">明天</button><button>周日</button>
+          ><p class="schedule-note">
+            示例交互：当前预约按设施即时占位，日期/时段仅供展示，不随请求提交
+          </p>
+          <div class="date-line">
+            <button
+              v-for="day in DATE_OPTIONS"
+              :key="day"
+              :class="{ active: selectedDate === day }"
+              @click="selectedDate = day"
+            >
+              {{ day }}
+            </button>
           </div>
           <div class="time-slots">
             <button
-              v-for="time in ['08:00', '10:00', '14:00', '16:00', '19:00', '21:00']"
+              v-for="time in TIME_SLOTS"
               :key="time"
-              :disabled="['10:00', '19:00'].includes(time)"
+              :disabled="isOccupiedSlot(time)"
+              :class="{ active: selectedTime === time }"
+              @click="selectedTime = time"
             >
-              {{ time }}<small>{{ ['10:00', '19:00'].includes(time) ? '已占用' : '可预约' }}</small>
+              {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
             </button>
           </div>
-          <button class="btn btn-primary schedule-action">确认预约</button></template
+          <p v-if="feedback" class="schedule-feedback" role="status">{{ feedback }}</p>
+          <button
+            class="btn btn-primary schedule-action"
+            :disabled="actionLoading"
+            @click="submitBooking"
+          >
+            {{ actionLoading ? '预约中…' : '确认预约' }}
+          </button></template
         >
         <template v-else-if="selectedResource"
           ><dl>
@@ -267,6 +308,12 @@ onMounted(loadResources)
 .schedule-panel > header {
   border-color: #405249;
 }
+.schedule-note {
+  margin: 14px 18px 0;
+  color: #83968a;
+  font-size: 9px;
+  line-height: 1.6;
+}
 .date-line {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -307,6 +354,18 @@ onMounted(loadResources)
 }
 .time-slots button:disabled {
   opacity: 0.4;
+}
+.time-slots button.active {
+  border-color: var(--color-accent);
+  background: #2c4438;
+}
+.schedule-feedback {
+  margin: 13px 18px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #d48769;
+  background: #2a3a31;
+  color: #f4edde;
+  font-size: 10px;
 }
 .schedule-action {
   width: calc(100% - 36px);
