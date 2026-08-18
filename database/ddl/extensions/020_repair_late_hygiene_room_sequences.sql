@@ -59,6 +59,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -81,6 +82,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Repair_Attachment =====
 DECLARE
@@ -108,6 +110,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -130,6 +133,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Late_Entry =====
 DECLARE
@@ -157,6 +161,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -179,6 +184,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Hygiene_Record =====
 DECLARE
@@ -206,6 +212,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -228,6 +235,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 -- ===== D_Room =====
 -- C-032：EF 模型已配置 ValueGeneratedOnAdd，但库中无生成器，插入会 ORA-01400。
@@ -256,6 +264,7 @@ BEGIN
             ' INCREMENT BY 1 MAXVALUE 9999999999 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -278,3 +287,4 @@ BEGIN
             'END;';
     END IF;
 END;
+/

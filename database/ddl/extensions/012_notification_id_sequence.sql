@@ -36,6 +36,7 @@ BEGIN
             ' INCREMENT BY 1 NOCACHE';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -58,6 +59,7 @@ BEGIN
             'END;';
     END IF;
 END;
+/
 
 DECLARE
     v_exists NUMBER;
@@ -73,3 +75,4 @@ BEGIN
             'ON D_Notification(Recipient_Account_ID)';
     END IF;
 END;
+/
