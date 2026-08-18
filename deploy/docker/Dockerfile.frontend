@@ -42,7 +42,9 @@ RUN nginx -t
 
 EXPOSE 80 443
 
+# 健康检查必须写死 127.0.0.1：容器内 localhost 先解析为 ::1（IPv6），
+# 而 nginx 仅监听 IPv4 → Connection refused → 恒 unhealthy（2026-08-18 实测）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:80/ || exit 1
+  CMD wget -qO- http://127.0.0.1:80/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
