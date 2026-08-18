@@ -1,0 +1,51 @@
+# ============================================================
+# 后端 ASP.NET Core .NET 8 镜像（多阶段：SDK 编译发布 → 运行时）
+# 自包含构建：无需预置 publish/ 产物，有源码即可构建
+# 构建命令：docker build -t dorm-api:latest -f deploy/docker/Dockerfile.backend .
+# ============================================================
+
+# ---- 阶段 1：SDK 编译发布 ----
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# 先只拷贝项目文件还原依赖（仅 csproj 变化才重新还原，利用层缓存）
+COPY backend/TemplateDormApi.csproj backend/
+RUN dotnet restore backend/TemplateDormApi.csproj
+
+# 拷贝源码并发布（bin/obj/tests 由 .dockerignore 排除）
+COPY backend/ backend/
+RUN dotnet publish backend/TemplateDormApi.csproj --configuration Release --output /app/publish --no-restore
+
+# ---- 阶段 2：运行时镜像 ----
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+
+# 设置时区为中国标准时间（与业务代码保持一致）
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+WORKDIR /app
+
+# 从构建阶段复制发布产物
+COPY --from=build /app/publish ./
+
+# 安装 curl（HEALTHCHECK 需要）并创建上传目录
+# apt 源可覆盖：中国大陆服务器构建时传入阿里云 Debian 镜像（--build-arg APT_MIRROR=mirrors.aliyun.com），
+# 避免 deb.debian.org 直连缓慢/超时；CI 等海外环境保持默认即可
+ARG APT_MIRROR=deb.debian.org
+RUN if [ "$APT_MIRROR" != "deb.debian.org" ]; then \
+        sed -i "s/deb\.debian\.org/$APT_MIRROR/g" /etc/apt/sources.list.d/debian.sources; \
+    fi \
+    && apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/uploads && chmod 755 /app/uploads
+
+# 非 root 运行
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+USER appuser
+
+ENV ASPNETCORE_URLS=http://+:5000
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
+
+ENTRYPOINT ["dotnet", "TemplateDormApi.dll"]
