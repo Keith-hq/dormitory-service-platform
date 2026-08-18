@@ -13,18 +13,20 @@ public interface ICreditAppealService
         CreateCreditAppealRequest dto,
         CancellationToken cancellationToken);
 
-    /// <summary>APPEAL-02 查询我的申诉（分页）— 学生本人或宿管</summary>
+    /// <summary>APPEAL-02 查询我的申诉（分页）— 学生本人或宿管/超管</summary>
     Task<PagedResult<CreditAppealDto>> GetMyAsync(
         int accountId,
         string studentId,
         int page,
         int pageSize,
+        bool isDormAdmin,
         CancellationToken cancellationToken);
 
     /// <summary>APPEAL-03 复核申诉（通过恢复信用分 / 驳回）— 楼长/超管</summary>
+    /// <param name="accountId">当前登录账号 ID，服务内解析为其 Admin_ID 作为复核人</param>
     Task<CreditAppealDto> ReviewAsync(
         int appealId,
-        string reviewerAdminId,
+        int accountId,
         ReviewCreditAppealRequest dto,
         CancellationToken cancellationToken);
 }

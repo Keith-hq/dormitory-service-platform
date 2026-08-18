@@ -56,11 +56,15 @@ public class CreditAppealController : ControllerBase
             return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
         }
 
+        // 学生本人可查自己的申诉；宿管/超管（DormAdmin 角色）显式放行。
+        var isDormAdmin = User.IsInRole(AuthPolicies.Admin) || User.IsInRole(AuthPolicies.SuperAdmin);
+
         var result = await _service.GetMyAsync(
             accountId.Value,
             studentId,
             page,
             pageSize,
+            isDormAdmin,
             cancellationToken);
         return Ok(ApiResponse.Ok(result));
     }
@@ -78,15 +82,15 @@ public class CreditAppealController : ControllerBase
             return BadRequest(ApiResponse.Error(400, "参数校验失败"));
         }
 
-        var reviewerAdminId = User.Identity?.Name;
-        if (string.IsNullOrWhiteSpace(reviewerAdminId))
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
         {
             return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
         }
 
         var result = await _service.ReviewAsync(
             appealId,
-            reviewerAdminId,
+            accountId.Value,
             dto,
             cancellationToken);
         return Ok(ApiResponse.Ok(result));

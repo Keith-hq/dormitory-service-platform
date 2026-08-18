@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
@@ -49,6 +50,13 @@ public class CreditAppealService : ICreditAppealService
             .FirstOrDefaultAsync(l => l.LogId == dto.CreditRecordId && l.StudentId == studentId, cancellationToken)
             ?? throw new BusinessException(400, "扣分明细不存在或不属于本人");
 
+        // 只能申诉扣分明细：正分流水（如月度重置 +45）被申诉通过会经 Math.Abs 二次加分。
+        // 在提交侧拦截，保证被申诉明细恒为负值（ScoreChange < 0）。
+        if (log.ScoreChange >= 0)
+        {
+            throw new BusinessException(400, "只能申诉扣分明细，正分流水不可申诉");
+        }
+
         // 同一扣分只能申诉一次（DB 唯一约束 UK_D_CREDIT_APPEAL_LOG 兜底）。
         // 用 CountAsync 而非 AnyAsync：Oracle provider 会把 AnyAsync 翻译成
         // 布尔字面量 TRUE/FALSE，Oracle 21c 无此语法 → ORA-00904（同 v0.15 已记模式）。
@@ -78,16 +86,24 @@ public class CreditAppealService : ICreditAppealService
         string studentId,
         int page,
         int pageSize,
+        bool isDormAdmin,
         CancellationToken cancellationToken)
     {
-        // 学生本人可查自己的申诉；宿管/超管由控制器策略放行（账号解析不到学生 = 管理员）
+        // 鉴权：宿管/超管显式放行；其余账号必须是学生本人（非学生账号不得查任意学生申诉）
         var currentStudentId = await _userAccountRepository.GetStudentIdByAccountIdAsync(
             accountId,
             cancellationToken);
-        if (currentStudentId is not null &&
-            !string.Equals(currentStudentId, studentId, StringComparison.Ordinal))
+        if (!isDormAdmin)
         {
-            throw new BusinessException(403, "无权查看他人申诉", 403);
+            if (string.IsNullOrWhiteSpace(currentStudentId))
+            {
+                throw new BusinessException(403, "仅学生本人或宿管/超管可查看申诉", 403);
+            }
+
+            if (!string.Equals(currentStudentId, studentId, StringComparison.Ordinal))
+            {
+                throw new BusinessException(403, "无权查看他人申诉", 403);
+            }
         }
 
         page = Math.Max(page, 1);
@@ -118,13 +134,23 @@ public class CreditAppealService : ICreditAppealService
 
     public async Task<CreditAppealDto> ReviewAsync(
         int appealId,
-        string reviewerAdminId,
+        int accountId,
         ReviewCreditAppealRequest dto,
         CancellationToken cancellationToken)
     {
+        // 复核人身份：accountId → D_User_Account.AdminId → 存 D_Admin.Admin_ID。
+        // 不能取 Login_Name（Reviewed_By FK → D_Admin.Admin_ID），否则非种子环境复核必 500。
+        var reviewerAdminId = await _userAccountRepository.GetAdminIdByAccountIdAsync(
+            accountId,
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(reviewerAdminId))
+        {
+            throw new BusinessException(403, "当前账号未关联宿管身份，无法复核", 403);
+        }
+
         var appeal = await _context.CreditAppeals
             .FirstOrDefaultAsync(a => a.AppealId == appealId, cancellationToken)
-            ?? throw new BusinessException(404, "申诉不存在");
+            ?? throw new BusinessException(404, "申诉不存在", StatusCodes.Status404NotFound);
 
         if (appeal.Status != StatusPending)
         {

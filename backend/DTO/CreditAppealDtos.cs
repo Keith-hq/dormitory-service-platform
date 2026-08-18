@@ -14,7 +14,7 @@ public class CreateCreditAppealRequest
 }
 
 /// <summary>APPEAL-03 复核申诉 — PUT /credit-appeals/{appealId}/review</summary>
-public class ReviewCreditAppealRequest
+public class ReviewCreditAppealRequest : IValidatableObject
 {
     /// <summary>通过 / 驳回（契约 enum）</summary>
     [Required(ErrorMessage = "复核结论不能为空")]
@@ -23,6 +23,15 @@ public class ReviewCreditAppealRequest
     /// <summary>处理说明（可特别注明）</summary>
     [MaxLength(200, ErrorMessage = "处理说明不能超过 200 个字符")]
     public string? Note { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        // 契约"驳回需说明理由"：驳回时 Note 必填
+        if (Result == "驳回" && string.IsNullOrWhiteSpace(Note))
+        {
+            yield return new ValidationResult("驳回必须说明理由", new[] { nameof(Note) });
+        }
+    }
 }
 
 /// <summary>申诉记录响应项</summary>
