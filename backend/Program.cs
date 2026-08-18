@@ -215,7 +215,7 @@ builder.Services.AddQuartz(q =>
         .WithCronSchedule("0 * * * * ?"));
 
     // --- 难点③ 设施预约巡检：每15秒（北京时间）---
-    var tz = TimeZoneInfo.FindSystemTimeZoneById("China Standard Time");
+    var tz = GetBusinessTimeZone();
     var expireKey = new JobKey("ExpireBookingJob");
     q.AddJob<ExpireBookingJob>(opts => opts.WithIdentity(expireKey));
     q.AddTrigger(opts => opts.ForJob(expireKey).WithIdentity("ExpireTrigger")
@@ -335,15 +335,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization(AuthPolicies.Register);
+builder.Services.AddScoped<VisitorService>();
+builder.Services.AddScoped<VoteService>();
+// ===== 8. 健康检查端点（容器 HEALTHCHECK + 部署验证用）=====
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // ===== 中间件管道 =====
+// 健康检查端点（不经过认证中间件，所有环境可用）
+app.MapHealthChecks("/health");
 app.UseMiddleware<ExceptionMiddleware>();
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Swagger 全环境可用：云端部署后团队/评审需通过 nginx /swagger/ 反代访问接口文档
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // 认证与授权
 app.UseAuthentication();
