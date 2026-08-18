@@ -31,9 +31,11 @@ public class RoomRepository : BaseRepository<Room>
     /// DORM-06 批量初始化：该楼栋已有房间号（跳过重复）。
     /// 楼栋级查重，对齐迁移 023 唯一约束 UK_D_ROOM_BUILDING_NO (Building_ID, Room_Number)：
     /// 跨楼层同号同样视为已存在（三审整改）。
+    /// 纯只读投影查重，AsNoTracking：查重结果只消费房间号，无需把实体挂进跟踪器。
     /// </summary>
     public async Task<HashSet<string>> GetRoomNumbersAsync(int buildingId)
         => (await _dbSet
+                .AsNoTracking()
                 .Where(r => r.BuildingId == buildingId)
                 .Select(r => r.RoomNumber)
                 .ToListAsync())

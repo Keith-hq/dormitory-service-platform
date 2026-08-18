@@ -34,14 +34,17 @@ public class UtilityFeeService : IUtilityFeeService
         }
 
         // 快路径校验：房间存在性 + 同(房间,账期)唯一性
-        var roomExists = await _context.Rooms.AnyAsync(r => r.RoomId == request.RoomId);
+        // 四审真实 Oracle 实测（IT-C3-001 执行现场）：顶层 AnyAsync 被 provider
+        // 翻译为 CASE WHEN EXISTS(...) THEN True ELSE False，Oracle 21c 无布尔
+        // 字面量 → ORA-00904。改用 CountAsync（翻译为 COUNT(*)）。
+        var roomExists = await _context.Rooms.CountAsync(r => r.RoomId == request.RoomId) > 0;
         if (!roomExists)
         {
             throw new BusinessException(404, "房间不存在", StatusCodes.Status404NotFound);
         }
 
         var duplicate = await _context.UtilityFees
-            .AnyAsync(f => f.RoomId == request.RoomId && f.YearMonth == request.YearMonth);
+            .CountAsync(f => f.RoomId == request.RoomId && f.YearMonth == request.YearMonth) > 0;
         if (duplicate)
         {
             throw new BusinessException(400, "该房间该月份已存在账单");
@@ -90,7 +93,7 @@ public class UtilityFeeService : IUtilityFeeService
         // 已发布但【未分摊】的账单允许修改（发布后改金额再分摊不产生脱节）；
         // 一旦存在分摊明细即禁止（含"已分摊未缴"——此时改金额会让账单与明细脱节，
         // 比契约更严格的口径，PR 描述说明）。
-        var hasDetails = await _context.FeeDetails.AnyAsync(d => d.FeeId == feeId);
+        var hasDetails = await _context.FeeDetails.CountAsync(d => d.FeeId == feeId) > 0;
         if (hasDetails)
         {
             throw new BusinessException(400, "已分摊或已缴的账单不可修改");
@@ -239,7 +242,10 @@ public class UtilityFeeService : IUtilityFeeService
                 YearMonth = f.YearMonth,
                 WaterFee = f.WaterFee,
                 PowerFee = f.PowerFee,
-                IsPaid = f.IsPaid,
+                // 与缴费状态过滤同口径（明细为权威）：账单行 Is_Paid 是建单时快照，
+                // SP 只更新明细不回收账单行，直接投影会与 IT-C3-001 判定④
+                // 「账单 isPaid=已缴」脱节（实测现场发现）
+                IsPaid = _context.FeeDetails.Count(d => d.FeeId == f.FeeId && d.IsPaid == "否") == 0 ? "是" : "否",
                 PublishStatus = f.PublishStatus
             })
             .ToListAsync();
