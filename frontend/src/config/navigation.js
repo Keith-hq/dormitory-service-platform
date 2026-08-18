@@ -11,8 +11,11 @@ export const APP_NAVIGATION = Object.freeze({
   admin: [
     { index: '01', to: '/admin', label: '运营首页', eyebrow: 'OVERVIEW' },
     { index: '02', to: '/building', label: '空间档案', eyebrow: 'SPACES' },
-    { index: '03', to: '/admin/duty', label: '访客值守', eyebrow: 'VISITORS' },
-    { index: '04', to: '/admin/repair', label: '维修调度', eyebrow: 'REPAIR' }
+    { index: '03', to: '/admin/accommodation', label: '住宿管理', eyebrow: 'ACCOMMODATION' },
+    { index: '04', to: '/admin/billing', label: '水电账单', eyebrow: 'UTILITY' },
+    { index: '05', to: '/admin/safety', label: '卫生晚归', eyebrow: 'INSPECTION' },
+    { index: '06', to: '/admin/duty', label: '访客值守', eyebrow: 'VISITORS' },
+    { index: '07', to: '/admin/repair', label: '维修调度', eyebrow: 'REPAIR' }
   ],
   repairman: [{ index: '01', to: '/repairman', label: '我的工单', eyebrow: 'WORK ORDERS' }],
   counselor: [{ index: '01', to: '/counselor', label: '离校审批', eyebrow: 'APPROVALS' }],

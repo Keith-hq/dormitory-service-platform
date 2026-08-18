@@ -10,6 +10,8 @@ export const adminApi = {
   createNotice: (data) => request.post('/notices', data),
   getHygieneRankings: (params) => request.get('/hygiene-rankings', { params }),
   createHygieneRecord: (data) => request.post('/hygiene-records', data),
+  updateHygieneRecord: (recordId, data) => request.put(`/hygiene-records/${recordId}`, data),
+  createLateEntry: (data) => request.post('/late-entries', data),
   getRepairTickets: (adminId, params) =>
     request.get(`/admins/${adminId}/repair-tickets`, { params }),
   claimRepairTicket: (ticketId) => request.post(`/repair-tickets/${ticketId}/claim`),

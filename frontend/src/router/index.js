@@ -71,6 +71,24 @@ const routes = [
     redirect: '/admin/duty'
   },
   {
+    path: '/admin/accommodation',
+    name: 'AdminAccommodation',
+    component: () => import('@/views/admin/AdminAccommodationView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '住宿管理' }
+  },
+  {
+    path: '/admin/billing',
+    name: 'AdminBilling',
+    component: () => import('@/views/admin/AdminBillingView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '水电账单' }
+  },
+  {
+    path: '/admin/safety',
+    name: 'AdminSafety',
+    component: () => import('@/views/admin/AdminSafetyView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '卫生与晚归' }
+  },
+  {
     path: '/admin/duty',
     name: 'AdminDuty',
     component: () => import('@/views/admin/AdminDutyView.vue'),
