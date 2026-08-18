@@ -35,7 +35,7 @@ const metrics = computed(() => [
   },
   { label: '待处理预警', value: activeWarnings.value, hint: '损耗与缺失' },
   { label: '待办保洁', value: pendingCleaning.value, hint: '设施触发' },
-  { label: '共享物品', value: sharedItems.value.length, hint: '可维护主数据' }
+  { label: '共享物品', value: sharedItems.value.length, hint: '当前可借条目' }
 ])
 
 const run = async (key, action, success, refresh) => {
@@ -78,8 +78,11 @@ const loadOperations = async () => {
     cleaningTasks.value = normalizeCollection(results[1].value).items
   if (results[2].status === 'fulfilled')
     sharedItems.value = normalizeCollection(results[2].value).items
-  if (results.every((result) => result.status === 'rejected')) {
+  const failedCount = results.filter((result) => result.status === 'rejected').length
+  if (failedCount === results.length) {
     error.value = '运营数据暂时无法同步，请确认后端服务与数据库迁移状态。'
+  } else if (failedCount > 0) {
+    error.value = `已有 ${results.length - failedCount}/${results.length} 组运营数据同步成功，其余接口暂时不可用。`
   }
   loading.value = false
 }
@@ -485,7 +488,7 @@ onMounted(loadOperations)
 .desk-tabs button {
   min-width: 150px;
   padding: 17px 24px;
-  color: var(--color-muted);
+  color: var(--color-text-muted);
   background: transparent;
   border: 0;
   border-right: 1px solid var(--color-line);
@@ -547,7 +550,7 @@ onMounted(loadOperations)
 .query label {
   display: grid;
   gap: 7px;
-  color: var(--color-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 .form-grid input,
@@ -595,7 +598,7 @@ onMounted(loadOperations)
 .table-list > p,
 .cleaning-board > p {
   padding: 24px;
-  color: var(--color-muted);
+  color: var(--color-text-muted);
 }
 .actions-stack {
   display: grid;
@@ -624,7 +627,7 @@ onMounted(loadOperations)
 }
 .table-list span,
 .table-list em {
-  color: var(--color-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
   font-style: normal;
 }
@@ -653,7 +656,7 @@ onMounted(loadOperations)
 .cleaning-board small {
   display: block;
   margin-bottom: 18px;
-  color: var(--color-muted);
+  color: var(--color-text-muted);
 }
 @media (max-width: 900px) {
   .work-grid {

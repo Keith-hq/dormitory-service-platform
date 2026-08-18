@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { APP_NAVIGATION } from '../src/config/navigation.js'
 
-test('exposes the three admin business workspaces in the sidebar', () => {
+test('exposes the admin business workspaces in the sidebar', () => {
   const routes = APP_NAVIGATION.admin.map((item) => item.to)
 
   assert.ok(routes.includes('/admin/accommodation'))
