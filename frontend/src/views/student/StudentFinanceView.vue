@@ -5,6 +5,7 @@ import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
+import { genRequestId } from '@/utils/id'
 
 const userStore = useUserStore()
 const loading = ref(true)
@@ -44,7 +45,7 @@ const payFee = async (item) => {
   actionLoading.value = `fee-${item.detailId}`
   feedback.value = ''
   try {
-    await studentApi.payFee(item.detailId, crypto.randomUUID())
+    await studentApi.payFee(item.detailId, genRequestId())
     feedback.value = '缴费成功，账单状态已更新'
     await loadFinance()
   } catch (requestError) {
@@ -58,7 +59,7 @@ const recharge = async () => {
   actionLoading.value = 'recharge'
   feedback.value = ''
   try {
-    await studentApi.rechargeWallet(Number(rechargeAmount.value), crypto.randomUUID())
+    await studentApi.rechargeWallet(Number(rechargeAmount.value), genRequestId())
     feedback.value = '充值成功'
     await loadFinance()
   } catch (requestError) {

@@ -1,0 +1,68 @@
+# Docker 构建忽略文件
+# 防止将本地开发文件、敏感配置、依赖缓存打包进镜像
+
+# === Git ===
+.git
+.gitattributes
+.gitignore
+.github
+
+# === IDE / 编辑器 ===
+.vs
+.vscode
+.idea
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# === 后端 ===
+**/bin
+**/obj
+backend/Properties/launchSettings.json
+backend/appsettings.Development.json
+
+# === 前端 ===
+**/node_modules
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+
+# === 数据库 ===
+database/verify           # 校验脚本不需要打包
+database/README.md
+
+# === 部署 ===
+deploy/**/.env            # 敏感配置！必须排除
+deploy/**/.env.local
+deploy/oracle/*.env
+deploy/docker/*.env
+
+# === 文档 ===
+docs
+*.md
+!README.md
+
+# === 模板（历史留档，不参与构建）===
+template
+template-backend
+template-frontend
+template-demo-guide
+
+# === 测试 ===
+**/tests
+**/*.Tests
+
+# === 构建产物（CI 通过 artifact 下载，Dockerfile COPY 来源，不能排除）===
+# publish/         — CI 下载后端产物到此，Dockerfile.backend 需要
+# frontend/dist/   — CI 下载前端产物到此，Dockerfile.frontend 需要
+**/coverage
+
+# === 上传文件（运行时数据）===
+uploads
+**/uploads/*
+
+# === OS ===
+.DS_Store
+Thumbs.db
+Desktop.ini
