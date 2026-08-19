@@ -188,6 +188,12 @@ public class CreditAppealService : ICreditAppealService
                 $"APPEAL-{appeal.AppealId}",
                 $"申诉通过恢复（{appeal.Reason}）",
                 cancellationToken);
+
+            // D3 修复：RestoreAsync 的真实恢复路径会执行 ChangeTracker.Clear()，
+            // 使本方法先前加载的 appeal 实体脱离跟踪；若不重新加载，随后的
+            // SaveChangesAsync 不会生成 UPDATE，导致复核状态首次调用不落库。
+            appeal = await _context.CreditAppeals
+                .FirstAsync(a => a.AppealId == appealId, cancellationToken);
         }
 
         appeal.Status = pass ? StatusApproved : StatusRejected;

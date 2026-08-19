@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Security;
@@ -14,19 +13,20 @@ namespace TemplateDormApi.Controllers;
 [ServiceKeyAuth]
 public class InternalSchedulerController : ControllerBase
 {
-    private static readonly Regex YearMonthRegex = new(@"^\d{4}-(0[1-9]|1[0-2])$", RegexOptions.Compiled);
-
     private readonly ICreditService _creditService;
     private readonly IBillingService _billingService;
     private readonly ILogger<InternalSchedulerController> _logger;
+    private readonly IVisitorService _visitorService;
 
     public InternalSchedulerController(
         ICreditService creditService,
         IBillingService billingService,
+        IVisitorService visitorService,
         ILogger<InternalSchedulerController> logger)
     {
         _creditService = creditService;
         _billingService = billingService;
+        _visitorService = visitorService;
         _logger = logger;
     }
 
@@ -51,30 +51,16 @@ public class InternalSchedulerController : ControllerBase
     }
 
     /// <summary>
-    /// IT-C3-003：手动触发自动扣款（每月1/2/3日定时任务的同款入口）。
+    /// IT-C3-003：手动触发当月首次自动扣款巡检。
     /// SP_Auto_Deduct 幂等：同月重复触发，已扣明细由幂等键与 Is_Paid 状态跳过，
     /// 不重复扣款；余额不足不扣并记录尝试。
-    /// 参数偏差（PR #58 P2 登记）：契约写"无需参数"，实现为可选 attemptNo/yearMonth
-    /// （attemptNo 用于 IT-C3-002 三次尝试口径，默认 1；yearMonth 默认当月）。
-    /// 内部接口可接受，已登记待同步契约（C-025 同类）。
+    /// 每月 1/2/3 日的重试次数由 Quartz 作业内部管理，接口不接收参数。
     /// </summary>
     [HttpPost("deduction")]
-    public async Task<IActionResult> Deduction(
-        [FromQuery] int attemptNo = 1,
-        [FromQuery] string? yearMonth = null)
+    public async Task<IActionResult> Deduction()
     {
-        if (attemptNo < 1 || attemptNo > 3)
-            return BadRequest(ApiResponse.Error(400, "attemptNo 必须在 1~3 之间"));
-
-        var targetMonth = string.IsNullOrWhiteSpace(yearMonth)
-            ? DateTime.Now.ToString("yyyy-MM")
-            : yearMonth;
-
-        if (!TryValidateYearMonth(targetMonth, out var message))
-            return BadRequest(ApiResponse.Error(400, message));
-
-        await _billingService.AutoDeduct(attemptNo, targetMonth);
-        return Ok(ApiResponse.Ok(new { attemptNo, yearMonth = targetMonth }, $"自动扣款完成：第{attemptNo}次 {targetMonth}"));
+        await _billingService.AutoDeduct(1, DateTime.Now.ToString("yyyy-MM"));
+        return Ok(ApiResponse.Ok(new { }, "自动扣款巡检完成"));
     }
 
     /// <summary>IT-C7-003：手动触发恢复供电巡检（SP_Restore_Power，已缴清房间复位供电）</summary>
@@ -85,27 +71,12 @@ public class InternalSchedulerController : ControllerBase
         return Ok(ApiResponse.Ok(new { }, "恢复供电巡检完成"));
     }
 
-    /// <summary>校验 yyyy-MM 格式及账期范围（不早于 2020-01，不晚于下月）</summary>
-    private static bool TryValidateYearMonth(string yearMonth, out string message)
+    /// <summary>IT-C8-001：手动触发访客授权过期巡检（SVC-SCHED-06），将已到期有效授权置为「已过期」。</summary>
+    [HttpPost("visitor-expire")]
+    public async Task<IActionResult> VisitorExpire()
     {
-        if (!YearMonthRegex.IsMatch(yearMonth))
-        {
-            message = "yearMonth 格式必须为 yyyy-MM";
-            return false;
-        }
-
-        var now = DateTime.Now;
-        var currentMonth = new DateTime(now.Year, now.Month, 1);
-        var minMonth = new DateTime(2020, 1, 1);
-        var target = new DateTime(int.Parse(yearMonth[..4]), int.Parse(yearMonth[5..7]), 1);
-
-        if (target < minMonth || target > currentMonth.AddMonths(1))
-        {
-            message = $"yearMonth 必须在 {minMonth:yyyy-MM} 至 {currentMonth.AddMonths(1):yyyy-MM} 之间";
-            return false;
-        }
-
-        message = string.Empty;
-        return true;
+        var expiredCount = await _visitorService.ExpireAsync();
+        return Ok(ApiResponse.Ok(new { expiredCount }, $"访客过期处理完成，处理 {expiredCount} 条"));
     }
+
 }

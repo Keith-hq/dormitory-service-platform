@@ -137,14 +137,10 @@ INSERT INTO D_Wallet_Log (Log_ID, Student_ID, Amount, Transaction_Type, Before_B
 VALUES (9600008, 'IT_STU_016', 120.00, '充值',       0.00, 120.00, NULL, 'IT-C3-016-1', DATE '2026-08-01');
 
 -- ===== 5. 扣款尝试 D_Fee_Deduction_Attempt（留空，不造样本） =====
--- ⚠️ schema 缺陷（待登记矛盾清单）：D_Fee_Deduction_Attempt.RESULT 为
---    VARCHAR2(10) 字节语义，但 CHECK 允许的合法值 '余额不足' 是 4 个汉字
---    = 12 字节，ORA-12899 存不进去。应用定时划扣（SP_BILLING）写
---    '余额不足' 时同样会失败。在修正该列语义（改 VARCHAR2(20 CHAR)）前，
---    本脚本不造扣款尝试样本，避免重跑报错；003 欠费阻断仍由
---    "未缴账单 + 钱包余额 20 < 账单"体现。
---    建议处置：新增迁移把 RESULT 改为 VARCHAR2(10 CHAR)（或更大），并复核
---    sp_billing.sql 的写入。此问题不影响本次种子数据加载。
+-- ⚠️ 历史 schema 缺陷：D_Fee_Deduction_Attempt.RESULT 原为 VARCHAR2(10) 字节语义，
+--    写 '余额不足'（4 汉字 = 12 字节）会 ORA-12899；已由迁移
+--    035_fix_byte_columns_fee_attempt_audit.sql 改为 VARCHAR2(20 CHAR) 修复。
+--    本脚本仍不造扣款尝试样本；003 欠费阻断由 "未缴账单 + 钱包余额 20 < 账单"体现。
 
 -- 完成确认
 SELECT 'BILLING & WALLET DONE' AS MESSAGE FROM DUAL;

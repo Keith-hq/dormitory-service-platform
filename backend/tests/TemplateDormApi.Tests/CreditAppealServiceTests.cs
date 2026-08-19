@@ -262,6 +262,40 @@ public class CreditAppealServiceTests
     }
 
     [Fact]
+    public async Task ReviewAsync_Approve_PersistsStatus_WhenRestoreClearsTracking()
+    {
+        // D3 回归：真实 RestoreAsync 的恢复路径会 ChangeTracker.Clear()，
+        // 把 appeal 实体脱离跟踪；修复后必须重新加载 appeal，确保首次复核即落库。
+        await using var context = await SeedAdminContextAsync();
+        context.CreditAppeals.Add(new CreditAppeal
+        {
+            AppealId = 1,
+            CreditLogId = 1,
+            StudentId = StudentId,
+            Reason = "误扣",
+            Status = "待复核",
+            CreateTime = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
+        var credit = new FakeCreditService { ContextToClearOnRestore = context };
+        var service = CreateService(context, credit, new FakeNotificationService(), new FakeAuditService());
+
+        var result = await service.ReviewAsync(
+            appealId: 1,
+            accountId: AdminAccountId,
+            new ReviewCreditAppealRequest { Result = "通过", Note = "经核实确属误扣" },
+            CancellationToken.None);
+
+        Assert.Equal("已通过", result.Status);
+        // 关键断言：即使 RestoreAsync 清了 ChangeTracker，DB（InMemory）中状态也必须已更新
+        var persisted = await context.CreditAppeals.FindAsync(1);
+        Assert.NotNull(persisted);
+        Assert.Equal("已通过", persisted!.Status);
+        Assert.Equal(AdminId, persisted.ReviewedBy);
+    }
+
+    [Fact]
     public async Task ReviewAsync_Reject_NoRestore_AndMarksRejected()
     {
         await using var context = await SeedAdminContextAsync();
@@ -386,6 +420,9 @@ public class CreditAppealServiceTests
     {
         public List<(string StudentId, int Score, string EventKey, string Reason)> Restores { get; } = new();
 
+        /// <summary>模拟真实 CreditRepository.ClearTracking() 对 DbContext 全量清跟踪的行为。</summary>
+        public AppDbContext? ContextToClearOnRestore { get; set; }
+
         public Task<CreditResultDto> RestoreAsync(
             string studentId,
             int restoreScore,
@@ -393,6 +430,7 @@ public class CreditAppealServiceTests
             string reason,
             CancellationToken cancellationToken)
         {
+            ContextToClearOnRestore?.ChangeTracker.Clear();
             Restores.Add((studentId, restoreScore, eventKey, reason));
             return Task.FromResult(new CreditResultDto { StudentId = studentId, CurrentScore = restoreScore });
         }
