@@ -6,6 +6,7 @@ import { governanceApi } from '@/api/governance'
 import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
+import { formatLocalMonthInput } from '@/utils/localDate'
 
 const route = useRoute()
 const loading = ref(true)
@@ -102,7 +103,7 @@ const load = async () => {
     governanceApi.getAdmins(),
     governanceApi.getStudents(),
     governanceApi.getAuditEvents({ page: 1, pageSize: 30 }),
-    governanceApi.getReport('occupancy', { yearMonth: new Date().toISOString().slice(0, 7) }),
+    governanceApi.getReport('occupancy', { yearMonth: formatLocalMonthInput() }),
     buildingApi.getList({ page: 1, pageSize: 100 })
   ])
   const targets = [admins, students, audits]

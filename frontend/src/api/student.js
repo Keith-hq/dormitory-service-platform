@@ -35,12 +35,7 @@ export const studentApi = {
     request.get(`/students/${encodeURIComponent(studentId)}/item-loans`, { params }),
   createItemLoan: (itemId, idempotencyKey) =>
     request.post('/item-loans', { itemId }, { headers: { 'Idempotency-Key': idempotencyKey } }),
-  returnItemLoan: (loanId, idempotencyKey) =>
-    request.post(
-      `/item-loans/${loanId}/return`,
-      {},
-      { headers: { 'Idempotency-Key': idempotencyKey } }
-    ),
+  returnItemLoan: (loanId) => request.post(`/item-loans/${loanId}/return`, {}),
   getLateEntries: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/late-entries`, { params }),
   updateLateEntryReason: (recordId, reason) =>

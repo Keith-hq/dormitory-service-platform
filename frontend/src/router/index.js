@@ -15,6 +15,12 @@ const routes = [
     meta: { public: true, layout: 'auth' }
   },
   {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: () => import('@/views/ChangePasswordView.vue'),
+    meta: { requiresAuth: true, layout: 'auth', title: '首次登录修改密码' }
+  },
+  {
     path: '/student',
     name: 'StudentHome',
     component: () => import('@/views/student/StudentHomeView.vue'),
@@ -69,6 +75,30 @@ const routes = [
   {
     path: '/admin/operations',
     redirect: '/admin/duty'
+  },
+  {
+    path: '/admin/accommodation',
+    name: 'AdminAccommodation',
+    component: () => import('@/views/admin/AdminAccommodationView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '住宿管理' }
+  },
+  {
+    path: '/admin/billing',
+    name: 'AdminBilling',
+    component: () => import('@/views/admin/AdminBillingView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '水电账单' }
+  },
+  {
+    path: '/admin/assets',
+    name: 'AdminAssets',
+    component: () => import('@/views/admin/AdminAssetsView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '资产与保洁' }
+  },
+  {
+    path: '/admin/safety',
+    name: 'AdminSafety',
+    component: () => import('@/views/admin/AdminSafetyView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '卫生与晚归' }
   },
   {
     path: '/admin/duty',
@@ -142,6 +172,14 @@ router.beforeEach((to) => {
 
   if (to.meta.requiresAuth && !isRoleAllowed(userStore.userInfo?.role, to.meta.roles)) {
     return roleHome
+  }
+
+  if (
+    userStore.isLoggedIn &&
+    userStore.userInfo?.needChangePassword &&
+    to.name !== 'ChangePassword'
+  ) {
+    return { name: 'ChangePassword' }
   }
 
   if (to.name === 'Login' && userStore.isLoggedIn) {
