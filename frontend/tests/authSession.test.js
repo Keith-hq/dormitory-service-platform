@@ -10,7 +10,13 @@ test('keeps the mock login session contract unchanged', () => {
 
   assert.deepEqual(session, {
     token: 'mock-token',
-    userInfo: { id: 'S001', name: '测试学生', role: 'student', roomName: '503' }
+    userInfo: {
+      id: 'S001',
+      name: '测试学生',
+      role: 'student',
+      roomName: '503',
+      needChangePassword: false
+    }
   })
 })
 
@@ -27,7 +33,8 @@ test('combines real login and auth me responses into the frontend session', () =
       loginName: 'student001',
       role: 'student',
       studentId: 'S2026001',
-      adminId: null
+      adminId: null,
+      needChangePassword: true
     }
   )
 
@@ -35,4 +42,5 @@ test('combines real login and auth me responses into the frontend session', () =
   assert.equal(session.userInfo.id, 'S2026001')
   assert.equal(session.userInfo.name, 'student001')
   assert.equal(session.userInfo.role, 'student')
+  assert.equal(session.userInfo.needChangePassword, true)
 })

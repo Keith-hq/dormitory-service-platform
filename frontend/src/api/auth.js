@@ -17,5 +17,6 @@ export const authApi = {
       headers: { Authorization: `Bearer ${loginResult?.token || ''}` }
     })
     return normalizeAuthSession(loginResult, currentUser)
-  }
+  },
+  changePassword: (data) => request.put('/auth/password', data)
 }

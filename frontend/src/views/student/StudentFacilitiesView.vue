@@ -5,6 +5,7 @@ import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
+import { genRequestId } from '@/utils/id'
 
 const userStore = useUserStore()
 const activeMode = ref('booking')
@@ -17,7 +18,7 @@ const selectedResource = ref(null)
 const selectedDate = ref('明天')
 const selectedTime = ref('')
 const feedback = ref('')
-const actionLoading = ref(false)
+const actionLoading = ref('')
 const DATE_OPTIONS = ['今天', '明天', '周日']
 const TIME_SLOTS = ['08:00', '10:00', '14:00', '16:00', '19:00', '21:00']
 const isOccupiedSlot = (time) => ['10:00', '19:00'].includes(time)
@@ -26,16 +27,23 @@ const studentId = computed(() => userStore.userInfo?.id || '')
 const loadResources = async () => {
   loading.value = true
   error.value = ''
+  const selectedId = selectedResource.value?.facilityId ?? selectedResource.value?.itemId
   const results = await Promise.allSettled([
     studentApi.getFacilities({ page: 1, pageSize: 50 }),
     studentApi.getSharedItems({ page: 1, pageSize: 50 }),
-    studentApi.getItemLoans(studentId.value)
+    studentApi.getItemLoans(studentId.value, { page: 1, pageSize: 50 })
   ])
   if (results[0].status === 'fulfilled')
     facilities.value = normalizeCollection(results[0].value).items
   if (results[1].status === 'fulfilled')
     sharedItems.value = normalizeCollection(results[1].value).items
   if (results[2].status === 'fulfilled') loans.value = normalizeCollection(results[2].value).items
+  if (selectedId) {
+    selectedResource.value =
+      (activeMode.value === 'booking' ? facilities.value : sharedItems.value).find(
+        (item) => (item.facilityId ?? item.itemId) === selectedId
+      ) ?? null
+  }
   if (results.every((result) => result.status === 'rejected'))
     error.value = '设施与共享物品暂时无法同步'
   loading.value = false
@@ -48,11 +56,17 @@ const resourceName = (item) =>
   item.itemName ||
   item.name ||
   `资源 #${item.facilityId || item.itemId || item.id}`
-const resourceStatus = (item) =>
-  item.status || (Number(item.quantity || item.stock || 0) > 0 ? '可用' : '暂无库存')
+const availableQuantity = (item) => Number(item.availableQty ?? item.quantity ?? item.stock ?? 0)
+const resourceStatus = (item) => item.status || (availableQuantity(item) > 0 ? '可用' : '暂无库存')
+const activeLoans = computed(() => loans.value.filter((loan) => !loan.returnTime))
+const switchMode = (mode) => {
+  activeMode.value = mode
+  selectedResource.value = null
+  feedback.value = ''
+}
 const submitBooking = async () => {
   if (!selectedResource.value?.facilityId) return
-  actionLoading.value = true
+  actionLoading.value = 'booking'
   feedback.value = ''
   try {
     await studentApi.createFacilityBooking(selectedResource.value.facilityId)
@@ -61,7 +75,34 @@ const submitBooking = async () => {
   } catch (requestError) {
     feedback.value = toUserMessage(requestError, '预约失败，请稍后重试')
   } finally {
-    actionLoading.value = false
+    actionLoading.value = ''
+  }
+}
+const borrowSelected = async () => {
+  if (!selectedResource.value?.itemId || availableQuantity(selectedResource.value) < 1) return
+  actionLoading.value = 'borrow'
+  feedback.value = ''
+  try {
+    await studentApi.createItemLoan(selectedResource.value.itemId, genRequestId())
+    feedback.value = '借用成功，库存与借用记录已同步'
+    await loadResources()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '借用失败，请确认库存和信用状态')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+const returnLoan = async (loan) => {
+  actionLoading.value = `return-${loan.loanId}`
+  feedback.value = ''
+  try {
+    await studentApi.returnItemLoan(loan.loanId)
+    feedback.value = '归还成功，库存已释放'
+    await loadResources()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '归还失败，请稍后重试')
+  } finally {
+    actionLoading.value = ''
   }
 }
 onMounted(loadResources)
@@ -77,13 +118,16 @@ onMounted(loadResources)
       <StatusTag :label="`${loans.length} 项借用记录`" tone="info" />
     </WorkspaceHeader>
     <nav class="mode-switch" aria-label="服务类型">
-      <button :class="{ active: activeMode === 'booking' }" @click="activeMode = 'booking'">
+      <button :class="{ active: activeMode === 'booking' }" @click="switchMode('booking')">
         设施预约 <span>{{ facilities.length }}</span></button
-      ><button :class="{ active: activeMode === 'items' }" @click="activeMode = 'items'">
+      ><button :class="{ active: activeMode === 'items' }" @click="switchMode('items')">
         共享物品 <span>{{ sharedItems.length }}</span>
       </button>
     </nav>
     <InlineState :loading="loading" :error="error" />
+    <p v-if="feedback" class="schedule-feedback global-feedback" role="status">
+      {{ feedback }}
+    </p>
 
     <div v-if="!loading" class="resource-layout">
       <section class="resource-browser">
@@ -112,7 +156,9 @@ onMounted(loadResources)
             <p>{{ item.location || item.description || '服务位置与说明待同步' }}</p>
             <footer>
               <small>{{
-                activeMode === 'booking' ? '查看时段' : `库存 ${item.quantity ?? item.stock ?? '—'}`
+                activeMode === 'booking'
+                  ? '查看时段'
+                  : `可借 ${availableQuantity(item)} / 共 ${item.totalQty ?? '—'}`
               }}</small
               ><StatusTag :label="resourceStatus(item)" tone="success" size="small" />
             </footer>
@@ -153,20 +199,21 @@ onMounted(loadResources)
               {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
             </button>
           </div>
-          <p v-if="feedback" class="schedule-feedback" role="status">{{ feedback }}</p>
           <button
             class="btn btn-primary schedule-action"
-            :disabled="actionLoading"
+            :disabled="actionLoading === 'booking'"
             @click="submitBooking"
           >
-            {{ actionLoading ? '预约中…' : '确认预约' }}
+            {{ actionLoading === 'booking' ? '预约中…' : '确认预约' }}
           </button></template
         >
         <template v-else-if="selectedResource"
           ><dl>
             <div>
               <dt>当前库存</dt>
-              <dd>{{ selectedResource.quantity ?? selectedResource.stock ?? '—' }}</dd>
+              <dd>
+                {{ availableQuantity(selectedResource) }} / {{ selectedResource.totalQty ?? '—' }}
+              </dd>
             </div>
             <div>
               <dt>信用要求</dt>
@@ -177,7 +224,45 @@ onMounted(loadResources)
               <dd>以物品规则为准</dd>
             </div>
           </dl>
-          <button class="btn btn-primary schedule-action">申请借用</button></template
+          <button
+            class="btn btn-primary schedule-action"
+            :disabled="actionLoading === 'borrow' || availableQuantity(selectedResource) < 1"
+            @click="borrowSelected"
+          >
+            {{
+              actionLoading === 'borrow'
+                ? '借用中…'
+                : availableQuantity(selectedResource) < 1
+                  ? '暂无库存'
+                  : '申请借用'
+            }}
+          </button>
+          <section class="loan-ledger">
+            <header>
+              <span>ACTIVE LOANS</span><strong>我的待归还 {{ activeLoans.length }}</strong>
+            </header>
+            <article v-for="loan in activeLoans" :key="loan.loanId">
+              <div>
+                <b>物品 #{{ loan.itemId }}</b
+                ><small
+                  >借用单 #{{ loan.loanId }} ·
+                  {{
+                    loan.dueTime
+                      ? `应还 ${new Date(loan.dueTime).toLocaleDateString()}`
+                      : '归还期限待同步'
+                  }}</small
+                >
+              </div>
+              <button
+                class="btn btn-sm"
+                :disabled="actionLoading === `return-${loan.loanId}`"
+                @click="returnLoan(loan)"
+              >
+                {{ actionLoading === `return-${loan.loanId}` ? '归还中…' : '确认归还' }}
+              </button>
+            </article>
+            <p v-if="!activeLoans.length">当前没有待归还物品。</p>
+          </section></template
         >
         <InlineState v-else empty empty-text="从左侧选择设施或物品" />
       </aside>
@@ -367,6 +452,9 @@ onMounted(loadResources)
   color: #f4edde;
   font-size: 10px;
 }
+.global-feedback {
+  margin: 14px 0;
+}
 .schedule-action {
   width: calc(100% - 36px);
   margin: 8px 18px;
@@ -388,6 +476,34 @@ onMounted(loadResources)
   margin: 0;
   font-family: var(--font-display);
   font-size: 12px;
+}
+.loan-ledger {
+  margin: 24px 18px 18px;
+  border-top: 1px solid #41564a;
+}
+.loan-ledger > header,
+.loan-ledger article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #41564a;
+}
+.loan-ledger header span,
+.loan-ledger small {
+  display: block;
+  color: #83968a;
+  font: 8px/1.5 var(--font-mono);
+}
+.loan-ledger header strong,
+.loan-ledger b {
+  font-size: 10px;
+  font-weight: 500;
+}
+.loan-ledger p {
+  color: #83968a;
+  font-size: 9px;
 }
 @media (max-width: 850px) {
   .workspace-page {

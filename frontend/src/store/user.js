@@ -102,6 +102,12 @@ export const useUserStore = defineStore('user', {
       }
     },
 
+    markPasswordChanged() {
+      if (!this.userInfo) return
+      this.userInfo = { ...this.userInfo, needChangePassword: false }
+      safeSetItem(USER_INFO_KEY, JSON.stringify(this.userInfo))
+    },
+
     logout() {
       this.token = ''
       this.userInfo = null
