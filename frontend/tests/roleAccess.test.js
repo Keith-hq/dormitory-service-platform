@@ -3,6 +3,11 @@ import assert from 'node:assert/strict'
 import { getSafeAuthRedirect } from '../src/router/authRedirect.js'
 import { getRoleHome, isRoleAllowed } from '../src/router/roleAccess.js'
 import { normalizeCollection } from '../src/utils/collection.js'
+import {
+  formatLocalDateInput,
+  formatLocalDateTimeInput,
+  formatLocalMonthInput
+} from '../src/utils/localDate.js'
 
 test('maps supported roles to their own workspace', () => {
   assert.equal(getRoleHome('student'), '/student')
@@ -41,4 +46,12 @@ test('normalizes common collection response shapes', () => {
     total: 4
   })
   assert.deepEqual(normalizeCollection(null), { items: [], total: 0 })
+})
+
+test('formats form defaults in local calendar time', () => {
+  const localTime = new Date(2026, 0, 2, 3, 4)
+
+  assert.equal(formatLocalDateInput(localTime), '2026-01-02')
+  assert.equal(formatLocalMonthInput(localTime), '2026-01')
+  assert.equal(formatLocalDateTimeInput(localTime), '2026-01-02T03:04')
 })

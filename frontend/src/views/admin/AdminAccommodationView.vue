@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import { accommodationApi } from '@/api/accommodation'
 import { MetricStrip, WorkspaceHeader } from '@/components'
 import { toUserMessage } from '@/utils/errorMessage'
+import { formatLocalDateInput } from '@/utils/localDate'
 
-const today = new Date().toISOString().slice(0, 10)
+const today = formatLocalDateInput()
 const allocation = ref({ studentId: '', roomId: '', bedNo: '', checkInDate: today })
 const transfer = ref({ allocationId: '', targetRoomId: '', targetBedNo: '' })
 const roomLookup = ref('')

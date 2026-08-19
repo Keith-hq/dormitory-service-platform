@@ -4,12 +4,11 @@ import { adminApi } from '@/api/admin'
 import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
+import { formatLocalDateTimeInput, formatLocalMonthInput } from '@/utils/localDate'
 
 const now = new Date()
-const currentMonth = now.toISOString().slice(0, 7)
-const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-  .toISOString()
-  .slice(0, 16)
+const currentMonth = formatLocalMonthInput(now)
+const localDateTime = formatLocalDateTimeInput(now)
 const month = ref(currentMonth)
 const rankings = ref([])
 const loading = ref(true)

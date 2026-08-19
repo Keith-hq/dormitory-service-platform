@@ -24,7 +24,7 @@ const run = async (key, action, success) => {
     latestRecord.value = data
     if (data?.registryId) registry.value.registryId = String(data.registryId)
     if (data?.qrToken) registry.value.qrToken = data.qrToken
-    feedback.value = success
+    feedback.value = typeof success === 'function' ? success(data) : success
   } catch (error) {
     feedback.value = toUserMessage(error, '门岗操作失败，请核对登记编号与通行码')
   } finally {
@@ -41,7 +41,10 @@ const submitVisitor = async () => {
         phone: visitor.value.phone || null,
         studentId: visitor.value.studentId || null
       }),
-    '访客登记已提交，登记编号与通行码已带入核验区'
+    (data) =>
+      data?.qrToken
+        ? '访客登记已提交，登记编号与通行码已带入核验区'
+        : '访客登记已提交，登记编号已带入核验区；请扫描访客二维码获取通行码'
   )
   if (latestRecord.value) visitor.value = { visitorName: '', phone: '', studentId: '' }
 }

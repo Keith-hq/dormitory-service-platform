@@ -4,14 +4,17 @@ import { utilityApi } from '@/api/utility'
 import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
+import { formatLocalMonthInput } from '@/utils/localDate'
 
-const currentMonth = new Date().toISOString().slice(0, 7)
+const currentMonth = formatLocalMonthInput()
 const loading = ref(true)
 const working = ref('')
 const error = ref('')
 const feedback = ref('')
 const bills = ref([])
 const total = ref(0)
+const page = ref(1)
+const PAGE_SIZE = 20
 const selected = ref(null)
 const details = ref([])
 const filters = ref({ buildingId: '', yearMonth: currentMonth, isPaid: '', publishStatus: '' })
@@ -23,6 +26,7 @@ const powerStatus = ref(null)
 const formatMoney = (value) =>
   value === null || value === undefined ? '—' : `¥ ${Number(value).toFixed(2)}`
 const statusOf = (bill) => bill.publishStatus || '未发布'
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
 const metrics = computed(() => [
   { label: '筛选账单', value: total.value, hint: filters.value.yearMonth || '全部账期' },
   {
@@ -46,8 +50,8 @@ const load = async () => {
       yearMonth: filters.value.yearMonth || undefined,
       isPaid: filters.value.isPaid === '' ? undefined : filters.value.isPaid === 'true',
       publishStatus: filters.value.publishStatus || undefined,
-      page: 1,
-      pageSize: 50
+      page: page.value,
+      pageSize: PAGE_SIZE
     })
     const normalized = normalizeCollection(data)
     bills.value = normalized.items
@@ -60,6 +64,17 @@ const load = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const applyFilters = () => {
+  page.value = 1
+  return load()
+}
+
+const goToPage = async (nextPage) => {
+  if (nextPage < 1 || nextPage > totalPages.value || nextPage === page.value) return
+  page.value = nextPage
+  await load()
 }
 
 const run = async (key, action, success, reload = false) => {
@@ -148,7 +163,7 @@ onMounted(load)
     </WorkspaceHeader>
     <MetricStrip :metrics="metrics" style="--metric-count: 3" />
 
-    <form class="filter-bar" @submit.prevent="load">
+    <form class="filter-bar" @submit.prevent="applyFilters">
       <label
         >楼栋 ID<input v-model="filters.buildingId" min="1" type="number" placeholder="全部"
       /></label>
@@ -203,6 +218,15 @@ onMounted(load)
           </button>
           <p v-if="!bills.length" class="empty">当前筛选条件下暂无账单。</p>
         </div>
+        <nav class="pager" aria-label="账单分页">
+          <button class="btn btn-sm" :disabled="page <= 1" @click="goToPage(page - 1)">
+            上一页
+          </button>
+          <span>第 {{ page }} / {{ totalPages }} 页 · 共 {{ total }} 笔</span>
+          <button class="btn btn-sm" :disabled="page >= totalPages" @click="goToPage(page + 1)">
+            下一页
+          </button>
+        </nav>
       </div>
 
       <aside class="ledger-tools">
@@ -338,6 +362,16 @@ onMounted(load)
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
   font-size: 11px;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-text-muted);
+  font-size: 9px;
 }
 .ledger-layout {
   display: grid;

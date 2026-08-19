@@ -5,6 +5,7 @@ import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
+import { genRequestId } from '@/utils/id'
 
 const userStore = useUserStore()
 const activeMode = ref('booking')
@@ -26,16 +27,23 @@ const studentId = computed(() => userStore.userInfo?.id || '')
 const loadResources = async () => {
   loading.value = true
   error.value = ''
+  const selectedId = selectedResource.value?.facilityId ?? selectedResource.value?.itemId
   const results = await Promise.allSettled([
     studentApi.getFacilities({ page: 1, pageSize: 50 }),
     studentApi.getSharedItems({ page: 1, pageSize: 50 }),
-    studentApi.getItemLoans(studentId.value)
+    studentApi.getItemLoans(studentId.value, { page: 1, pageSize: 50 })
   ])
   if (results[0].status === 'fulfilled')
     facilities.value = normalizeCollection(results[0].value).items
   if (results[1].status === 'fulfilled')
     sharedItems.value = normalizeCollection(results[1].value).items
   if (results[2].status === 'fulfilled') loans.value = normalizeCollection(results[2].value).items
+  if (selectedId) {
+    selectedResource.value =
+      (activeMode.value === 'booking' ? facilities.value : sharedItems.value).find(
+        (item) => (item.facilityId ?? item.itemId) === selectedId
+      ) ?? null
+  }
   if (results.every((result) => result.status === 'rejected'))
     error.value = '设施与共享物品暂时无法同步'
   loading.value = false
@@ -56,9 +64,6 @@ const switchMode = (mode) => {
   selectedResource.value = null
   feedback.value = ''
 }
-const createIdempotencyKey = () =>
-  globalThis.crypto?.randomUUID?.() ||
-  `loan-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 const submitBooking = async () => {
   if (!selectedResource.value?.facilityId) return
   actionLoading.value = 'booking'
@@ -78,7 +83,7 @@ const borrowSelected = async () => {
   actionLoading.value = 'borrow'
   feedback.value = ''
   try {
-    await studentApi.createItemLoan(selectedResource.value.itemId, createIdempotencyKey())
+    await studentApi.createItemLoan(selectedResource.value.itemId, genRequestId())
     feedback.value = '借用成功，库存与借用记录已同步'
     await loadResources()
   } catch (requestError) {
@@ -120,6 +125,9 @@ onMounted(loadResources)
       </button>
     </nav>
     <InlineState :loading="loading" :error="error" />
+    <p v-if="feedback" class="schedule-feedback global-feedback" role="status">
+      {{ feedback }}
+    </p>
 
     <div v-if="!loading" class="resource-layout">
       <section class="resource-browser">
@@ -191,7 +199,6 @@ onMounted(loadResources)
               {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
             </button>
           </div>
-          <p v-if="feedback" class="schedule-feedback" role="status">{{ feedback }}</p>
           <button
             class="btn btn-primary schedule-action"
             :disabled="actionLoading === 'booking'"
@@ -217,7 +224,6 @@ onMounted(loadResources)
               <dd>以物品规则为准</dd>
             </div>
           </dl>
-          <p v-if="feedback" class="schedule-feedback" role="status">{{ feedback }}</p>
           <button
             class="btn btn-primary schedule-action"
             :disabled="actionLoading === 'borrow' || availableQuantity(selectedResource) < 1"
@@ -445,6 +451,9 @@ onMounted(loadResources)
   background: #2a3a31;
   color: #f4edde;
   font-size: 10px;
+}
+.global-feedback {
+  margin: 14px 0;
 }
 .schedule-action {
   width: calc(100% - 36px);

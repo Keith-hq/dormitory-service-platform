@@ -15,6 +15,11 @@ const assets = ref([])
 const warnings = ref([])
 const cleaningTasks = ref([])
 const sharedItems = ref([])
+const warningPage = ref(1)
+const warningTotal = ref(0)
+const cleaningPage = ref(1)
+const cleaningTotal = ref(0)
+const PAGE_SIZE = 20
 const selectedAsset = ref(null)
 const selectedItem = ref(null)
 const assetForm = ref({ roomId: '', assetName: '', quantity: 1, status: '正常' })
@@ -27,6 +32,8 @@ const pendingCleaning = computed(
   () => cleaningTasks.value.filter((item) => item.status !== '已完成').length
 )
 const activeWarnings = computed(() => warnings.value.filter((item) => item.handled !== '是').length)
+const warningTotalPages = computed(() => Math.max(1, Math.ceil(warningTotal.value / PAGE_SIZE)))
+const cleaningTotalPages = computed(() => Math.max(1, Math.ceil(cleaningTotal.value / PAGE_SIZE)))
 const metrics = computed(() => [
   {
     label: '当前房间资产',
@@ -59,6 +66,11 @@ const loadRoomAssets = async () => {
   error.value = ''
   try {
     assets.value = normalizeCollection(await assetApi.getRoomAssets(roomId.value)).items
+    if (selectedAsset.value) {
+      const current = assets.value.find((item) => item.assetId === selectedAsset.value.assetId)
+      selectedAsset.value = current ?? null
+      if (current) stocktake.value.quantity = current.quantity ?? 0
+    }
   } catch (e) {
     error.value = toUserMessage(e, '房间资产暂时无法同步')
   }
@@ -68,16 +80,34 @@ const loadOperations = async () => {
   loading.value = true
   error.value = ''
   const results = await Promise.allSettled([
-    assetApi.getWarnings({ page: 1, pageSize: 50 }),
-    assetApi.getCleaningTasks({ page: 1, pageSize: 50 }),
+    assetApi.getWarnings({ page: warningPage.value, pageSize: PAGE_SIZE }),
+    assetApi.getCleaningTasks({ page: cleaningPage.value, pageSize: PAGE_SIZE }),
     assetApi.getSharedItems()
   ])
-  if (results[0].status === 'fulfilled')
-    warnings.value = normalizeCollection(results[0].value).items
-  if (results[1].status === 'fulfilled')
-    cleaningTasks.value = normalizeCollection(results[1].value).items
-  if (results[2].status === 'fulfilled')
+  if (results[0].status === 'fulfilled') {
+    const normalized = normalizeCollection(results[0].value)
+    warnings.value = normalized.items
+    warningTotal.value = normalized.total
+  }
+  if (results[1].status === 'fulfilled') {
+    const normalized = normalizeCollection(results[1].value)
+    cleaningTasks.value = normalized.items
+    cleaningTotal.value = normalized.total
+  }
+  if (results[2].status === 'fulfilled') {
     sharedItems.value = normalizeCollection(results[2].value).items
+    if (selectedItem.value) {
+      const current = sharedItems.value.find((item) => item.itemId === selectedItem.value.itemId)
+      selectedItem.value = current ?? null
+      if (current) {
+        sharedEdit.value = {
+          quantity: current.totalQty ?? 0,
+          status: current.status || '正常',
+          description: current.description || ''
+        }
+      }
+    }
+  }
   const failedCount = results.filter((result) => result.status === 'rejected').length
   if (failedCount === results.length) {
     error.value = '运营数据暂时无法同步，请确认后端服务与数据库迁移状态。'
@@ -85,6 +115,14 @@ const loadOperations = async () => {
     error.value = `已有 ${results.length - failedCount}/${results.length} 组运营数据同步成功，其余接口暂时不可用。`
   }
   loading.value = false
+}
+
+const goOperationPage = async (kind, nextPage) => {
+  const currentPage = kind === 'warnings' ? warningPage : cleaningPage
+  const totalPages = kind === 'warnings' ? warningTotalPages : cleaningTotalPages
+  if (nextPage < 1 || nextPage > totalPages.value || nextPage === currentPage.value) return
+  currentPage.value = nextPage
+  await loadOperations()
 }
 
 const createAsset = async () => {
@@ -366,6 +404,23 @@ onMounted(loadOperations)
           </div>
           <p v-if="!warnings.length">当前没有损耗预警。</p>
         </div>
+        <nav class="pager" aria-label="损耗预警分页">
+          <button
+            class="btn btn-sm"
+            :disabled="warningPage <= 1"
+            @click="goOperationPage('warnings', warningPage - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ warningPage }} / {{ warningTotalPages }} 页 · 共 {{ warningTotal }} 条</span>
+          <button
+            class="btn btn-sm"
+            :disabled="warningPage >= warningTotalPages"
+            @click="goOperationPage('warnings', warningPage + 1)"
+          >
+            下一页
+          </button>
+        </nav>
       </article>
     </section>
 
@@ -394,6 +449,23 @@ onMounted(loadOperations)
         </article>
         <p v-if="!cleaningTasks.length">当前没有保洁任务。</p>
       </div>
+      <nav class="pager" aria-label="保洁任务分页">
+        <button
+          class="btn btn-sm"
+          :disabled="cleaningPage <= 1"
+          @click="goOperationPage('cleaning', cleaningPage - 1)"
+        >
+          上一页
+        </button>
+        <span>第 {{ cleaningPage }} / {{ cleaningTotalPages }} 页 · 共 {{ cleaningTotal }} 条</span>
+        <button
+          class="btn btn-sm"
+          :disabled="cleaningPage >= cleaningTotalPages"
+          @click="goOperationPage('cleaning', cleaningPage + 1)"
+        >
+          下一页
+        </button>
+      </nav>
     </section>
 
     <section v-else class="work-grid shared-desk">
@@ -479,6 +551,16 @@ onMounted(loadOperations)
   padding: 12px 24px;
   color: var(--color-accent);
   border-bottom: 1px solid var(--color-line);
+}
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-text-muted);
+  font-size: 10px;
 }
 .desk-tabs {
   display: flex;
