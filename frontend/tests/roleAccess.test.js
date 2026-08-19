@@ -27,6 +27,9 @@ test('keeps redirects on registered internal role routes', () => {
   )
   assert.equal(getSafeAuthRedirect('/counselor', '/counselor'), '/counselor')
   assert.equal(getSafeAuthRedirect('/super-admin/audit', '/super-admin'), '/super-admin/audit')
+  for (const path of ['/admin/accommodation', '/admin/assets', '/admin/billing', '/admin/safety']) {
+    assert.equal(getSafeAuthRedirect(`${path}?from=review`, '/admin'), `${path}?from=review`)
+  }
   assert.equal(getSafeAuthRedirect('//example.com', '/admin'), '/admin')
   assert.equal(getSafeAuthRedirect('/unknown', '/admin'), '/admin')
 })

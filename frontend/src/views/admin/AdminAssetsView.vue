@@ -327,7 +327,7 @@ onMounted(loadOperations)
           </div>
           <form class="form-grid" @submit.prevent="submitStocktake">
             <label
-              >盘点数量<input v-model="stocktake.quantity" min="0" max="999" type="number"
+              >盘点数量<input v-model="stocktake.quantity" required min="0" max="999" type="number"
             /></label>
             <label>盘点说明<input v-model.trim="stocktake.note" maxlength="500" /></label>
             <button class="btn btn-primary" :disabled="working === 'stocktake'">保存盘点</button>
@@ -442,7 +442,7 @@ onMounted(loadOperations)
           </header>
           <form class="form-grid" @submit.prevent="updateSharedItem">
             <label
-              >总数量<input v-model="sharedEdit.quantity" min="0" max="999" type="number"
+              >总数量<input v-model="sharedEdit.quantity" required min="0" max="999" type="number"
             /></label>
             <label
               >状态<select v-model="sharedEdit.status">
