@@ -1568,7 +1568,10 @@ onMounted(load)
 .audit-stream header,
 .audit-stream article {
   display: grid;
-  grid-template-columns: minmax(170px, 0.8fr) minmax(140px, 0.7fr) minmax(220px, 1.5fr) minmax(150px, 0.8fr);
+  grid-template-columns: minmax(170px, 0.8fr) minmax(140px, 0.7fr) minmax(220px, 1.5fr) minmax(
+      150px,
+      0.8fr
+    );
   gap: 18px;
   align-items: center;
   min-width: 0;

@@ -217,7 +217,6 @@ onMounted(loadRankings)
         </section>
       </aside>
     </section>
-
   </main>
 </template>
 

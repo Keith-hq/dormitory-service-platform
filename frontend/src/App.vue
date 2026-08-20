@@ -114,9 +114,7 @@ const logout = async () => {
   overflow: visible;
   padding: 0 clamp(22px, 4vw, 60px);
   border-bottom: 0;
-  background:
-    linear-gradient(90deg, #074ea4, #0b65c8 58%, #078cba),
-    var(--color-brand);
+  background: linear-gradient(90deg, #074ea4, #0b65c8 58%, #078cba), var(--color-brand);
   color: #fff;
   box-shadow: 0 18px 45px rgba(7, 58, 124, 0.18);
   backdrop-filter: blur(16px);
