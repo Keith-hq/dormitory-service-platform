@@ -29,6 +29,10 @@ static TimeZoneInfo GetBusinessTimeZone()
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
 // 测试环境默认配置（必须在 builder.Configuration 读取之前设置）
 if (builder.Environment.IsEnvironment("Test"))
 {

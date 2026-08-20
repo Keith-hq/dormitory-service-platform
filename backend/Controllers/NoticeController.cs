@@ -23,7 +23,7 @@ public class NoticeController : ControllerBase
 
     /// <summary>分页查询公告列表（置顶优先、发布时间倒序，对齐契约 GET /notices）</summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<PagedResult<Notice>>>> GetPaged(
+    public async Task<ActionResult<ApiResponse<PagedResult<NoticeItemDto>>>> GetPaged(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {

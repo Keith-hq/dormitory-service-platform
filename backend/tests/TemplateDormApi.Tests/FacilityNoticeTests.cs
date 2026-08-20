@@ -1,8 +1,11 @@
+using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
 using TemplateDormApi.Models;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Services;
+using TemplateDormApi.Controllers;
 
 namespace TemplateDormApi.Tests;
 
@@ -123,5 +126,33 @@ public class FacilityNoticeTests
         Assert.Equal(2, result.Page);
         Assert.Equal(5, result.PageSize);
         Assert.Equal(1, result.Total);
+    }
+
+    [Fact]
+    public async Task NoticeController_GetPagedAsync_ReturnsSerializableDto_WhenNoticeIsPinned()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Notices.Add(new Notice
+        {
+            AdminId = "A2026001",
+            Title = "置顶公告",
+            Content = "请完成交接。",
+            PublishTime = new DateTime(2026, 8, 20, 9, 0, 0),
+            Display = new NoticeDisplay { IsPinned = "是", PinTime = new DateTime(2026, 8, 20, 10, 0, 0) }
+        });
+        await context.SaveChangesAsync();
+
+        var controller = new NoticeController(new NoticeService(new NoticeRepository(context)));
+        var actionResult = await controller.GetPaged(1, 5);
+
+        var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
+        var response = Assert.IsType<ApiResponse<PagedResult<NoticeItemDto>>>(ok.Value);
+        var notice = Assert.Single(response.Data!.Items);
+        Assert.Equal("置顶公告", notice.Title);
+        Assert.Equal("是", notice.IsPinned);
+
+        var json = JsonSerializer.Serialize(response);
+        Assert.Contains(nameof(NoticeItemDto.IsPinned), json);
+        Assert.DoesNotContain("display", json, StringComparison.OrdinalIgnoreCase);
     }
 }

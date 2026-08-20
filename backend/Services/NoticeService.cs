@@ -16,12 +16,12 @@ public class NoticeService : INoticeService
         _repository = repository;
     }
 
-    public async Task<PagedResult<Notice>> GetPagedAsync(int page, int pageSize)
+    public async Task<PagedResult<NoticeItemDto>> GetPagedAsync(int page, int pageSize)
     {
         var (items, total) = await _repository.GetPagedAsync(page, pageSize);
-        return new PagedResult<Notice>
+        return new PagedResult<NoticeItemDto>
         {
-            Items = items,
+            Items = items.Select(ToItemDto).ToList(),
             Total = total,
             Page = page,
             PageSize = pageSize
@@ -77,4 +77,16 @@ public class NoticeService : INoticeService
 
     public async Task<bool> DeleteAsync(int id)
         => await _repository.DeleteAsync(id);
+
+    private static NoticeItemDto ToItemDto(Notice notice)
+        => new()
+        {
+            NoticeId = notice.NoticeId,
+            AdminId = notice.AdminId,
+            Title = notice.Title,
+            Content = notice.Content,
+            PublishTime = notice.PublishTime,
+            IsPinned = notice.Display?.IsPinned ?? "否",
+            PinTime = notice.Display?.PinTime
+        };
 }
