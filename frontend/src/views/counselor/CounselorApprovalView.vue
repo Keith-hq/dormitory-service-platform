@@ -88,24 +88,26 @@ onMounted(load)
         <header>
           <span>PENDING INBOX</span><b>{{ pending.length }}</b>
         </header>
-        <button
-          v-for="item in applications"
-          :key="item.applyId ?? item.applicationId"
-          :class="{
-            active:
-              (selected?.applyId ?? selected?.applicationId) ===
-              (item.applyId ?? item.applicationId)
-          }"
-          @click="selected = item"
-        >
-          <small>{{ statusOf(item) }} · {{ item.studentId ?? '学号待同步' }}</small
-          ><strong>{{ item.studentName ?? item.destination ?? '离校申请' }}</strong>
-          <p>
-            {{ item.leaveDate ?? item.startDate ?? '—' }} →
-            {{ item.returnDate ?? item.endDate ?? '—' }}
-          </p>
-        </button>
-        <p v-if="!applications.length" class="empty">当前没有离校申请</p>
+        <div class="inbox-list">
+          <button
+            v-for="item in applications"
+            :key="item.applyId ?? item.applicationId"
+            :class="{
+              active:
+                (selected?.applyId ?? selected?.applicationId) ===
+                (item.applyId ?? item.applicationId)
+            }"
+            @click="selected = item"
+          >
+            <small>{{ statusOf(item) }} · {{ item.studentId ?? '学号待同步' }}</small
+            ><strong>{{ item.studentName ?? item.destination ?? '离校申请' }}</strong>
+            <p>
+              {{ item.leaveDate ?? item.startDate ?? '—' }} →
+              {{ item.returnDate ?? item.endDate ?? '—' }}
+            </p>
+          </button>
+          <p v-if="!applications.length" class="empty">当前没有离校申请</p>
+        </div>
       </aside>
       <article v-if="selected" class="application-sheet">
         <header>
@@ -160,150 +162,250 @@ onMounted(load)
 
 <style scoped>
 .approval-page {
-  width: min(100% - 40px, var(--content-max));
+  width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: 72px;
 }
 .approval-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  min-height: 520px;
-  margin-top: 30px;
-  border: 1px solid var(--color-line-strong);
-  background: rgba(255, 255, 255, 0.25);
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  height: 640px;
+  margin-top: 28px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .inbox {
-  border-right: 1px solid var(--color-line-strong);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface-muted);
 }
 .inbox header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 18px 20px;
-  font: 9px var(--font-mono);
-  border-bottom: 1px solid var(--color-line);
+  gap: 16px;
+  padding: 20px 20px 14px;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+.inbox header span,
+.inbox header b {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+.inbox-list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0 12px;
+  scrollbar-color: var(--color-brand-border) transparent;
+  scrollbar-width: thin;
 }
 .inbox button {
   display: flex;
-  width: 100%;
+  width: calc(100% - 24px);
   flex-direction: column;
   align-items: start;
   gap: 7px;
-  padding: 18px 20px;
+  margin: 0 12px 12px;
+  padding: 16px 16px 18px;
   border: 0;
-  border-bottom: 1px solid var(--color-line);
-  background: transparent;
+  border-radius: var(--radius-lg);
+  background: #fff;
   text-align: left;
   cursor: pointer;
+  box-shadow: 0 10px 22px rgba(23, 65, 120, 0.06);
 }
 .inbox button.active {
   background: var(--color-brand-soft);
+  color: var(--color-ink);
+  box-shadow: 0 14px 28px rgba(11, 99, 199, 0.12);
 }
 .inbox small {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0;
 }
 .inbox strong {
-  font-size: 12px;
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 800;
 }
 .inbox p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 13px;
+  line-height: 1.7;
 }
 .application-sheet {
-  padding: 36px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 32px;
+  background: #fff;
 }
 .application-sheet > header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  padding-bottom: 25px;
-  border-bottom: 1px solid var(--color-line-strong);
+  gap: 20px;
+  padding-bottom: 22px;
 }
-.application-sheet span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.13em;
+.application-sheet header span,
+.application-sheet section > span {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0;
 }
 .application-sheet h2 {
-  margin: 10px 0 0;
-  font: 500 32px var(--font-display);
+  margin: 9px 0 0;
+  color: var(--color-ink);
+  font: 900 30px var(--font-display);
+  line-height: 1.2;
 }
 .application-sheet header b {
-  font-size: 10px;
-  color: var(--color-accent-strong);
+  align-self: start;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .application-sheet dl {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
   margin: 0;
-  border-bottom: 1px solid var(--color-line);
 }
 .application-sheet dl div {
-  padding: 18px 14px;
-  border-right: 1px solid var(--color-line);
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
 }
-dt {
-  color: var(--color-text-soft);
-  font-size: 9px;
+.application-sheet dt {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 700;
 }
-dd {
+.application-sheet dd {
   margin: 7px 0 0;
-  font-size: 11px;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.5;
 }
 .application-sheet section {
-  padding: 28px 0;
+  padding: 24px 0 18px;
 }
 .application-sheet section p {
-  font-size: 12px;
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
   line-height: 1.8;
 }
 .application-sheet footer {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(170px, 220px) minmax(0, 1fr);
   gap: 16px;
-  padding-top: 20px;
-  border-top: 1px solid var(--color-line-strong);
+  align-items: start;
+  margin-top: auto;
+  padding-top: 18px;
 }
 .application-sheet footer div {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  min-width: 0;
 }
 .application-sheet input {
-  min-width: 220px;
-  padding: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 14px;
+}
+.application-sheet footer > .btn,
+.application-sheet footer div .btn {
+  min-height: 48px;
+}
+.application-sheet input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
 }
 .feedback {
-  color: var(--color-accent-strong);
-  font-size: 11px;
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font-size: 13px;
 }
 .placeholder,
 .empty {
   display: grid;
   place-items: center;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 @media (max-width: 800px) {
   .approval-layout {
     grid-template-columns: 1fr;
+    height: auto;
   }
   .inbox {
     border-right: 0;
+    padding-bottom: 8px;
+  }
+  .inbox-list {
+    max-height: 420px;
   }
   .application-sheet dl {
     grid-template-columns: 1fr 1fr;
   }
   .application-sheet footer {
-    align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
   .application-sheet footer div {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
   .application-sheet input {
     min-width: 0;
+  }
+}
+@media (max-width: 520px) {
+  .approval-page {
+    width: min(100% - 32px, var(--content-max));
+  }
+  .application-sheet {
+    padding: 24px 18px;
+  }
+  .application-sheet dl {
+    grid-template-columns: 1fr;
   }
 }
 </style>

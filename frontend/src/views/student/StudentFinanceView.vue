@@ -249,8 +249,9 @@ onMounted(loadFinance)
   gap: 9px;
 }
 .wallet-band form > label {
-  color: #91a198;
-  font-size: 9px;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  font-weight: 750;
 }
 .wallet-band form > div {
   display: flex;
@@ -258,16 +259,18 @@ onMounted(loadFinance)
 }
 .wallet-band .form-select {
   min-width: 82px;
-  border-color: #65766d;
-  background: #203229;
-  color: #f5edde;
+  border-color: var(--color-line-strong);
+  background: #fff;
+  color: var(--color-ink);
 }
 .finance-feedback {
-  padding: 11px 14px;
-  border-left: 3px solid var(--color-accent);
-  background: var(--color-surface-muted);
+  padding: 14px 16px;
+  border-left: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
   color: var(--color-brand);
-  font-size: 10px;
+  font-size: 15px;
+  font-weight: 800;
 }
 .finance-grid {
   display: grid;
@@ -276,52 +279,57 @@ onMounted(loadFinance)
 }
 .bill-ledger,
 .wallet-flow {
-  border: 1px solid var(--color-line-strong);
-  background: rgba(250, 246, 237, 0.5);
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .bill-ledger > header,
 .wallet-flow > header {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  padding: 17px 20px;
-  border-bottom: 1px solid var(--color-line);
+  padding: 30px 34px 12px;
+  border-bottom: 0;
 }
 .bill-ledger h2,
 .wallet-flow h2 {
   margin: 5px 0 0;
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 500;
+  font-size: 30px;
+  font-weight: 950;
 }
 .bill-ledger header small {
   color: var(--color-text-soft);
-  font-size: 8px;
+  font-size: 15px;
+  font-weight: 700;
 }
 .bill-ledger > article {
   display: grid;
   grid-template-columns: 90px 1fr 90px auto auto;
   align-items: center;
-  min-height: 80px;
-  padding: 13px 20px;
-  border-bottom: 1px solid var(--color-line);
+  min-height: 92px;
+  margin: 14px 34px;
+  padding: 18px 22px;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
   gap: 15px;
 }
 .bill-ledger time {
-  color: var(--color-accent-strong);
-  font: 9px var(--font-mono);
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
 }
 .bill-split {
   display: flex;
   align-items: center;
   gap: 12px;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 15px;
 }
 .bill-split i {
-  width: 1px;
+  width: 0;
   height: 20px;
-  background: var(--color-line);
+  background: transparent;
 }
 .bill-split b {
   display: block;

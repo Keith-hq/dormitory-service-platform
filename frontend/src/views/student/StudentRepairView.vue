@@ -211,31 +211,33 @@ onMounted(loadTickets)
 .repair-compose,
 .ticket-queue,
 .repair-timeline {
-  border: 1px solid var(--color-line-strong);
-  background: rgba(250, 246, 237, 0.52);
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .repair-compose {
-  padding: 21px;
+  padding: 30px;
 }
 .repair-compose header > span,
 .ticket-queue header span,
 .repair-timeline header span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.15em;
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .repair-compose h2,
 .ticket-queue h2,
 .repair-timeline h2 {
   margin: 6px 0;
   font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 500;
+  font-size: 28px;
+  font-weight: 950;
 }
 .repair-compose header p {
   color: var(--color-text-muted);
-  font-size: 9px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.8;
 }
 .repair-compose form {
   display: grid;
@@ -245,8 +247,8 @@ onMounted(loadTickets)
 .repair-compose label {
   display: grid;
   color: var(--color-text-muted);
-  font-size: 9px;
-  gap: 7px;
+  font-size: 16px;
+  gap: 10px;
 }
 .repair-compose textarea {
   resize: vertical;
@@ -254,29 +256,30 @@ onMounted(loadTickets)
 .repair-compose form p {
   margin: 0;
   color: var(--color-brand);
-  font-size: 9px;
+  font-size: 15px;
 }
 .ticket-queue > header,
 .repair-timeline > header {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  min-height: 70px;
-  padding: 15px 18px;
-  border-bottom: 1px solid var(--color-line);
+  min-height: 92px;
+  padding: 28px 30px 12px;
+  border-bottom: 0;
 }
 .ticket-row {
   display: grid;
-  width: 100%;
+  width: calc(100% - 48px);
   grid-template-columns: 58px 1fr auto;
   align-items: center;
-  min-height: 78px;
-  padding: 12px 17px;
+  min-height: 92px;
+  margin: 14px 24px;
+  padding: 18px 20px;
   border: 0;
-  border-bottom: 1px solid var(--color-line);
-  background: transparent;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
   text-align: left;
-  gap: 10px;
+  gap: 16px;
   cursor: pointer;
 }
 .ticket-row:hover,
@@ -284,11 +287,13 @@ onMounted(loadTickets)
   background: var(--color-brand-soft);
 }
 .ticket-row.active {
-  box-shadow: inset 3px 0 var(--color-accent);
+  box-shadow: 0 12px 24px rgba(11, 99, 199, 0.12);
 }
 .ticket-row time {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
 }
 .ticket-row div {
   display: grid;
@@ -296,26 +301,28 @@ onMounted(loadTickets)
 }
 .ticket-row b {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 18px;
+  font-weight: 900;
 }
 .ticket-row small {
-  color: var(--color-text-soft);
-  font-size: 8px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
 }
 .repair-timeline {
   padding-bottom: 18px;
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: #fff;
+  color: var(--color-text);
 }
 .repair-timeline > header {
-  border-color: #405249;
+  border-color: transparent;
 }
 .timeline-step {
   position: relative;
   display: grid;
   margin-left: 28px;
   padding: 18px 18px 5px 28px;
-  color: #75887d;
+  color: var(--color-text-muted);
 }
 .timeline-step::before {
   position: absolute;
@@ -335,16 +342,16 @@ onMounted(loadTickets)
   left: -1px;
   width: 9px;
   height: 9px;
-  border: 1px solid #657a6e;
+  border: 1px solid var(--color-brand-border);
   border-radius: 50%;
-  background: var(--color-ink);
+  background: #fff;
 }
 .timeline-step.done {
-  color: #f4edde;
+  color: var(--color-ink);
 }
 .timeline-step.done i {
-  border-color: #da8a6c;
-  background: #da8a6c;
+  border-color: var(--color-brand);
+  background: var(--color-brand);
 }
 .timeline-step b {
   font-family: var(--font-display);

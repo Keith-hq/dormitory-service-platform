@@ -6,6 +6,7 @@ import { getRoleHome } from '@/router/roleAccess'
 import { clearSession } from '@/store/session'
 import { useUserStore } from '@/store/user'
 import { toUserMessage } from '@/utils/errorMessage'
+import campusLogoMark from '@/assets/campus-logo-mark.png'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -67,7 +68,7 @@ const logout = async () => {
 
     <section class="password-card" aria-labelledby="change-password-title">
       <header>
-        <span>舍</span>
+        <img :src="campusLogoMark" alt="" aria-hidden="true" />
         <div>
           <p>ACCOUNT SECURITY</p>
           <h2 id="change-password-title">首次登录改密</h2>
@@ -194,15 +195,16 @@ const logout = async () => {
   border-bottom: 1px solid var(--color-line);
   gap: 13px;
 }
-.password-card header > span {
-  display: grid;
+.password-card header > img {
+  display: block;
   width: 45px;
   height: 45px;
-  place-items: center;
-  border: 1px solid var(--color-accent);
-  color: var(--color-accent);
-  font: 20px var(--font-display);
-  transform: rotate(-3deg);
+  box-sizing: border-box;
+  padding: 3px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: #fff;
+  object-fit: contain;
 }
 .password-card header p {
   margin: 0;

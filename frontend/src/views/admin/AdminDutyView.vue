@@ -155,15 +155,19 @@ const recordExit = () =>
 
 <style scoped>
 .duty-page {
-  width: min(100% - 40px, var(--content-max));
+  width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: 72px;
 }
 .live-dot {
   display: flex;
   align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
   color: var(--color-brand);
-  font: 10px var(--font-mono);
+  font: 800 12px var(--font-mono);
   gap: 8px;
 }
 .live-dot:before {
@@ -177,9 +181,10 @@ const recordExit = () =>
 .feedback {
   margin: 18px 0 0;
   padding: 12px 16px;
-  border-left: 3px solid var(--color-accent);
   background: var(--color-brand-soft);
-  font-size: 11px;
+  border-radius: var(--radius-lg);
+  color: var(--color-brand-strong);
+  font-size: 13px;
 }
 .duty-flow {
   display: grid;
@@ -188,7 +193,10 @@ const recordExit = () =>
   margin-top: 28px;
 }
 .duty-flow article {
-  border: 1px solid var(--color-line-strong);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .register-card,
 .checkpoint-card {
@@ -196,53 +204,52 @@ const recordExit = () =>
   padding: 30px;
 }
 .register-card {
-  background: var(--color-ink);
-  color: #fff;
+  background: #fff;
+  color: var(--color-text);
 }
 .checkpoint-card {
-  background: rgba(255, 255, 255, 0.28);
+  background: #fff;
 }
 .duty-flow header {
   min-height: 110px;
-  border-bottom: 1px solid var(--color-line);
+  margin-bottom: 16px;
 }
 .register-card header {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: transparent;
 }
 .duty-flow header span,
 .exit-card span {
-  color: var(--color-accent);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.15em;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .duty-flow h2 {
   margin: 10px 0 6px;
-  font: 500 28px var(--font-display);
+  color: var(--color-ink);
+  font: 900 28px var(--font-display);
+  line-height: 1.2;
 }
 .duty-flow header p,
 .exit-card p {
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.7;
-}
-.register-card header p {
-  color: #9aa49e;
 }
 .duty-flow form {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px;
-  margin-top: 24px;
+  gap: 12px;
+  margin-top: 18px;
 }
 .duty-flow label {
   display: flex;
   flex-direction: column;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
   gap: 7px;
-}
-.register-card label {
-  color: #b2bbb5;
 }
 .duty-flow label.wide,
 .duty-flow form button {
@@ -250,17 +257,17 @@ const recordExit = () =>
 }
 .duty-flow input {
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   padding: 10px 12px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   color: var(--color-ink);
-  font-size: 11px;
+  font-size: 14px;
 }
-.register-card input {
-  border-color: #46534c;
-  background: #233129;
-  color: #fff;
+.duty-flow input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
 }
 .checkpoint-card form {
   grid-template-columns: 1fr;
@@ -274,11 +281,12 @@ const recordExit = () =>
   grid-column: 1/-1;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
   padding: 24px 30px;
-  background: var(--color-surface-muted);
+  background: #fff;
 }
 .exit-card h2 {
-  font-size: 22px;
+  font-size: 24px;
 }
 .exit-card p {
   margin: 0;

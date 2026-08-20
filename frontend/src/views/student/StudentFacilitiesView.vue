@@ -303,9 +303,10 @@ onMounted(loadResources)
   font: 8px var(--font-mono);
 }
 .mode-switch button.active {
-  border-color: var(--color-accent);
-  color: var(--color-ink);
-  font-weight: 600;
+  border-color: transparent;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-weight: 850;
 }
 .resource-layout {
   display: grid;
@@ -314,43 +315,46 @@ onMounted(loadResources)
 }
 .resource-browser,
 .schedule-panel {
-  border: 1px solid var(--color-line-strong);
-  background: rgba(250, 246, 237, 0.52);
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .resource-browser > header,
 .schedule-panel > header {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  min-height: 72px;
-  padding: 16px 19px;
-  border-bottom: 1px solid var(--color-line);
+  min-height: 92px;
+  padding: 30px 34px 12px;
+  border-bottom: 0;
 }
 .resource-browser header span,
 .schedule-panel header span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.15em;
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .resource-browser h2,
 .schedule-panel h2 {
   margin: 6px 0 0;
   font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 500;
+  font-size: 30px;
+  font-weight: 950;
 }
 .resource-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 0 24px 24px;
 }
 .resource-grid > button {
   display: grid;
   min-height: 160px;
-  padding: 18px;
+  padding: 22px;
   border: 0;
-  border-right: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
-  background: transparent;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
   text-align: left;
   cursor: pointer;
 }
@@ -359,11 +363,13 @@ onMounted(loadResources)
   background: var(--color-brand-soft);
 }
 .resource-grid > button.active {
-  box-shadow: inset 3px 0 var(--color-accent);
+  box-shadow: 0 12px 24px rgba(11, 99, 199, 0.12);
 }
 .resource-grid > button > span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
 }
 .resource-grid h3 {
   align-self: end;
@@ -374,7 +380,8 @@ onMounted(loadResources)
 .resource-grid p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 15px;
+  line-height: 1.7;
 }
 .resource-grid footer {
   display: flex;
@@ -383,21 +390,22 @@ onMounted(loadResources)
   margin-top: 14px;
 }
 .resource-grid footer small {
-  color: var(--color-text-soft);
-  font-size: 8px;
+  color: var(--color-text-muted);
+  font-size: 14px;
 }
 .schedule-panel {
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: #fff;
+  color: var(--color-text);
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .schedule-panel > header {
-  border-color: #405249;
+  border-color: transparent;
 }
 .schedule-note {
   margin: 14px 18px 0;
-  color: #83968a;
-  font-size: 9px;
-  line-height: 1.6;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.7;
 }
 .date-line {
   display: grid;
@@ -406,15 +414,17 @@ onMounted(loadResources)
   gap: 7px;
 }
 .date-line button {
-  padding: 8px;
-  border: 1px solid #4e6257;
-  background: transparent;
-  color: #8fa096;
-  font-size: 9px;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 800;
 }
 .date-line button.active {
-  border-color: #d48769;
-  color: #f4edde;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 .time-slots {
   display: grid;
@@ -424,33 +434,39 @@ onMounted(loadResources)
 }
 .time-slots button {
   display: grid;
-  padding: 12px;
-  border: 1px solid #4d6156;
-  background: #203329;
-  color: #f3ebdd;
-  font: 10px var(--font-mono);
+  padding: 16px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
   text-align: left;
-  gap: 5px;
+  gap: 8px;
   cursor: pointer;
 }
 .time-slots button small {
-  color: #799084;
-  font: 8px var(--font-body);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
 }
 .time-slots button:disabled {
   opacity: 0.4;
 }
 .time-slots button.active {
-  border-color: var(--color-accent);
-  background: #2c4438;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 .schedule-feedback {
   margin: 13px 18px 0;
-  padding: 10px 12px;
-  border-left: 3px solid #d48769;
-  background: #2a3a31;
-  color: #f4edde;
-  font-size: 10px;
+  padding: 14px 16px;
+  border-left: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 15px;
+  font-weight: 800;
 }
 .global-feedback {
   margin: 14px 0;

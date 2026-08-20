@@ -151,10 +151,9 @@ const goPage = (page) => {
 <style scoped>
 .crud-table {
   overflow: hidden;
-  border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 
 .toolbar {
@@ -162,9 +161,8 @@ const goPage = (page) => {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
-  min-height: 74px;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-line);
+  min-height: 96px;
+  padding: 28px 36px 18px;
 }
 
 .toolbar__heading {
@@ -174,16 +172,17 @@ const goPage = (page) => {
 }
 
 .toolbar__heading span {
-  color: var(--color-text-soft);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  color: var(--color-brand);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 
 .toolbar__heading strong {
   color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 26px;
+  font-weight: 950;
 }
 
 .toolbar__actions {
@@ -196,30 +195,44 @@ const goPage = (page) => {
 .table-frame {
   position: relative;
   overflow-x: auto;
+  padding: 0 36px 22px;
 }
 
 .table {
   width: 100%;
-  border-collapse: collapse;
-  background: var(--color-surface);
-  font-size: 13px;
+  border-collapse: separate;
+  border-spacing: 0 14px;
+  background: transparent;
+  font-size: 16px;
 }
 
 .table th,
 .table td {
-  padding: 14px var(--space-4);
-  border-bottom: 1px solid var(--color-line);
+  padding: 19px 22px;
   text-align: left;
   white-space: nowrap;
 }
 
 .table th {
-  background: var(--color-surface-muted);
+  background: transparent;
+  color: var(--color-brand);
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.table tbody td {
+  background: #f4f7fc;
   color: var(--color-text-muted);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+}
+
+.table tbody td:first-child {
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.table tbody td:last-child {
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
 .table tbody tr {
@@ -227,11 +240,11 @@ const goPage = (page) => {
 }
 
 .table tbody tr:hover {
-  background: rgba(220, 238, 232, 0.28);
+  background: transparent;
 }
 
-.table tbody tr:last-child td {
-  border-bottom: 0;
+.table tbody tr:hover td {
+  background: #eef4ff;
 }
 
 .actions-heading {
@@ -248,12 +261,11 @@ const goPage = (page) => {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  min-height: 62px;
-  padding: var(--space-3) var(--space-5);
-  border-top: 1px solid var(--color-line);
-  background: var(--color-surface-muted);
+  min-height: 66px;
+  padding: 16px 36px 30px;
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .pagination__summary strong,
@@ -287,16 +299,17 @@ const goPage = (page) => {
   gap: var(--space-2);
   text-align: center;
   color: var(--color-text-muted);
+  font-size: 16px;
 }
 
 .empty__mark {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   margin-bottom: var(--space-2);
   place-items: center;
-  border: 1px dashed var(--color-brand-border);
-  border-radius: 50%;
+  border: 1px solid var(--color-brand-border);
+  border-radius: var(--radius-lg);
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
   font-family: var(--font-display);
@@ -306,7 +319,8 @@ const goPage = (page) => {
 .empty strong {
   color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 20px;
+  font-weight: 900;
 }
 
 .empty small,

@@ -135,28 +135,34 @@ onMounted(loadReport)
 }
 .finance-card,
 .facility-card {
-  border: 1px solid var(--color-line-strong);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .finance-card {
-  background: rgba(255, 255, 255, 0.36);
+  background: #fff;
 }
 .finance-card header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 22px;
-  border-bottom: 1px solid var(--color-line);
+  padding: 30px 34px 12px;
+  border-bottom: 0;
 }
 .finance-card header span,
 .facility-card > span,
 .scope-note > span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.14em;
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .finance-card header small {
   color: var(--color-text-muted);
-  font: 9px var(--font-mono);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
 }
 .amount-row {
   display: grid;
@@ -167,14 +173,13 @@ onMounted(loadReport)
   min-height: 150px;
   align-content: center;
   padding: 28px;
-  border-right: 1px solid var(--color-line);
-}
-.amount-row > div:last-child {
-  border-right: 0;
+  margin: 18px;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
 }
 .amount-row small {
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 15px;
 }
 .amount-row strong {
   margin-top: 12px;
@@ -185,26 +190,26 @@ onMounted(loadReport)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 17px 22px;
-  border-top: 1px solid var(--color-line);
-  color: var(--color-success);
-  font-size: 11px;
+  padding: 0 34px 30px;
+  color: var(--color-brand);
+  font-size: 15px;
+  font-weight: 800;
 }
 .settlement.due {
-  color: var(--color-accent-strong);
+  color: var(--color-brand);
 }
 .settlement b {
   font: 500 18px var(--font-display);
 }
 .facility-card {
   padding: 28px;
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: #fff;
+  color: var(--color-text);
 }
 .facility-card > strong {
   display: block;
   margin: 32px 0 6px;
-  color: var(--color-accent);
+  color: var(--color-brand);
   font: 500 76px var(--font-display);
   line-height: 0.9;
 }
@@ -214,13 +219,13 @@ onMounted(loadReport)
 }
 .facility-card p {
   margin: 22px 0;
-  color: #aaa39a;
-  font-size: 10px;
+  color: var(--color-text-muted);
+  font-size: 15px;
   line-height: 1.8;
 }
 .facility-card a {
-  color: var(--color-accent);
-  font-size: 11px;
+  color: var(--color-brand);
+  font-size: 15px;
   font-weight: 700;
 }
 .scope-note {

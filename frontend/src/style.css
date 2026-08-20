@@ -1,28 +1,29 @@
 :root {
-  --color-canvas: #f5f0e5;
-  --color-canvas-deep: #ece6d9;
-  --color-surface: #faf6ed;
-  --color-surface-muted: #f0ebdf;
-  --color-paper: #f6efdf;
-  --color-ink: #17231e;
-  --color-text: #334139;
-  --color-text-muted: #6d766e;
-  --color-text-soft: #90958d;
-  --color-line: #d5d0c5;
-  --color-line-strong: #b9b8ae;
-  --color-brand: #355a48;
-  --color-brand-strong: #213e31;
-  --color-brand-soft: #dfe5dc;
-  --color-brand-border: #a8b5aa;
-  --color-accent: #d06c51;
-  --color-accent-strong: #b84f39;
-  --color-danger: #b84f3f;
-  --color-danger-soft: #f5dfd8;
-  --color-focus: rgba(53, 90, 72, 0.2);
+  --color-canvas: #f3f8ff;
+  --color-canvas-deep: #e6f1ff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f9ff;
+  --color-paper: #ffffff;
+  --color-ink: #071b3a;
+  --color-text: #294466;
+  --color-text-muted: #536c90;
+  --color-text-soft: #8192aa;
+  --color-line: #e6eef9;
+  --color-line-strong: #d6e4f5;
+  --color-brand: #0b63c7;
+  --color-brand-strong: #064fa8;
+  --color-brand-soft: #e8f3ff;
+  --color-brand-border: #b9d8fb;
+  --color-accent: #2f6fdd;
+  --color-accent-strong: #1458be;
+  --color-danger: #c2413a;
+  --color-danger-soft: #fff0ee;
+  --color-focus: rgba(11, 99, 199, 0.18);
 
   --font-body:
-    'Avenir Next', Avenir, 'Segoe UI Variable', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-display: 'Songti SC', STSong, 'Noto Serif CJK SC', Georgia, serif;
+    'Inter', 'Segoe UI Variable', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-display:
+    'Inter', 'Segoe UI Variable', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
   --font-mono: 'SFMono-Regular', Consolas, monospace;
 
   --space-1: 4px;
@@ -35,13 +36,13 @@
   --space-8: 40px;
   --space-9: 48px;
 
-  --radius-sm: 2px;
-  --radius-md: 4px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
   --radius-lg: 8px;
-  --radius-xl: 14px;
-  --shadow-soft: 0 18px 45px rgba(31, 43, 36, 0.07);
-  --shadow-lift: 0 24px 70px rgba(31, 43, 36, 0.12);
-  --content-max: 1260px;
+  --radius-xl: 8px;
+  --shadow-soft: 0 18px 46px rgba(23, 65, 120, 0.09);
+  --shadow-lift: 0 28px 76px rgba(23, 65, 120, 0.15);
+  --content-max: 1440px;
 
   color: var(--color-text);
   background: var(--color-canvas);
@@ -69,8 +70,9 @@ body {
   min-width: 320px;
   min-height: 100svh;
   margin: 0;
-  background: linear-gradient(rgba(36, 45, 39, 0.027) 1px, transparent 1px), var(--color-canvas);
-  background-size: 100% 28px;
+  background:
+    radial-gradient(circle at 14% 8%, rgba(40, 132, 232, 0.12), transparent 28%),
+    linear-gradient(180deg, #eef7ff 0, #f8fbff 340px, #f3f8ff 100%), var(--color-canvas);
 }
 
 button,
@@ -109,22 +111,49 @@ h3 {
   min-height: 100svh;
 }
 
+#app
+  :where(
+    .student-home,
+    .community-page,
+    .facilities-page,
+    .finance-page,
+    .profile-page,
+    .repair-page,
+    .snapshot-page
+  ) {
+  font-size: 16px;
+}
+
+#app
+  :where(
+    .student-home,
+    .community-page,
+    .facilities-page,
+    .finance-page,
+    .profile-page,
+    .repair-page,
+    .snapshot-page
+  )
+  :where(p, small, span, label, dt, dd, time, button, input, select, textarea) {
+  letter-spacing: 0 !important;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
+  min-height: 42px;
   gap: var(--space-2);
   border: 1px solid var(--color-line-strong);
-  border-radius: 0;
-  padding: 7px 14px;
+  border-radius: var(--radius-lg);
+  padding: 9px 16px;
   background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.2;
   cursor: pointer;
-  box-shadow: 0 1px 0 rgba(23, 49, 54, 0.05);
+  box-shadow: 0 10px 24px rgba(23, 65, 120, 0.06);
   transition:
     border-color 0.18s ease,
     background 0.18s ease,
@@ -135,8 +164,8 @@ h3 {
 
 .btn:hover:not(:disabled) {
   border-color: var(--color-brand-border);
-  color: var(--color-brand-strong);
-  box-shadow: 0 7px 16px rgba(31, 54, 52, 0.08);
+  color: var(--color-brand);
+  box-shadow: 0 14px 28px rgba(23, 65, 120, 0.1);
   transform: translateY(-1px);
 }
 
@@ -159,21 +188,21 @@ h3 {
 }
 
 .btn-primary {
-  border-color: var(--color-brand);
-  background: var(--color-brand);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--color-brand), var(--color-accent));
   color: #fff;
-  box-shadow: 0 9px 18px rgba(22, 130, 121, 0.18);
+  box-shadow: 0 18px 34px rgba(11, 99, 199, 0.22);
 }
 
 .btn-primary:hover:not(:disabled) {
-  border-color: var(--color-brand-strong);
-  background: var(--color-brand-strong);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--color-brand-strong), #009ca8);
   color: #fff;
 }
 
 .btn-ghost {
-  border-color: transparent;
-  background: transparent;
+  border-color: var(--color-line-strong);
+  background: rgba(255, 255, 255, 0.64);
   box-shadow: none;
 }
 
@@ -192,20 +221,21 @@ h3 {
 }
 
 .btn-sm {
-  min-height: 30px;
-  padding: 5px 10px;
-  font-size: 12px;
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 13px;
 }
 
 .form-input,
 .form-select {
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid var(--color-line-strong);
-  border-radius: 0;
-  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  padding: 9px 14px;
   background: var(--color-surface);
   color: var(--color-ink);
   font-size: 14px;
+  font-weight: 600;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease;
@@ -242,5 +272,665 @@ h3 {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+#app
+  :where(
+    .workspace-page,
+    .page-frame,
+    .building-page,
+    .accommodation-page,
+    .assets-page,
+    .billing-page,
+    .duty-page,
+    .repair-page,
+    .safety-page,
+    .approval-page,
+    .governance-page
+  ) {
+  width: min(100% - 48px, var(--content-max));
+  margin: 0 auto;
+  padding-bottom: 76px;
+}
+
+#app
+  :where(
+    .notice-ledger,
+    .quick-station,
+    .contact-editor,
+    .residence-sheet,
+    .history-sheet,
+    .bill-ledger,
+    .wallet-flow,
+    .repair-compose,
+    .ticket-queue,
+    .repair-timeline,
+    .resource-browser,
+    .schedule-panel,
+    .duty-brief,
+    .building-pulse,
+    .records-panel,
+    .crud-table,
+    .search-form,
+    .operation-card,
+    .checkout-board,
+    .checkout-sheet,
+    .panel-card,
+    .metric-card,
+    .overview-card,
+    .work-card,
+    .service-card,
+    .asset-card,
+    .billing-card,
+    .safety-card,
+    .panel,
+    .ledger-main,
+    .ledger-tools section,
+    .bill-sheet
+  ) {
+  border: 0 !important;
+  border-radius: var(--radius-lg) !important;
+  background: #fff !important;
+  color: var(--color-text) !important;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1) !important;
+}
+
+#app
+  :where(
+    .notice-ledger,
+    .quick-station,
+    .contact-editor,
+    .residence-sheet,
+    .history-sheet,
+    .bill-ledger,
+    .wallet-flow,
+    .repair-compose,
+    .ticket-queue,
+    .repair-timeline,
+    .resource-browser,
+    .schedule-panel,
+    .community-workspace,
+    .community-guide,
+    .panel,
+    .records-panel,
+    .crud-table
+  )
+  > header {
+  position: relative;
+}
+
+#app
+  :where(
+    .contact-editor,
+    .residence-sheet,
+    .history-sheet,
+    .bill-ledger,
+    .wallet-flow,
+    .repair-compose,
+    .ticket-queue,
+    .resource-browser,
+    .schedule-panel,
+    .panel,
+    .records-panel,
+    .crud-table
+  )
+  > header::after,
+#app :where(.records-panel__header)::after,
+#app :where(.toolbar)::after {
+  content: none !important;
+}
+
+#app :where(.wallet-band, .identity-sheet) {
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: var(--radius-lg) !important;
+  background: #fff !important;
+  color: var(--color-ink) !important;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1) !important;
+}
+
+#app :where(.repair-timeline, .schedule-panel, .duty-brief, .operation-card--dark) {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: var(--color-text) !important;
+}
+
+#app :where(.repair-summary, .notice-list, .mode-switch) {
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: var(--radius-lg) !important;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(23, 65, 120, 0.08);
+}
+
+#app :where(.mode-switch) {
+  padding: 8px;
+}
+
+#app :where(.desk-tabs) {
+  overflow-x: auto;
+  padding: 8px;
+  border: 0 !important;
+  border-radius: var(--radius-lg) !important;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(23, 65, 120, 0.08);
+}
+
+#app :where(.desk-tabs button) {
+  min-height: 42px !important;
+  border: 0 !important;
+  border-radius: var(--radius-lg) !important;
+  color: var(--color-text-muted) !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+}
+
+#app :where(.desk-tabs button.active) {
+  background: var(--color-brand-soft) !important;
+  color: var(--color-brand) !important;
+  box-shadow: none !important;
+}
+
+#app :where(.mode-switch button) {
+  border-radius: var(--radius-lg) !important;
+  color: var(--color-text-muted) !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+}
+
+#app :where(.mode-switch button.active) {
+  border-color: transparent !important;
+  background: var(--color-brand-soft) !important;
+  color: var(--color-brand) !important;
+}
+
+#app
+  :where(
+    .notice-ledger > header,
+    .quick-station > header,
+    .contact-editor > header,
+    .residence-sheet > header,
+    .history-sheet > header,
+    .bill-ledger > header,
+    .wallet-flow > header,
+    .repair-compose header,
+    .ticket-queue > header,
+    .repair-timeline > header,
+    .resource-browser > header,
+    .schedule-panel > header,
+    .handover-board > header,
+    .operation-card header,
+    .checkout-board > header,
+    .panel > header,
+    .ledger-main > header,
+    .bill-sheet > header
+  ) {
+  border-color: transparent !important;
+}
+
+#app
+  :where(
+    .residence-brief span,
+    .notice-ledger header span,
+    .quick-station header span,
+    .identity-sheet > header span,
+    .contact-editor header span,
+    .residence-sheet header span,
+    .history-sheet header span,
+    .balance > span,
+    .bill-ledger header span,
+    .wallet-flow header span,
+    .repair-compose header > span,
+    .ticket-queue header span,
+    .repair-timeline header span,
+    .resource-browser header span,
+    .schedule-panel header span,
+    .brief-grid header span,
+    .handover-board header span,
+    .operation-card header span,
+    .checkout-board header span,
+    .panel header span,
+    .ledger-tools header span,
+    .bill-sheet header span
+  ) {
+  color: var(--color-brand) !important;
+  font-family: var(--font-body) !important;
+  font-size: 15px !important;
+  font-weight: 850 !important;
+  letter-spacing: 0 !important;
+}
+
+#app
+  :where(
+    .residence-brief h2,
+    .notice-ledger h2,
+    .quick-station h2,
+    .identity-sheet__name h2,
+    .contact-editor h2,
+    .residence-sheet h2,
+    .history-sheet h2,
+    .bill-ledger h2,
+    .wallet-flow h2,
+    .repair-compose h2,
+    .ticket-queue h2,
+    .repair-timeline h2,
+    .resource-browser h2,
+    .schedule-panel h2,
+    .brief-grid h2,
+    .handover-board h2,
+    .operation-card header h2,
+    .checkout-board h2,
+    .panel header h2,
+    .ledger-tools h2,
+    .bill-sheet h2,
+    .resource-grid h3,
+    .ticket-row b,
+    .wallet-flow article b,
+    .bill-split b,
+    .residence-grid strong
+  ) {
+  color: var(--color-ink) !important;
+  font-family: var(--font-display) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+
+#app
+  :where(
+    .contact-editor h2,
+    .residence-sheet h2,
+    .history-sheet h2,
+    .bill-ledger h2,
+    .wallet-flow h2,
+    .repair-compose h2,
+    .ticket-queue h2,
+    .repair-timeline h2,
+    .resource-browser h2,
+    .schedule-panel h2,
+    .panel header h2,
+    .records-panel__header h2,
+    .toolbar__heading strong
+  ) {
+  font-size: clamp(24px, 2vw, 31px) !important;
+  line-height: 1.2 !important;
+}
+
+#app
+  :where(
+    .quick-station,
+    .residence-sheet,
+    .history-sheet,
+    .wallet-flow,
+    .repair-compose,
+    .repair-timeline,
+    .schedule-panel,
+    .loan-ledger,
+    .panel,
+    .operation-card,
+    .ledger-main,
+    .ledger-tools section,
+    .inspection-desk section,
+    .duty-brief,
+    .building-pulse,
+    .register-card,
+    .checkpoint-card
+  )
+  > header {
+  align-items: flex-start !important;
+  flex-wrap: wrap !important;
+}
+
+#app
+  :where(
+    .quick-station,
+    .residence-sheet,
+    .history-sheet,
+    .wallet-flow,
+    .repair-compose,
+    .repair-timeline,
+    .schedule-panel,
+    .loan-ledger,
+    .panel,
+    .operation-card,
+    .ledger-main,
+    .ledger-tools section,
+    .inspection-desk section,
+    .duty-brief,
+    .building-pulse,
+    .register-card,
+    .checkpoint-card
+  )
+  > header
+  > span:first-child {
+  display: block !important;
+  flex: 0 0 100% !important;
+}
+
+#app
+  :where(
+    .quick-station,
+    .residence-sheet,
+    .history-sheet,
+    .wallet-flow,
+    .repair-compose,
+    .repair-timeline,
+    .schedule-panel,
+    .panel,
+    .operation-card,
+    .ledger-main,
+    .ledger-tools section,
+    .inspection-desk section,
+    .duty-brief,
+    .building-pulse,
+    .register-card,
+    .checkpoint-card
+  )
+  > header
+  > span:first-child
+  + h2,
+#app :where(.loan-ledger) > header > span:first-child + strong {
+  flex: 0 0 100% !important;
+  margin-top: 6px !important;
+}
+
+#app :where(.ledger-main) > header > span:first-child + b {
+  flex: 0 0 100% !important;
+  margin-top: 6px !important;
+}
+
+#app
+  :where(
+    .residence-brief p,
+    .identity-sheet__name p,
+    .identity-sheet__name small,
+    .identity-sheet dt,
+    .fee-summary span,
+    .fee-summary small,
+    .bill-ledger header small,
+    .bill-split,
+    .bill-total span,
+    .wallet-flow time,
+    .wallet-flow small,
+    .repair-compose header p,
+    .repair-compose label,
+    .ticket-row small,
+    .timeline-step span,
+    .resource-grid p,
+    .resource-grid footer small,
+    .schedule-note,
+    .schedule-panel dt,
+    .loan-ledger header span,
+    .loan-ledger small,
+    .loan-ledger p,
+    .duty-brief p,
+    .pulse-row small,
+    .notice-list p,
+    .operation-card label,
+    .checkout-register label,
+    .form-grid label,
+    .query label,
+    .filter-bar label,
+    .bill-actions label,
+    .checkout-board > header p,
+    .checkout-sheet dt,
+    .checkout-sheet > p
+  ) {
+  color: var(--color-text-muted) !important;
+  font-size: 16px !important;
+  line-height: 1.85 !important;
+}
+
+#app
+  :where(
+    .student-home,
+    .community-page,
+    .facilities-page,
+    .finance-page,
+    .profile-page,
+    .repair-page,
+    .snapshot-page
+  )
+  :where(
+    .resource-grid p,
+    .resource-grid footer small,
+    .schedule-note,
+    .date-line button,
+    .time-slots button,
+    .time-slots button small,
+    .schedule-panel dt,
+    .schedule-panel dd,
+    .loan-ledger small,
+    .loan-ledger p,
+    .loan-ledger header strong,
+    .loan-ledger b,
+    .balance small,
+    .fee-summary span,
+    .fee-summary small,
+    .wallet-band form > label,
+    .bill-ledger header small,
+    .bill-ledger time,
+    .bill-split,
+    .bill-total span,
+    .wallet-flow time,
+    .wallet-flow small,
+    .wallet-flow article > strong,
+    .identity-sheet__name p,
+    .identity-sheet__name small,
+    .identity-sheet dt,
+    .identity-sheet dd,
+    .contact-editor header small,
+    .contact-editor label span,
+    .contact-editor form p,
+    .residence-grid span,
+    .residence-sheet footer,
+    .history-sheet time,
+    .history-sheet article span,
+    .repair-summary span,
+    .repair-summary small,
+    .repair-compose header p,
+    .repair-compose label,
+    .repair-compose form p,
+    .ticket-row time,
+    .ticket-row small,
+    .timeline-step span,
+    .finance-card header small,
+    .amount-row small,
+    .settlement,
+    .facility-card p,
+    .facility-card a,
+    .scope-note p
+  ) {
+  font-size: max(14px, 1em) !important;
+  line-height: 1.7 !important;
+}
+
+#app
+  :where(
+    .student-home,
+    .community-page,
+    .facilities-page,
+    .finance-page,
+    .profile-page,
+    .repair-page,
+    .snapshot-page
+  )
+  :where(.resource-grid h3, .wallet-flow article b, .history-sheet article b, .ticket-row b) {
+  font-size: 18px !important;
+  line-height: 1.4 !important;
+}
+
+#app
+  :where(
+    .student-home,
+    .community-page,
+    .facilities-page,
+    .finance-page,
+    .profile-page,
+    .repair-page,
+    .snapshot-page
+  )
+  :where(input, select, textarea, .form-input, .form-select) {
+  min-height: 48px !important;
+  font-size: 15px !important;
+  font-weight: 650 !important;
+}
+
+#app :where(.wallet-band .form-select) {
+  border-color: var(--color-line-strong) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-ink) !important;
+}
+
+#app :where(.operation-card input, .checkout-board input, .checkout-board textarea) {
+  border-color: var(--color-line-strong) !important;
+  border-radius: var(--radius-lg) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-ink) !important;
+  font-size: 14px !important;
+}
+
+#app
+  :where(
+    .form-grid input,
+    .form-grid select,
+    .query input,
+    .repair-row input,
+    .filter-bar input,
+    .filter-bar select,
+    .ledger-tools input,
+    .bill-sheet input
+  ) {
+  border-color: var(--color-line-strong) !important;
+  border-radius: var(--radius-lg) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-ink) !important;
+  font-size: 14px !important;
+}
+
+#app :where(.operation-card--dark input) {
+  border-color: var(--color-line-strong) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-ink) !important;
+}
+
+#app :where(.balance, .fee-summary) {
+  border-color: var(--color-line) !important;
+}
+
+#app :where(.balance strong, .fee-summary b, .bill-total strong, .pulse-row b) {
+  color: var(--color-ink) !important;
+  font-family: var(--font-display) !important;
+  font-weight: 950 !important;
+}
+
+#app :where(.ticket-row, .resource-grid > button, .date-line button, .time-slots button) {
+  border-color: transparent !important;
+  background: #f6f9fe !important;
+  color: var(--color-text) !important;
+  box-shadow: none !important;
+}
+
+#app :where(.record-list > button) {
+  border-color: transparent !important;
+  background: #f6f9fe !important;
+  color: var(--color-ink) !important;
+}
+
+#app :where(.record-list > button:hover, .record-list > button.selected) {
+  background: var(--color-brand-soft) !important;
+}
+
+#app :where(.bill-row:not(.bill-row--head):hover, .bill-row.active) {
+  background: var(--color-brand-soft) !important;
+  color: var(--color-ink) !important;
+}
+
+#app :where(.bill-row--head, .detail-row--head) {
+  color: #355279 !important;
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+}
+
+#app :where(.cleaning-board article) {
+  border-color: var(--color-line) !important;
+}
+
+#app :where(.cleaning-board h3) {
+  color: var(--color-ink) !important;
+  font-family: var(--font-display) !important;
+  font-weight: 900 !important;
+}
+
+#app
+  :where(
+    .ticket-row:hover,
+    .ticket-row.active,
+    .resource-grid > button:hover,
+    .resource-grid > button.active
+  ) {
+  background: var(--color-brand-soft) !important;
+}
+
+#app :where(.ticket-row.active, .resource-grid > button.active) {
+  box-shadow: 0 12px 24px rgba(11, 99, 199, 0.12) !important;
+}
+
+#app :where(.timeline-step) {
+  color: var(--color-text-muted) !important;
+}
+
+#app .timeline-step::before {
+  background: var(--color-line) !important;
+}
+
+#app :where(.timeline-step i) {
+  border-color: var(--color-brand-border) !important;
+  background: var(--color-surface) !important;
+}
+
+#app :where(.timeline-step.done) {
+  color: var(--color-ink) !important;
+}
+
+#app :where(.timeline-step.done i) {
+  border-color: var(--color-brand) !important;
+  background: var(--color-brand) !important;
+}
+
+#app :where(.date-line button.active, .time-slots button.active) {
+  border-color: var(--color-brand) !important;
+  background: var(--color-brand-soft) !important;
+  color: var(--color-brand) !important;
+}
+
+#app :where(.schedule-feedback, .finance-feedback, .global-feedback) {
+  border-left: 0 !important;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft) !important;
+  color: var(--color-ink) !important;
+}
+
+#app :where(.loan-ledger, .loan-ledger > header, .loan-ledger article, .schedule-panel dl div) {
+  border-color: var(--color-line) !important;
+}
+
+@media (max-width: 820px) {
+  #app
+    :where(
+      .workspace-page,
+      .page-frame,
+      .building-page,
+      .accommodation-page,
+      .assets-page,
+      .billing-page,
+      .duty-page,
+      .repair-page,
+      .safety-page,
+      .approval-page,
+      .governance-page
+    ) {
+    width: min(100% - 32px, var(--content-max));
   }
 }
