@@ -78,9 +78,7 @@ onMounted(loadTickets)
       title="报修与处理进度"
       description="从问题描述到维修结果，所有状态变化集中在一条时间线上。"
     >
-      <button class="btn btn-primary" type="button" @click="startNewRepair">
-        发起报修
-      </button>
+      <button class="btn btn-primary" type="button" @click="startNewRepair">发起报修</button>
     </WorkspaceHeader>
     <section class="repair-summary">
       <article>

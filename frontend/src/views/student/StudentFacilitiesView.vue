@@ -111,7 +111,8 @@ const returnLoan = async (loan) => {
 }
 const activeBookingFor = (item) =>
   bookings.value.find(
-    (booking) => booking.facilityId === item.facilityId && ['已预约', '使用中'].includes(booking.status)
+    (booking) =>
+      booking.facilityId === item.facilityId && ['已预约', '使用中'].includes(booking.status)
   )
 const startUse = async (booking) => {
   actionLoading.value = `start-${booking.bookingId}`
