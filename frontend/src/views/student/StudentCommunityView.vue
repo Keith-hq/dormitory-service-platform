@@ -179,6 +179,41 @@ const itemMeta = (item) =>
   item.createTime ||
   '时间待同步'
 const itemStatus = (item) => item.status || item.result || '已记录'
+const detailLabels = {
+  recordId: '记录编号',
+  studentId: '学生编号',
+  recordTime: '记录时间',
+  applyId: '申请编号',
+  authId: '授权编号',
+  voteId: '投票编号',
+  appealId: '申诉编号',
+  leaveDate: '离校日期',
+  returnDate: '返校日期',
+  destination: '目的地',
+  visitorName: '访客姓名',
+  visitReason: '来访事由',
+  visitTime: '来访时间',
+  visitEnd: '授权截止',
+  reason: '说明内容',
+  status: '处理状态',
+  result: '处理结果',
+  title: '标题',
+  topic: '投票议题',
+  eligibleCount: '应参与人数',
+  createdAt: '创建时间',
+  createTime: '创建时间'
+}
+const detailLabel = (field) =>
+  detailLabels[field] ||
+  field
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (character) => character.toUpperCase())
+    .trim()
+const detailValue = (value) => {
+  if (typeof value === 'string' && value.includes('T')) return value.replace('T', ' ')
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value)
+  return String(value)
+}
 onMounted(loadCommunity)
 </script>
 
@@ -346,8 +381,8 @@ onMounted(loadCommunity)
             <dl v-if="expandedId === itemKey(item)" class="record-detail">
               <template v-for="(value, field) in item" :key="field">
                 <div v-if="value !== null && value !== undefined && value !== ''">
-                  <dt>{{ field }}</dt>
-                  <dd>{{ value }}</dd>
+                  <dt>{{ detailLabel(field) }}</dt>
+                  <dd>{{ detailValue(value) }}</dd>
                 </div>
               </template>
             </dl>
@@ -391,167 +426,250 @@ onMounted(loadCommunity)
 }
 .community-layout {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr) 235px;
-  margin-top: 27px;
-  gap: 14px;
+  grid-template-columns: 270px minmax(0, 1fr) 310px;
+  margin-top: 34px;
+  gap: 24px;
 }
 .community-nav,
 .community-workspace,
 .community-guide {
   border: 1px solid var(--color-line-strong);
-  background: rgba(250, 246, 237, 0.5);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
 }
 .community-nav {
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  color: var(--color-text);
 }
 .community-nav button {
+  position: relative;
   display: grid;
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 46px minmax(0, 1fr) 38px;
   align-items: center;
-  min-height: 70px;
-  padding: 11px 14px;
+  min-height: 116px;
+  padding: 22px 20px;
   border: 0;
-  border-bottom: 1px solid var(--color-line);
-  background: none;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  color: var(--color-text);
   text-align: left;
-  gap: 8px;
+  gap: 16px;
   cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
 }
 .community-nav button:hover,
 .community-nav button.active {
-  background: var(--color-brand-soft);
+  background: #eef4ff;
 }
 .community-nav button.active {
-  box-shadow: inset 3px 0 var(--color-accent);
+  box-shadow: 0 12px 24px rgba(11, 99, 199, 0.12);
 }
 .community-nav button > span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font: 14px var(--font-mono);
+  font-weight: 900;
 }
 .community-nav button div {
   display: grid;
-  gap: 4px;
+  gap: 8px;
 }
 .community-nav button b {
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 20px;
+  font-weight: 950;
+  line-height: 1.25;
 }
 .community-nav button small {
   color: var(--color-text-muted);
-  font-size: 8px;
+  font-size: 14px;
+  font-weight: 700;
 }
 .community-nav button > i {
   display: grid;
-  min-width: 20px;
-  height: 20px;
+  min-width: 32px;
+  height: 32px;
   place-items: center;
   border: 1px solid var(--color-line-strong);
-  color: var(--color-text-muted);
-  font: 7px var(--font-mono);
+  background: var(--color-surface-muted);
+  color: var(--color-brand-strong);
+  font: 13px var(--font-mono);
+  font-weight: 900;
   font-style: normal;
 }
 .community-workspace > header {
+  position: relative;
   display: flex;
   align-items: end;
   justify-content: space-between;
-  min-height: 112px;
-  padding: 19px 21px;
-  border-bottom: 1px solid var(--color-line);
-  gap: 18px;
+  overflow: hidden;
+  min-height: 156px;
+  padding: 34px 38px;
+  border-bottom: 0;
+  background: var(--color-surface);
+  gap: 24px;
+}
+.community-workspace {
+  color: var(--color-text);
+}
+.community-workspace > header::after {
+  content: none;
 }
 .community-workspace header span,
 .community-guide > span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.15em;
+  color: var(--color-brand);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .community-workspace h2,
 .community-guide h2 {
-  margin: 6px 0;
+  margin: 10px 0;
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 21px;
-  font-weight: 500;
+  font-size: clamp(26px, 2.3vw, 34px);
+  font-weight: 950;
+  line-height: 1.15;
 }
 .community-workspace header p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.7;
 }
 .community-records article {
   display: grid;
-  grid-template-columns: 35px 1fr auto auto;
+  grid-template-columns: 58px minmax(0, 1fr) auto auto;
   align-items: center;
-  min-height: 79px;
-  padding: 13px 20px;
-  border-bottom: 1px solid var(--color-line);
-  gap: 12px;
+  min-height: 112px;
+  margin: 14px 32px;
+  padding: 22px 24px;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  color: var(--color-text);
+  gap: 20px;
+  transition: background 0.18s ease;
+}
+.community-records article:hover {
+  background: #eef4ff;
 }
 .community-records time {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: #eef8ff;
+  color: var(--color-brand);
+  font: 15px var(--font-mono);
+  font-weight: 900;
 }
 .community-records article div {
   display: grid;
-  gap: 5px;
+  gap: 8px;
 }
 .community-records h3 {
   margin: 0;
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
 }
 .community-records p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 8px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.6;
 }
 .community-records article > button {
-  border: 0;
-  background: none;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
   color: var(--color-brand);
-  font-size: 8px;
+  font-size: 14px;
+  font-weight: 900;
   cursor: pointer;
 }
 .community-guide {
-  padding: 20px;
-  background: var(--color-ink);
-  color: var(--color-paper);
+  position: relative;
+  overflow: hidden;
+  padding: 32px;
+  background:
+    linear-gradient(180deg, rgba(6, 36, 80, 0.98), rgba(6, 55, 113, 0.96)), var(--color-ink);
+  color: #fff;
+}
+.community-guide::before {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px) 0 0 / 48px 48px;
+  content: '';
+  opacity: 0.35;
+}
+.community-guide > * {
+  position: relative;
+  z-index: 1;
+}
+.community-guide > span {
+  color: #80fbef;
 }
 .community-guide h2 {
-  margin-bottom: 28px;
+  margin-bottom: 42px;
 }
 .community-guide > div {
-  padding: 16px 0;
-  border-block: 1px solid #40544a;
+  padding: 24px 0;
+  border-block: 1px solid rgba(255, 255, 255, 0.2);
 }
 .community-guide > div b {
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 21px;
+  font-weight: 950;
 }
 .community-guide > div p {
-  margin: 8px 0 0;
-  color: #8da096;
-  font-size: 9px;
-  line-height: 1.7;
+  margin: 14px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.8;
 }
 .community-guide footer {
   display: grid;
-  margin-top: 25px;
-  padding: 14px;
-  background: #253b30;
-  gap: 5px;
+  margin-top: 32px;
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.12);
+  gap: 8px;
 }
 .community-guide footer span {
-  color: #82968b;
-  font-size: 8px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 14px;
+  font-weight: 700;
 }
 .community-guide footer b {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 20px;
+  font-weight: 950;
 }
 @media (max-width: 1000px) {
   .community-layout {
-    grid-template-columns: 190px 1fr;
+    grid-template-columns: 230px 1fr;
   }
   .community-guide {
     grid-column: 1/-1;
@@ -569,93 +687,123 @@ onMounted(loadCommunity)
     flex-direction: row;
   }
   .community-nav button {
-    min-width: 145px;
+    min-width: 190px;
   }
   .community-guide {
     grid-column: auto;
   }
   .community-records article {
-    grid-template-columns: 28px 1fr;
+    grid-template-columns: 58px 1fr;
   }
   .community-records :deep(.status-tag),
   .community-records article > button {
     grid-column: 2;
+    justify-self: start;
   }
 }
 .community-form {
   display: grid;
-  gap: 10px;
-  margin: 16px;
-  padding: 16px;
-  border: 1px solid var(--color-line-strong);
-  background: var(--color-surface-muted);
+  gap: 18px;
+  margin: 26px;
+  padding: 26px;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
 }
 .community-form h3 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 24px;
+  font-weight: 950;
 }
 .community-form label {
   display: grid;
-  gap: 5px;
-  color: var(--color-text-muted);
-  font-size: 10px;
+  gap: 9px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 850;
 }
 .community-form input,
 .community-form textarea,
 .community-form select {
-  padding: 8px 10px;
+  min-height: 48px;
+  padding: 12px 14px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
   background: var(--color-paper);
   color: var(--color-ink);
-  font-size: 12px;
+  font-size: 15px;
+  font-weight: 600;
 }
 .community-form textarea {
   resize: vertical;
 }
 .form-feedback {
   margin: 0;
-  padding: 9px 11px;
-  border-left: 3px solid var(--color-accent);
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
   background: var(--color-brand-soft);
   color: var(--color-brand);
-  font-size: 10px;
+  font-size: 15px;
+  font-weight: 850;
 }
 .appeal-hint {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 15px;
+  line-height: 1.7;
 }
 .appeal-empty {
-  padding: 9px 11px;
-  border-left: 3px solid var(--color-line-strong);
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
 }
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
 }
 .record-detail {
-  grid-column: 2;
-  margin: 6px 0 0;
-  padding: 8px 10px;
-  border-left: 2px solid var(--color-accent);
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 10px 0 0;
+  padding: 8px 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
   background: var(--color-surface-muted);
+  gap: 0 28px;
 }
 .record-detail div {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 3px 0;
-  font-size: 9px;
+  display: grid;
+  grid-template-columns: minmax(92px, 0.42fr) minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-line);
+  gap: 14px;
+  font-size: 14px;
+  line-height: 1.6;
 }
 .record-detail dt {
   color: var(--color-text-muted);
+  font-weight: 750;
 }
 .record-detail dd {
+  min-width: 0;
   margin: 0;
-  text-align: right;
+  color: var(--color-ink);
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 720px) {
+  .record-detail {
+    grid-column: 1/-1;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .record-detail div {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
 }
 </style>

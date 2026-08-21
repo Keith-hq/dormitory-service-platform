@@ -349,7 +349,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .building-page {
-  width: min(calc(100% - 48px), var(--content-max));
+  width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: var(--space-9);
 }
@@ -360,8 +360,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--color-line);
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 
 .page-stat span {
@@ -382,6 +385,14 @@ onBeforeUnmount(() => {
   display: grid;
   gap: var(--space-5);
   padding-top: var(--space-6);
+}
+
+.building-page :deep(.search-form),
+.building-page :deep(.crud-table) {
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 
 .filter-field {
@@ -420,7 +431,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: var(--space-5);
-  background: rgba(12, 36, 38, 0.52);
+  background: rgba(15, 54, 108, 0.34);
   backdrop-filter: blur(6px);
   z-index: 100;
 }
@@ -428,7 +439,7 @@ onBeforeUnmount(() => {
 .modal {
   width: min(460px, 100%);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 0;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-lift);
@@ -440,7 +451,6 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: var(--space-5);
   padding: var(--space-6) var(--space-6) var(--space-5);
-  border-bottom: 1px solid var(--color-line);
 }
 
 .modal-kicker {
@@ -462,7 +472,7 @@ onBeforeUnmount(() => {
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  border: 1px solid var(--color-line);
+  border: 0;
   border-radius: 50%;
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
@@ -491,7 +501,7 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-6) var(--space-6);
-  background: var(--color-surface-muted);
+  background: #fff;
 }
 
 @media (max-width: 640px) {

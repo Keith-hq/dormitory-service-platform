@@ -18,22 +18,22 @@ defineProps({ metrics: { type: Array, default: () => [] } })
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(var(--metric-count, 3), 1fr);
-  border-block: 1px solid var(--color-line-strong);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .metric-strip article {
   display: grid;
-  min-height: 104px;
-  padding: 17px 20px;
-  border-right: 1px solid var(--color-line);
+  min-height: 132px;
+  padding: 30px 34px;
   align-content: space-between;
 }
-.metric-strip article:last-child {
-  border-right: 0;
-}
 .metric-strip > article > span {
-  color: var(--color-text-muted);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.1em;
+  color: var(--color-brand);
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .metric-strip article div {
   display: flex;
@@ -44,21 +44,21 @@ defineProps({ metrics: { type: Array, default: () => [] } })
 .metric-strip strong {
   color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 500;
+  font-size: clamp(34px, 3vw, 46px);
+  font-weight: 950;
+  line-height: 1;
 }
 .metric-strip small {
-  color: var(--color-text-soft);
-  font-size: 9px;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 700;
 }
 @media (max-width: 720px) {
   .metric-strip {
     grid-template-columns: 1fr;
   }
   .metric-strip article {
-    min-height: 78px;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-line);
+    min-height: 112px;
   }
 }
 </style>

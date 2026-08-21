@@ -2,280 +2,661 @@
 import { computed, onMounted, ref } from 'vue'
 import { adminApi } from '@/api/admin'
 import { buildingApi } from '@/api/building'
-import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
+import { InlineState, MetricStrip, StatusTag, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
 
 const loading = ref(true)
 const error = ref('')
+const failures = ref([])
 const buildings = ref([])
 const density = ref([])
 const notices = ref([])
+
+const totalInBuilding = computed(() =>
+  density.value.reduce((sum, item) => sum + Number(item.currentCount ?? item.count ?? 0), 0)
+)
 
 const metrics = computed(() => [
   { label: '在管楼栋', value: buildings.value.length, hint: '空间底座' },
   {
     label: '当前在楼',
-    value: density.value.reduce(
-      (sum, item) => sum + Number(item.currentCount ?? item.count ?? 0),
-      0
-    ),
+    value: totalInBuilding.value,
     hint: '实时在楼'
   },
   { label: '近期公告', value: notices.value.length, hint: '交接事项' }
 ])
 
+const syncLabel = computed(() => {
+  if (loading.value) return '同步中'
+  if (failures.value.length) return '部分数据不可用'
+  return '数据已同步'
+})
+
+const syncTone = computed(() => {
+  if (loading.value) return 'info'
+  if (failures.value.length) return 'warning'
+  return 'success'
+})
+
+const operationSummary = computed(() => {
+  if (!buildings.value.length && !density.value.length) return '楼栋运营状态待同步'
+  return `${buildings.value.length || density.value.length} 栋楼 · ${totalInBuilding.value} 人在楼 · ${notices.value.length} 条交接`
+})
+
+const pulseItems = computed(() =>
+  (density.value.length ? density.value : buildings.value).slice(0, 6)
+)
+
+const quickLinks = [
+  { index: '01', title: '空间档案', description: '楼栋、楼层与房间底账', to: '/building' },
+  {
+    index: '02',
+    title: '住宿管理',
+    description: '入住、床位与调宿记录',
+    to: '/admin/accommodation'
+  },
+  { index: '03', title: '访客值守', description: '登记、核验与离场闭环', to: '/admin/duty' },
+  { index: '04', title: '维修调度', description: '工单认领与处理进度', to: '/admin/repair' }
+]
+
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
+
 const load = async () => {
   loading.value = true
   error.value = ''
-  const results = await Promise.allSettled([
-    buildingApi.getList({ page: 1, pageSize: 100 }),
-    adminApi.getAccessDensity(),
-    adminApi.getNotices({ page: 1, pageSize: 4 })
-  ])
-  const targets = [buildings, density, notices]
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled')
-      targets[index].value = normalizeCollection(result.value).items
-  })
-  const failures = results.filter((result) => result.status === 'rejected')
-  if (failures.length === results.length)
-    error.value = toUserMessage(failures[0].reason, '运营数据暂时无法同步')
-  loading.value = false
+  failures.value = []
+  try {
+    const requests = [
+      ['buildings', buildingApi.getList({ page: 1, pageSize: 100 })],
+      ['density', adminApi.getAccessDensity()],
+      ['notices', adminApi.getNotices({ page: 1, pageSize: 5 })]
+    ]
+    const results = await Promise.allSettled(requests.map(([, request]) => request))
+    const targets = { buildings, density, notices }
+    results.forEach((result, index) => {
+      const key = requests[index][0]
+      if (result.status === 'rejected') {
+        failures.value.push(key)
+        return
+      }
+      targets[key].value = normalizeCollection(result.value).items
+    })
+    const rejectedResults = results.filter((result) => result.status === 'rejected')
+    if (rejectedResults.length === results.length)
+      error.value = toUserMessage(rejectedResults[0].reason, '运营数据暂时无法同步')
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)
 </script>
 
 <template>
-  <main class="admin-home page-frame">
-    <WorkspaceHeader
-      eyebrow="DORMITORY OPERATIONS"
-      title="今日宿舍运营"
-      description="用一张值班简报查看楼栋承载、访客值守和需要交接的公告事项。"
-    >
-      <button class="btn btn-sm" type="button" :disabled="loading" @click="load">重新同步</button>
-    </WorkspaceHeader>
+  <main class="admin-home workspace-page">
+    <section class="home-portal">
+      <WorkspaceHeader
+        eyebrow="ADMIN / DAILY BRIEF"
+        title="今日宿舍运营"
+        description="楼栋承载、访客值守和公告交接集中在首页，异常事项优先显露。"
+      >
+        <StatusTag :label="syncLabel" :tone="syncTone" :dot="false" />
+        <button class="btn btn-sm" type="button" :disabled="loading" @click="load">重新同步</button>
+      </WorkspaceHeader>
 
-    <MetricStrip :metrics="metrics" style="--metric-count: 3" />
-    <InlineState :loading="loading" :error="error" />
-
-    <section v-if="!loading" class="brief-grid">
-      <article class="duty-brief">
-        <header>
-          <span>01 / VISITOR DUTY</span>
-          <h2>访客值守流程</h2>
-        </header>
-        <ol class="visitor-steps">
-          <li>
-            <b>01</b>
-            <div>
-              <strong>核对来访身份</strong>
-              <p>确认访客姓名、联系电话与有效身份信息。</p>
-            </div>
-          </li>
-          <li>
-            <b>02</b>
-            <div>
-              <strong>确认被访学生</strong>
-              <p>核对学号与来访事由，避免登记到错误住户。</p>
-            </div>
-          </li>
-          <li>
-            <b>03</b>
-            <div>
-              <strong>提交现场登记</strong>
-              <p>生成登记记录，后续核验与离场沿用同一编号。</p>
-            </div>
-          </li>
-        </ol>
-        <router-link to="/admin/duty">进入访客值守台 →</router-link>
-      </article>
-
-      <aside class="building-pulse">
-        <header>
-          <span>02 / BUILDING PULSE</span>
-          <h2>楼栋脉搏</h2>
-        </header>
-        <div
-          v-for="(item, index) in (density.length ? density : buildings).slice(0, 6)"
-          :key="item.buildingId ?? index"
-          class="pulse-row"
-        >
-          <div>
-            <strong>{{ item.buildingName ?? `楼栋 ${index + 1}` }}</strong
-            ><small>{{ item.buildingType ?? '实时在楼人数' }}</small>
-          </div>
-          <b>{{ item.currentCount ?? item.count ?? item.floorCount ?? '—' }}</b>
+      <section class="operations-card">
+        <div>
+          <span>OPERATIONS / CURRENT</span>
+          <h2>{{ operationSummary }}</h2>
+          <p>空间档案、住宿调整、访客登记与维修调度在同一张运营首页里快速进入。</p>
         </div>
-        <router-link to="/building">维护空间档案 →</router-link>
-      </aside>
+        <router-link to="/admin/duty">进入访客值守台 <b>↗</b></router-link>
+      </section>
     </section>
 
-    <section v-if="!loading" class="handover-board">
+    <MetricStrip :metrics="metrics" />
+
+    <div class="home-grid">
+      <aside class="quick-station">
+        <header>
+          <span>QUICK ACCESS</span>
+          <h2>常用入口</h2>
+        </header>
+        <router-link v-for="item in quickLinks" :key="item.to" :to="item.to">
+          <span>{{ item.index }}</span>
+          <div>
+            <b>{{ item.title }}</b
+            ><small>{{ item.description }}</small>
+          </div>
+          <i>↗</i>
+        </router-link>
+      </aside>
+
+      <section class="notice-ledger">
+        <header>
+          <div>
+            <span>BUILDING / PULSE</span>
+            <h2>楼栋脉搏</h2>
+          </div>
+          <small>{{ pulseItems.length }} 条空间状态</small>
+        </header>
+        <InlineState
+          :loading="loading"
+          :error="
+            failures.includes('density') && !pulseItems.length
+              ? error || '楼栋脉搏暂时无法同步'
+              : ''
+          "
+          :empty="!loading && !pulseItems.length"
+          empty-text="暂无楼栋状态"
+        />
+        <article v-for="(item, index) in pulseItems" :key="item.buildingId ?? index">
+          <time>0{{ index + 1 }}</time>
+          <div>
+            <h3>{{ item.buildingName ?? `楼栋 ${index + 1}` }}</h3>
+            <p>{{ item.buildingType ?? '实时在楼人数' }}</p>
+          </div>
+          <span>{{ item.currentCount ?? item.count ?? item.floorCount ?? '—' }}</span>
+        </article>
+      </section>
+    </div>
+
+    <section class="handover-board">
       <header>
         <div>
-          <span>03 / HANDOVER</span>
+          <span>HANDOVER / LATEST</span>
           <h2>公告与交接</h2>
         </div>
         <small>{{ notices.length }} 条近期公告</small>
       </header>
-      <div class="notice-list">
-        <article v-for="(notice, index) in notices" :key="notice.noticeId ?? index">
-          <span>0{{ index + 1 }}</span>
-          <div>
-            <strong>{{ notice.title ?? notice.noticeTitle ?? '宿舍通知' }}</strong>
-            <p>{{ notice.content ?? notice.summary ?? '查看通知详情并纳入本班交接。' }}</p>
-          </div>
-        </article>
-        <p v-if="!notices.length" class="empty-copy">暂无近期公告，重要事项可在公告模块发布。</p>
-      </div>
+      <InlineState
+        :loading="loading"
+        :error="
+          failures.includes('notices') && !notices.length ? error || '公告交接暂时无法同步' : ''
+        "
+        :empty="!loading && !notices.length"
+        empty-text="暂无近期公告"
+      />
+      <article v-for="(notice, index) in notices" :key="notice.noticeId ?? index">
+        <time>{{ formatDate(notice.createTime ?? notice.publishTime ?? notice.noticeTime) }}</time>
+        <div>
+          <h3>{{ notice.title ?? notice.noticeTitle ?? '宿舍通知' }}</h3>
+          <p>{{ notice.content ?? notice.summary ?? '查看通知详情并纳入本班交接。' }}</p>
+        </div>
+        <span>{{ notice.noticeType ?? notice.category ?? '系统' }}</span>
+      </article>
     </section>
   </main>
 </template>
 
 <style scoped>
-.page-frame {
-  width: min(100% - 40px, var(--content-max));
+.workspace-page {
+  width: min(100% - 64px, 1280px);
   margin: 0 auto;
-  padding-bottom: 72px;
+  padding: 34px 0 82px;
 }
-.brief-grid {
+
+.home-portal {
+  position: relative;
+  overflow: hidden;
+  min-height: 360px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(90deg, rgba(6, 54, 142, 0.96), rgba(13, 96, 198, 0.9)),
+    linear-gradient(135deg, #073f9b, #0a82c2);
+  color: #fff;
+  box-shadow: 0 24px 66px rgba(6, 58, 135, 0.18);
+}
+
+.home-portal::before {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 83% 12%, rgba(255, 255, 255, 0.2), transparent 26%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px) 0 0 / 72px 72px,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px) 0 0 / 72px 72px;
+  content: '';
+  opacity: 0.68;
+}
+
+.home-portal::after {
+  position: absolute;
+  right: -96px;
+  bottom: -150px;
+  width: 380px;
+  height: 380px;
+  border: 52px solid rgba(255, 255, 255, 0.13);
+  border-radius: 50%;
+  content: '';
+}
+
+.home-portal :deep(.workspace-header) {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
-  gap: 28px;
-  margin-top: 34px;
-}
-.brief-grid header span,
-.handover-board header span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.14em;
-}
-.brief-grid h2,
-.handover-board h2 {
-  margin: 7px 0 0;
-  font: 500 24px var(--font-display);
-  color: var(--color-ink);
-}
-.duty-brief {
-  padding: 28px;
-  background: var(--color-ink);
+  min-height: 0;
+  padding: 46px 54px 18px;
   color: #fff;
 }
-.duty-brief h2 {
+
+.home-portal :deep(.workspace-header::before) {
+  content: none !important;
+}
+
+.home-portal :deep(.workspace-header h1) {
+  max-width: 760px;
   color: #fff;
+  font-size: clamp(36px, 4.6vw, 58px);
+  font-weight: 950;
+  line-height: 1.08;
 }
-.duty-brief ol {
-  list-style: none;
-  padding: 0;
-  margin: 24px 0;
-}
-.duty-brief li {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 18px;
-  padding: 15px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-}
-.visitor-steps > li > b {
-  font: 10px var(--font-mono);
-  color: #cbbca4;
-}
-.duty-brief strong {
-  font-size: 13px;
-}
-.duty-brief p {
-  margin: 4px 0 0;
-  color: #aaa39a;
-  font-size: 11px;
-}
-.duty-brief a,
-.building-pulse a {
-  color: var(--color-accent);
-  font-size: 11px;
+
+.home-portal :deep(.workspace-header__description) {
+  max-width: 680px;
+  margin-top: 18px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 17px;
   font-weight: 700;
+  line-height: 1.8;
 }
-.building-pulse {
-  padding: 28px;
-  border: 1px solid var(--color-line-strong);
-  background: rgba(255, 255, 255, 0.35);
+
+.home-portal :deep(.workspace-header__aside) {
+  justify-self: start;
+  margin-top: 18px;
 }
-.pulse-row {
+
+.home-portal :deep(.status-tag) {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.home-portal :deep(.btn) {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.operations-card {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 15px 0;
-  border-bottom: 1px solid var(--color-line);
+  overflow: hidden;
+  min-height: 96px;
+  margin: 10px 54px 42px;
+  padding: 20px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  gap: 24px;
+  backdrop-filter: blur(12px);
 }
-.pulse-row div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+
+.operations-card,
+.operations-card * {
+  color: #fff !important;
 }
-.pulse-row strong {
-  font-size: 12px;
-}
-.pulse-row small {
-  color: var(--color-text-soft);
-  font-size: 9px;
-}
-.pulse-row b {
-  font: 500 25px var(--font-display);
-}
-.building-pulse a {
-  display: block;
-  margin-top: 20px;
-}
-.handover-board {
-  margin-top: 34px;
-  padding-top: 26px;
-  border-top: 1px solid var(--color-line-strong);
-}
-.handover-board > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-}
-.notice-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  margin-top: 20px;
-  border: 1px solid var(--color-line-strong);
-}
-.notice-list article {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: 14px;
-  padding: 22px;
-  border-right: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
-}
-.notice-list article > span {
-  font: 10px var(--font-mono);
+
+.operations-card span,
+.notice-ledger header span,
+.handover-board header span,
+.quick-station header span {
   color: var(--color-accent-strong);
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0 !important;
 }
-.notice-list strong {
-  font-size: 12px;
+
+.operations-card span {
+  color: #fff !important;
 }
-.notice-list p {
-  margin: 6px 0 0;
-  color: var(--color-text-muted);
-  font-size: 10px;
+
+.operations-card h2 {
+  margin: 8px 0 4px;
+  color: #fff !important;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 950;
+  line-height: 1.16;
+}
+
+.operations-card p {
+  margin: 0;
+  color: #fff !important;
+  font-size: 14px;
   line-height: 1.7;
 }
-.empty-copy {
-  padding: 24px;
-  color: var(--color-text-muted);
+
+.operations-card a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 184px;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff !important;
+  font-size: 15px;
+  font-weight: 900;
+  text-decoration: none;
 }
-@media (max-width: 860px) {
-  .brief-grid,
-  .notice-list {
+
+.operations-card a b {
+  color: #fff !important;
+  font-size: 20px;
+}
+
+.admin-home :deep(.metric-strip) {
+  position: relative;
+  z-index: 3;
+  width: min(100% - 72px, 1120px);
+  margin: -32px auto 56px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 22px 54px rgba(7, 58, 124, 0.11);
+}
+
+.admin-home :deep(.metric-strip article) {
+  min-height: 118px;
+  padding: 24px 30px;
+}
+
+.admin-home :deep(.metric-strip > article > span) {
+  color: var(--color-accent-strong);
+  font-size: 13px;
+}
+
+.admin-home :deep(.metric-strip strong) {
+  font-size: clamp(32px, 3vw, 44px);
+}
+
+.admin-home :deep(.metric-strip small) {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.home-grid {
+  display: grid;
+  gap: 54px;
+}
+
+.notice-ledger,
+.handover-board,
+.quick-station {
+  overflow: hidden;
+  padding: 36px 42px 42px;
+  border: 0 !important;
+  border-radius: var(--radius-lg);
+  background: #fff !important;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1) !important;
+}
+
+.notice-ledger > header,
+.handover-board > header,
+.quick-station > header {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-height: 0;
+  padding: 0 0 28px;
+  border-bottom: 0;
+  background: transparent;
+  gap: 22px;
+}
+
+.notice-ledger h2,
+.handover-board h2,
+.quick-station h2 {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 2.4vw, 36px) !important;
+  font-weight: 950 !important;
+  line-height: 1.15;
+}
+
+.notice-ledger header small,
+.handover-board header small {
+  flex: 0 0 auto;
+  padding-right: 10px;
+  color: var(--color-text-muted);
+  font-size: 15px !important;
+  font-weight: 700;
+}
+
+.quick-station {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.quick-station > header {
+  grid-column: 1/-1;
+  margin-bottom: 30px;
+}
+
+.quick-station > a {
+  position: relative;
+  display: grid;
+  min-height: 118px;
+  overflow: hidden;
+  padding: 24px 28px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 12px 24px rgba(23, 65, 120, 0.08);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.quick-station > a:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 46px rgba(7, 58, 124, 0.13);
+}
+
+.quick-station > a > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font: 15px var(--font-mono);
+  font-weight: 950;
+}
+
+.quick-station > a div {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px 0 0;
+}
+
+.quick-station > a b {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 950;
+  line-height: 1.24;
+}
+
+.quick-station > a small {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.7;
+}
+
+.quick-station > a i {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  color: var(--color-brand);
+  font-size: 22px;
+  font-style: normal;
+}
+
+.notice-ledger {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.notice-ledger :deep(.inline-state),
+.handover-board :deep(.inline-state) {
+  margin-bottom: 14px;
+}
+
+.notice-ledger article,
+.handover-board article {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 108px;
+  margin-top: 14px;
+  padding: 22px 24px;
+  border-bottom: 0;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  gap: 24px;
+}
+
+.notice-ledger article:hover,
+.handover-board article:hover {
+  background: #eef4ff;
+}
+
+.notice-ledger article > span,
+.handover-board article > span {
+  display: grid;
+  min-width: 60px;
+  min-height: 34px;
+  place-items: center;
+  border: 1px solid var(--color-brand-border);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.notice-ledger article h3,
+.handover-board article h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.notice-ledger article p,
+.handover-board article p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.7;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.notice-ledger article time,
+.handover-board article time {
+  display: grid;
+  min-height: 62px;
+  place-items: center;
+  border-left: 0;
+  border-radius: var(--radius-lg);
+  background: #edf5ff;
+  color: var(--color-brand-strong);
+  font: 15px var(--font-mono);
+  font-weight: 950;
+}
+
+.handover-board {
+  margin-top: 54px;
+}
+
+@media (max-width: 1180px) {
+  .quick-station {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 850px) {
+  .workspace-page {
+    width: min(100% - 32px, var(--content-max));
+    padding-top: 28px;
+  }
+
+  .home-portal :deep(.workspace-header) {
+    padding: 36px 28px 18px;
+  }
+
+  .home-portal :deep(.workspace-header aside) {
+    justify-self: start;
+    margin-top: 12px;
+  }
+
+  .operations-card {
+    align-items: stretch;
+    flex-direction: column;
+    margin: 10px 28px 34px;
+    padding: 22px;
+  }
+
+  .operations-card a {
+    width: 100%;
+  }
+
+  .admin-home :deep(.metric-strip) {
+    width: 100%;
+    margin: 22px 0 44px;
+  }
+
+  .quick-station {
     grid-template-columns: 1fr;
   }
-  .duty-brief li {
+
+  .notice-ledger,
+  .handover-board,
+  .quick-station {
+    padding: 30px 24px 34px;
+  }
+
+  .notice-ledger > header,
+  .handover-board > header,
+  .quick-station > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .notice-ledger h2,
+  .handover-board h2,
+  .quick-station h2 {
+    font-size: clamp(30px, 10vw, 40px) !important;
+  }
+
+  .notice-ledger article,
+  .handover-board article {
     grid-template-columns: 1fr;
-    gap: 5px;
+    gap: 14px;
+  }
+
+  .notice-ledger article time,
+  .handover-board article time {
+    justify-items: start;
+    padding-left: 12px;
   }
 }
 </style>

@@ -61,12 +61,11 @@ const reset = () => {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--color-line);
+  gap: var(--space-6);
+  padding: 24px 30px;
   border-radius: var(--radius-lg);
-  background: rgba(255, 253, 248, 0.76);
-  box-shadow: 0 9px 30px rgba(31, 54, 52, 0.045);
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(23, 65, 120, 0.08);
 }
 
 .search-intro {
@@ -74,20 +73,19 @@ const reset = () => {
   align-items: center;
   gap: var(--space-3);
   padding-right: var(--space-5);
-  border-right: 1px solid var(--color-line);
 }
 
 .search-intro__mark {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   place-items: center;
-  border-radius: 10px 3px 10px 3px;
+  border-radius: var(--radius-lg);
   background: var(--color-brand-soft);
-  color: var(--color-brand-strong);
+  color: var(--color-brand);
   font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 900;
 }
 
 .search-intro > span:last-child {
@@ -99,12 +97,14 @@ const reset = () => {
 .search-intro strong {
   color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 18px;
+  font-weight: 900;
 }
 
 .search-intro small {
-  color: var(--color-text-soft);
-  font-size: 10px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .search-fields,

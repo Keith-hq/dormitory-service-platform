@@ -36,42 +36,42 @@ defineProps({
   border-radius: 999px;
   background: var(--tag-bg);
   color: var(--tag-color);
-  font-weight: 750;
-  letter-spacing: 0.015em;
+  font-weight: 900;
+  letter-spacing: 0;
   line-height: 1;
   white-space: nowrap;
 }
 .status-tag--small {
   gap: 5px;
-  padding: 4px 7px;
-  font-size: 11px;
+  padding: 7px 11px;
+  font-size: 13px;
 }
 .status-tag--medium {
-  gap: 6px;
-  padding: 5px 9px;
-  font-size: 12px;
+  gap: 7px;
+  padding: 9px 14px;
+  font-size: 15px;
 }
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
 }
 .status-tag--info {
-  --tag-color: #256a78;
-  --tag-bg: #eaf5f5;
-  --tag-border: #badcde;
+  --tag-color: #075fa8;
+  --tag-bg: #e8f3ff;
+  --tag-border: #b9d8fb;
 }
 .status-tag--success {
-  --tag-color: #246b4b;
-  --tag-bg: #eaf5ed;
-  --tag-border: #bdddc7;
+  --tag-color: #007c73;
+  --tag-bg: #e4f8f6;
+  --tag-border: #b4e6e1;
 }
 .status-tag--warning {
-  --tag-color: #9a5d22;
-  --tag-bg: #fff3dc;
-  --tag-border: #efd29e;
+  --tag-color: #9a6109;
+  --tag-bg: #fff7e8;
+  --tag-border: #f1d8a8;
 }
 .status-tag--danger {
   --tag-color: #a34239;
