@@ -54,6 +54,17 @@ public class FacilityBookingService : IFacilityBookingService
             new OracleParameter("p_Student_ID", studentId));
     }
 
+    /// <summary>查询当前学生的预约记录（STU-20 配套，供前端展示预约状态与记录）。</summary>
+    public async Task<List<TemplateDormApi.Models.FacilityBooking>> GetMyBookingsAsync(
+        string studentId, CancellationToken cancellationToken)
+    {
+        return await _context.FacilityBookings
+            .AsNoTracking()
+            .Where(item => item.StudentId == studentId)
+            .OrderByDescending(item => item.CreateTime)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<int> FinishUse(int bookingId, string studentId)
     {
         return await CallResultCode("SP_Finish_Use",

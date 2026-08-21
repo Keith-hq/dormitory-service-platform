@@ -14,6 +14,7 @@ const error = ref('')
 const facilities = ref([])
 const sharedItems = ref([])
 const loans = ref([])
+const bookings = ref([])
 const selectedResource = ref(null)
 const selectedDate = ref('明天')
 const selectedTime = ref('')
@@ -31,13 +32,16 @@ const loadResources = async () => {
   const results = await Promise.allSettled([
     studentApi.getFacilities({ page: 1, pageSize: 50 }),
     studentApi.getSharedItems({ page: 1, pageSize: 50 }),
-    studentApi.getItemLoans(studentId.value, { page: 1, pageSize: 50 })
+    studentApi.getItemLoans(studentId.value, { page: 1, pageSize: 50 }),
+    studentApi.getMyBookings()
   ])
   if (results[0].status === 'fulfilled')
     facilities.value = normalizeCollection(results[0].value).items
   if (results[1].status === 'fulfilled')
     sharedItems.value = normalizeCollection(results[1].value).items
   if (results[2].status === 'fulfilled') loans.value = normalizeCollection(results[2].value).items
+  if (results[3].status === 'fulfilled')
+    bookings.value = normalizeCollection(results[3].value).items
   if (selectedId) {
     selectedResource.value =
       (activeMode.value === 'booking' ? facilities.value : sharedItems.value).find(
@@ -105,6 +109,39 @@ const returnLoan = async (loan) => {
     actionLoading.value = ''
   }
 }
+const activeBookingFor = (item) =>
+  bookings.value.find(
+    (booking) => booking.facilityId === item.facilityId && ['已预约', '使用中'].includes(booking.status)
+  )
+const startUse = async (booking) => {
+  actionLoading.value = `start-${booking.bookingId}`
+  feedback.value = ''
+  try {
+    await studentApi.startFacilityUse(booking.bookingId)
+    feedback.value = '已开始使用，请在结束后点击"结束使用"释放设施'
+    await loadResources()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '开始使用失败，请稍后重试')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+const finishUse = async (booking) => {
+  actionLoading.value = `finish-${booking.bookingId}`
+  feedback.value = ''
+  try {
+    await studentApi.finishFacilityUse(booking.bookingId)
+    feedback.value = '已结束使用，设施已释放'
+    await loadResources()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '结束使用失败，请稍后重试')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+const bookingTone = (status) =>
+  status === '已完成' ? 'success' : status === '已失效' ? 'neutral' : 'warning'
+const formatTime = (value) => (value ? new Date(value).toLocaleString() : '—')
 onMounted(loadResources)
 </script>
 
@@ -160,7 +197,19 @@ onMounted(loadResources)
                   ? '查看时段'
                   : `可借 ${availableQuantity(item)} / 共 ${item.totalQty ?? '—'}`
               }}</small
-              ><StatusTag :label="resourceStatus(item)" tone="success" size="small" />
+              ><StatusTag
+                :label="
+                  activeMode === 'booking' && activeBookingFor(item)
+                    ? activeBookingFor(item).status
+                    : resourceStatus(item)
+                "
+                :tone="
+                  activeMode === 'booking' && activeBookingFor(item)
+                    ? bookingTone(activeBookingFor(item).status)
+                    : 'success'
+                "
+                size="small"
+              />
             </footer>
           </button>
         </div>
@@ -174,69 +223,114 @@ onMounted(loadResources)
           <span>{{ activeMode === 'booking' ? 'TIME SLOTS' : 'BORROW FLOW' }}</span>
           <h2>{{ selectedResource ? resourceName(selectedResource) : '选择一项资源' }}</h2>
         </header>
-        <template v-if="selectedResource && activeMode === 'booking'"
-          ><p class="schedule-note">
-            示例交互：当前预约按设施即时占位，日期/时段仅供展示，不随请求提交
-          </p>
-          <div class="date-line">
+        <template v-if="activeMode === 'booking'"
+          ><template v-if="selectedResource"
+            ><p class="schedule-note">
+              示例交互：当前预约按设施即时占位，日期/时段仅供展示，不随请求提交
+            </p>
+            <div class="date-line">
+              <button
+                v-for="day in DATE_OPTIONS"
+                :key="day"
+                :class="{ active: selectedDate === day }"
+                @click="selectedDate = day"
+              >
+                {{ day }}
+              </button>
+            </div>
+            <div class="time-slots">
+              <button
+                v-for="time in TIME_SLOTS"
+                :key="time"
+                :disabled="isOccupiedSlot(time)"
+                :class="{ active: selectedTime === time }"
+                @click="selectedTime = time"
+              >
+                {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
+              </button>
+            </div>
             <button
-              v-for="day in DATE_OPTIONS"
-              :key="day"
-              :class="{ active: selectedDate === day }"
-              @click="selectedDate = day"
+              class="btn btn-primary schedule-action"
+              :disabled="actionLoading === 'booking' || Boolean(activeBookingFor(selectedResource))"
+              @click="submitBooking"
             >
-              {{ day }}
-            </button>
-          </div>
-          <div class="time-slots">
-            <button
-              v-for="time in TIME_SLOTS"
-              :key="time"
-              :disabled="isOccupiedSlot(time)"
-              :class="{ active: selectedTime === time }"
-              @click="selectedTime = time"
-            >
-              {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
-            </button>
-          </div>
-          <button
-            class="btn btn-primary schedule-action"
-            :disabled="actionLoading === 'booking'"
-            @click="submitBooking"
-          >
-            {{ actionLoading === 'booking' ? '预约中…' : '确认预约' }}
-          </button></template
+              {{
+                actionLoading === 'booking'
+                  ? '预约中…'
+                  : activeBookingFor(selectedResource)
+                    ? '已有活跃预约'
+                    : '确认预约'
+              }}
+            </button></template
+          ><InlineState v-else empty empty-text="从左侧选择设施或物品" />
+          <section class="loan-ledger booking-ledger">
+            <header>
+              <span>MY BOOKINGS</span><strong>我的预约 {{ bookings.length }}</strong>
+            </header>
+            <article v-for="booking in bookings" :key="booking.bookingId">
+              <div>
+                <b>设施 #{{ booking.facilityId }}</b
+                ><small
+                  >预约单 #{{ booking.bookingId }} · {{ formatTime(booking.createTime) }}</small
+                >
+              </div>
+              <StatusTag
+                :label="booking.status || '已预约'"
+                :tone="bookingTone(booking.status)"
+                size="small"
+              />
+              <button
+                v-if="booking.status === '已预约'"
+                class="btn btn-sm"
+                :disabled="actionLoading === `start-${booking.bookingId}`"
+                @click="startUse(booking)"
+              >
+                {{ actionLoading === `start-${booking.bookingId}` ? '开始中…' : '开始使用' }}
+              </button>
+              <button
+                v-else-if="booking.status === '使用中'"
+                class="btn btn-sm"
+                :disabled="actionLoading === `finish-${booking.bookingId}`"
+                @click="finishUse(booking)"
+              >
+                {{ actionLoading === `finish-${booking.bookingId}` ? '结束中…' : '结束使用' }}
+              </button>
+            </article>
+            <p v-if="!bookings.length">暂无预约记录。</p>
+          </section></template
         >
-        <template v-else-if="selectedResource"
-          ><dl>
-            <div>
-              <dt>当前库存</dt>
-              <dd>
-                {{ availableQuantity(selectedResource) }} / {{ selectedResource.totalQty ?? '—' }}
-              </dd>
-            </div>
-            <div>
-              <dt>信用要求</dt>
-              <dd>信用状态正常</dd>
-            </div>
-            <div>
-              <dt>借用期限</dt>
-              <dd>以物品规则为准</dd>
-            </div>
-          </dl>
-          <button
-            class="btn btn-primary schedule-action"
-            :disabled="actionLoading === 'borrow' || availableQuantity(selectedResource) < 1"
-            @click="borrowSelected"
-          >
-            {{
-              actionLoading === 'borrow'
-                ? '借用中…'
-                : availableQuantity(selectedResource) < 1
-                  ? '暂无库存'
-                  : '申请借用'
-            }}
-          </button>
+        <template v-else
+          ><template v-if="selectedResource"
+            ><dl>
+              <div>
+                <dt>当前库存</dt>
+                <dd>
+                  {{ availableQuantity(selectedResource) }} / {{ selectedResource.totalQty ?? '—' }}
+                </dd>
+              </div>
+              <div>
+                <dt>信用要求</dt>
+                <dd>信用状态正常</dd>
+              </div>
+              <div>
+                <dt>借用期限</dt>
+                <dd>以物品规则为准</dd>
+              </div>
+            </dl>
+            <button
+              class="btn btn-primary schedule-action"
+              :disabled="actionLoading === 'borrow' || availableQuantity(selectedResource) < 1"
+              @click="borrowSelected"
+            >
+              {{
+                actionLoading === 'borrow'
+                  ? '借用中…'
+                  : availableQuantity(selectedResource) < 1
+                    ? '暂无库存'
+                    : '申请借用'
+              }}
+            </button></template
+          ><InlineState v-else empty empty-text="从左侧选择设施或物品" />
           <section class="loan-ledger">
             <header>
               <span>ACTIVE LOANS</span><strong>我的待归还 {{ activeLoans.length }}</strong>
@@ -264,7 +358,6 @@ onMounted(loadResources)
             <p v-if="!activeLoans.length">当前没有待归还物品。</p>
           </section></template
         >
-        <InlineState v-else empty empty-text="从左侧选择设施或物品" />
       </aside>
     </div>
   </div>
