@@ -1,0 +1,18 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace TemplateDormApi.Models;
+
+public sealed class Admin
+{
+    public string AdminId { get; set; } = string.Empty;
+    public string AdminName { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string RoleLevel { get; set; } = string.Empty;
+    public int? BuildingId { get; set; }
+    public string? Post { get; set; }
+
+    [ForeignKey(nameof(BuildingId))]
+    public Building? Building { get; set; }
+
+    public int TokenVersion { get; set; }
+}
