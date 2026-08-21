@@ -30,6 +30,9 @@ export const studentApi = {
   getFacilities: (params) => request.get('/facilities', { params }),
   // STU-20 契约无 Idempotency-Key 要求：预约按 facilityId 即可（幂等由后端活跃预约唯一兜底）
   createFacilityBooking: (facilityId) => request.post('/facility-bookings', { facilityId }),
+  getMyBookings: () => request.get('/facility-bookings/my'),
+  startFacilityUse: (bookingId) => request.post(`/facility-bookings/${bookingId}/start`),
+  finishFacilityUse: (bookingId) => request.post(`/facility-bookings/${bookingId}/finish`),
   getSharedItems: (params) => request.get('/shared-items', { params }),
   getItemLoans: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/item-loans`, { params }),

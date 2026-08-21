@@ -54,6 +54,16 @@ public class FacilityBookingController : ControllerBase
             : Ok(ApiResponse.Error(400, msgs[rc]));
     }
 
+    /// <summary>STU-20 配套：查询我的预约记录（含状态，供前端展示与释放操作）。</summary>
+    [HttpGet("facility-bookings/my")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<object>>> MyBookings(CancellationToken cancellationToken)
+    {
+        var studentId = await ResolveStudentId();
+        var bookings = await _service.GetMyBookingsAsync(studentId, cancellationToken);
+        return Ok(ApiResponse.Ok(bookings));
+    }
+
     /// <summary>STU-21：开始使用</summary>
     [HttpPost("facility-bookings/{bookingId}/start")]
     [Authorize]

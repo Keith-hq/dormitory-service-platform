@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { studentApi } from '@/api/student'
 import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
@@ -15,6 +15,16 @@ const tickets = ref([])
 const description = ref('')
 const urgency = ref('普通')
 const activeTicket = ref(null)
+const descriptionInput = ref(null)
+// 「发起报修」：预填引导文案并把焦点移到描述框，让点击有明确反馈
+const startNewRepair = async () => {
+  if (!description.value.trim()) description.value = '请描述具体位置和故障现象'
+  feedback.value = ''
+  await nextTick()
+  descriptionInput.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  descriptionInput.value?.focus()
+  descriptionInput.value?.select()
+}
 const studentId = computed(() => userStore.userInfo?.id || '')
 const openTickets = computed(() =>
   tickets.value.filter(
@@ -68,13 +78,7 @@ onMounted(loadTickets)
       title="报修与处理进度"
       description="从问题描述到维修结果，所有状态变化集中在一条时间线上。"
     >
-      <button
-        class="btn btn-primary"
-        type="button"
-        @click="description ||= '请描述具体位置和故障现象'"
-      >
-        发起报修
-      </button>
+      <button class="btn btn-primary" type="button" @click="startNewRepair">发起报修</button>
     </WorkspaceHeader>
     <section class="repair-summary">
       <article>
@@ -102,6 +106,7 @@ onMounted(loadTickets)
             </select></label
           ><label
             >问题描述<textarea
+              ref="descriptionInput"
               v-model="description"
               class="form-input"
               rows="6"
