@@ -47,7 +47,10 @@ public sealed class AssetService : IAssetService
 
     public async Task<AssetDto> CreateAsync(CreateAssetRequest request, CancellationToken cancellationToken)
     {
-        if (!await _context.Rooms.AnyAsync(item => item.RoomId == request.RoomId, cancellationToken))
+        // 顶层 AnyAsync 在 Oracle 21c 被翻译为布尔字面量 → ORA-00904；改用 CountAsync > 0
+        var roomExists = await _context.Rooms
+            .CountAsync(item => item.RoomId == request.RoomId, cancellationToken) > 0;
+        if (!roomExists)
         {
             throw new BusinessException(404, "所属房间不存在", StatusCodes.Status404NotFound);
         }
@@ -156,7 +159,7 @@ public sealed class AssetService : IAssetService
         var asset = await GetAssetAsync(assetId, cancellationToken);
 
         var hasRepairLink = await _context.AssetRepairs
-            .AnyAsync(item => item.AssetId == assetId, cancellationToken);
+            .CountAsync(item => item.AssetId == assetId, cancellationToken) > 0;
         if (hasRepairLink)
         {
             throw new BusinessException(409, "已关联报修的资产禁止删除", StatusCodes.Status409Conflict);
@@ -232,9 +235,11 @@ public sealed class AssetService : IAssetService
             // 重查未完结工单会命中 hasOpenTicket 而抛 409，避免同资产双工单。
             if (_context.Database.IsRelational())
             {
+                // 修复：CancellationToken 误作 SQL 参数 → "store type mapping for CancellationToken"；
+                // 去掉位置参数中的 token，仅传资产 ID。
                 await _context.Database.ExecuteSqlRawAsync(
                     "SELECT Asset_ID FROM D_Asset WHERE Asset_ID = {0} FOR UPDATE",
-                    cancellationToken, asset.AssetId);
+                    asset.AssetId);
             }
 
             var hasOpenTicket = await _context.AssetRepairs
@@ -243,9 +248,9 @@ public sealed class AssetService : IAssetService
                     link => link.TicketId,
                     ticket => ticket.TicketId,
                     (link, ticket) => new { link.AssetId, TicketStatus = ticket.Status })
-                .AnyAsync(item => item.AssetId == assetId
+                .CountAsync(item => item.AssetId == assetId
                     && item.TicketStatus != "已完成"
-                    && item.TicketStatus != "已撤销", cancellationToken);
+                    && item.TicketStatus != "已撤销", cancellationToken) > 0;
             if (hasOpenTicket)
             {
                 throw new BusinessException(409, "该资产已有未完结的报修工单，不能重复转报修", StatusCodes.Status409Conflict);
@@ -353,7 +358,7 @@ public sealed class AssetService : IAssetService
     private async Task EnsureWarningForDamagedOrMissingAsync(int assetId, CancellationToken cancellationToken)
     {
         var hasPending = await _context.AssetWarnings
-            .AnyAsync(item => item.AssetId == assetId && item.Handled == "否", cancellationToken);
+            .CountAsync(item => item.AssetId == assetId && item.Handled == "否", cancellationToken) > 0;
         if (!hasPending)
         {
             _context.AssetWarnings.Add(new AssetWarning { AssetId = assetId });

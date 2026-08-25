@@ -27,6 +27,10 @@ export const studentApi = {
     request.get(`/students/${encodeURIComponent(studentId)}/repair-tickets`, { params }),
   createRepairTicket: (data) => request.post('/repair-tickets', data),
   cancelRepairTicket: (ticketId) => request.post(`/repair-tickets/${ticketId}/cancel`),
+  addRepairAttachments: (ticketId, formData) =>
+    request.post(`/repair-tickets/${ticketId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
   getFacilities: (params) => request.get('/facilities', { params }),
   // STU-20 契约无 Idempotency-Key 要求：预约按 facilityId 即可（幂等由后端活跃预约唯一兜底）
   createFacilityBooking: (facilityId) => request.post('/facility-bookings', { facilityId }),

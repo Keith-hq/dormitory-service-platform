@@ -49,17 +49,66 @@ const submitRepair = async () => {
   submitting.value = true
   feedback.value = ''
   try {
-    await studentApi.createRepairTicket({
+    const created = await studentApi.createRepairTicket({
       description: description.value.trim(),
       urgency: urgency.value
     })
+    // 提交时选好的图片，工单创建成功后一并上传
+    if (pendingFiles.value.length && created?.ticketId) {
+      const form = new FormData()
+      pendingFiles.value.forEach((file) => form.append('files', file))
+      await studentApi.addRepairAttachments(created.ticketId, form)
+    }
     description.value = ''
+    pendingFiles.value = []
     feedback.value = '报修已提交，系统将自动进入派单队列'
     await loadTickets()
   } catch (requestError) {
     feedback.value = toUserMessage(requestError, '提交失败，请稍后重试')
   } finally {
     submitting.value = false
+  }
+}
+// —— 撤销工单（仅待处理/已派单且提交后 10 分钟内可撤，后端兜底校验）——
+const cancelling = ref(false)
+const canCancel = (ticket) =>
+  ['待处理', '已派单'].includes(ticket?.status) &&
+  !!ticket?.submitTime &&
+  Date.now() - new Date(ticket.submitTime).getTime() <= 10 * 60 * 1000
+const cancelActive = async () => {
+  if (!activeTicket.value) return
+  cancelling.value = true
+  feedback.value = ''
+  try {
+    await studentApi.cancelRepairTicket(activeTicket.value.ticketId)
+    feedback.value = '工单已撤销'
+    await loadTickets()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '撤销失败：仅待处理/已派单且 10 分钟内可撤')
+  } finally {
+    cancelling.value = false
+  }
+}
+// —— 报修图片附件（提交时可选；对已有工单可补传）——
+const pendingFiles = ref([])
+const activeFiles = ref([])
+const uploading = ref(false)
+const uploadActive = async () => {
+  const ticket = activeTicket.value
+  if (!ticket || !activeFiles.value.length) return
+  const form = new FormData()
+  activeFiles.value.forEach((file) => form.append('files', file))
+  uploading.value = true
+  feedback.value = ''
+  try {
+    await studentApi.addRepairAttachments(ticket.ticketId, form)
+    feedback.value = '图片已上传'
+    activeFiles.value = []
+    await loadTickets()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '上传失败')
+  } finally {
+    uploading.value = false
   }
 }
 const tone = (status) =>
@@ -113,6 +162,16 @@ onMounted(loadTickets)
               placeholder="例如：书桌右侧插座松动，使用时有火花…"
             ></textarea>
           </label>
+          <label
+            >图片附件（可选，jpg/png，单张 ≤5MB）
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              @change="pendingFiles = [...($event.target.files || [])]"
+            />
+            <small v-if="pendingFiles.length">已选 {{ pendingFiles.length }} 张</small></label
+          >
           <p v-if="feedback" role="status">{{ feedback }}</p>
           <button class="btn btn-primary" :disabled="submitting || !description.trim()">
             {{ submitting ? '提交中…' : '提交报修' }}
@@ -165,8 +224,46 @@ onMounted(loadTickets)
           >
             <i></i><b>维修处理</b><span>维修员更新过程与材料记录</span>
           </div>
-          <div class="timeline-step">
-            <i></i><b>结果归档</b><span>完成后可回看维修结果</span>
+          <div class="timeline-step"><i></i><b>结果归档</b><span>完成后可回看维修结果</span></div>
+          <div class="ticket-tools">
+            <div v-if="activeTicket.attachments?.length" class="attachments">
+              <span>已传附件</span>
+              <a
+                v-for="att in activeTicket.attachments"
+                :key="att.attachmentId"
+                :href="`/uploads/${att.storageRef}`"
+                target="_blank"
+                rel="noopener"
+                >{{ att.originalName }}</a
+              >
+            </div>
+            <div class="ticket-tools__row">
+              <label class="btn btn-sm">
+                上传图片
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  @change="activeFiles = [...($event.target.files || [])]"
+                />
+              </label>
+              <button
+                class="btn btn-sm btn-primary"
+                :disabled="uploading || !activeFiles.length"
+                @click="uploadActive"
+              >
+                {{ uploading ? '上传中…' : '确认上传' }}
+              </button>
+              <button
+                v-if="canCancel(activeTicket)"
+                class="btn btn-sm"
+                :disabled="cancelling"
+                @click="cancelActive"
+              >
+                {{ cancelling ? '撤销中…' : '撤销工单' }}
+              </button>
+            </div>
           </div></template
         ><InlineState v-else empty empty-text="选择一张工单查看处理过程" />
       </aside>
@@ -367,6 +464,37 @@ onMounted(loadTickets)
   color: #819388;
   font-size: 8px;
   line-height: 1.5;
+}
+.ticket-tools {
+  margin: 6px 28px 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+.ticket-tools__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ticket-tools__row input {
+  display: none;
+}
+.attachments {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.attachments span {
+  color: var(--color-brand-strong);
+  font: 800 11px var(--font-mono);
+  letter-spacing: 0.1em;
+}
+.attachments a {
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
 }
 @media (max-width: 1000px) {
   .repair-layout {
