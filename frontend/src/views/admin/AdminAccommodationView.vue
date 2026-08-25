@@ -130,7 +130,17 @@ const transitionCheckout = async (action) => {
     cancel: '退宿办理已取消'
   }
   const data = await run(action, handlers[action], labels[action])
-  if (data) checkoutSummary.value = data
+  if (data) {
+    checkoutSummary.value = data
+    return
+  }
+  // 失败（如清算被拒/状态不可操作）也重拉清算单，让已拒绝/已取消等状态机结果持久显示在面板，
+  // 同时保留 run() 已展示的错误/拒绝原因。
+  try {
+    checkoutSummary.value = await accommodationApi.getCheckout(checkout.value.checkoutId)
+  } catch {
+    // 状态重拉失败则保留面板原状
+  }
 }
 </script>
 
