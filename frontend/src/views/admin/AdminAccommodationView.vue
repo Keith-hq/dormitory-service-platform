@@ -298,21 +298,21 @@ const transitionCheckout = async (action) => {
           <div class="checkout-actions">
             <button
               class="btn"
-              :disabled="Boolean(!effectiveCheckoutId || working)"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('settle')"
             >
               执行清算
             </button>
             <button
               class="btn btn-primary"
-              :disabled="Boolean(!effectiveCheckoutId || working)"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('confirm')"
             >
               确认退宿
             </button>
             <button
               class="btn btn-danger"
-              :disabled="Boolean(!effectiveCheckoutId || working)"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('cancel')"
             >
               取消办理
