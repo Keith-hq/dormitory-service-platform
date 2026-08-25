@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.JsonWebTokens;
 using OfficeOpenXml.FormulaParsing.LexicalAnalysis;
-using SkiaSharp;
 using System.Linq;
 using System.Security.Cryptography;
 using TemplateDormApi.Data;
@@ -24,17 +23,15 @@ public class AuthController : ControllerBase
     private readonly IMemoryCache _cache;
     private readonly ILogger<AuthController> _logger;
     private readonly IAuditService _auditService;
-    private readonly IHostEnvironment _env;
     private readonly IUserAccountService _userAccountService;
 
-    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IHostEnvironment env, IUserAccountService userAccountService)
+    public AuthController(AppDbContext context, IJwtService jwtService, IMemoryCache cache, ILogger<AuthController> logger, IAuditService auditService, IUserAccountService userAccountService)
     {
         _context = context;
         _jwtService = jwtService;
         _cache = cache;
         _logger = logger;
         _auditService = auditService;
-        _env = env;
         _userAccountService = userAccountService;
     }
 
@@ -45,8 +42,6 @@ public class AuthController : ControllerBase
     {
         public string LoginName { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-        public string CaptchaId { get; set; } = string.Empty;
-        public string CaptchaCode { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -80,54 +75,6 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// CAPTCHA-01：获取图形验证码
-    /// </summary>
-    [HttpGet("captcha")]
-    public IActionResult GetCaptcha()
-    {
-        var code = new Random().Next(1000, 9999).ToString();
-        var captchaId = Guid.NewGuid().ToString("N");
-        _cache.Set(captchaId, code, TimeSpan.FromMinutes(5));
-
-        using var bitmap = new SKBitmap(200, 80);
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.White);
-
-        // 创建字体和画笔
-        using var typeface = SKTypeface.FromFamilyName("Arial", SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
-        using var font = new SKFont(typeface, 36f);  // 字体大小
-        using var paint = new SKPaint
-        {
-            Color = SKColors.Black,
-            IsAntialias = true
-        };
-
-        // 绘制验证码文字 (坐标 x=20, y=55)
-        canvas.DrawText(code, 20, 55, SKTextAlign.Left, font, paint);
-
-        // 添加干扰线
-        var rand = new Random();
-        for (int i = 0; i < 3; i++)
-        {
-            using var linePaint = new SKPaint
-            {
-                Color = new SKColor((byte)rand.Next(100, 200), (byte)rand.Next(100, 200), (byte)rand.Next(100, 200)),
-                StrokeWidth = 2,
-                IsAntialias = true
-            };
-            canvas.DrawLine(rand.Next(0, 200), rand.Next(0, 80), rand.Next(0, 200), rand.Next(0, 80), linePaint);
-        }
-
-        // 输出 PNG
-        using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        var bytes = data.ToArray();
-
-        Response.Headers["X-Captcha-Id"] = captchaId;
-        return File(bytes, "image/png");
-    }
-
-    /// <summary>
     /// 用户登录接口
     /// </summary>
     [HttpPost("login")]
@@ -144,47 +91,11 @@ public class AuthController : ControllerBase
         if (user.AccountStatus != "正常")
             return Unauthorized(ApiResponse.Error(401, "账号已停用，请联系管理员"));
 
-        // 3. 验证码逻辑（测试环境跳过）
-        int failCount = 0;
-        bool requireCaptcha = false;
-
-        if (!_env.IsEnvironment("Test"))  // 测试环境跳过验证码
-        {
-            var cacheKey = $"login_fail_{request.LoginName}";
-            failCount = _cache.Get<int?>(cacheKey) ?? 0;
-            requireCaptcha = failCount >= 3;
-
-            if (requireCaptcha)
-            {
-                if (string.IsNullOrEmpty(request.CaptchaId) || string.IsNullOrEmpty(request.CaptchaCode))
-                    return BadRequest(ApiResponse.Error(400, "请提供验证码"));
-
-                var storedCode = _cache.Get<string>(request.CaptchaId);
-                if (storedCode == null || !storedCode.Equals(request.CaptchaCode, StringComparison.OrdinalIgnoreCase))
-                {
-                    // 验证码错误：增加失败计数，不直接判登录失败
-                    _cache.Set(cacheKey, failCount + 1, TimeSpan.FromHours(1));
-                    return BadRequest(ApiResponse.Error(400, "验证码错误或已过期"));
-                }
-
-                _cache.Remove(request.CaptchaId);
-            }
-        }
-
-        // 4. 密码验证
+        // 3. 密码验证
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            // 密码错误：增加失败计数（仅非测试环境）
-            if (!_env.IsEnvironment("Test"))
-                _cache.Set($"login_fail_{request.LoginName}", failCount + 1, TimeSpan.FromHours(1));
             return Unauthorized(ApiResponse.Error(401, "用户名或密码错误"));
-        }
 
-        // 5. 登录成功：重置失败计数（仅非测试环境）
-        if (!_env.IsEnvironment("Test"))
-            _cache.Remove($"login_fail_{request.LoginName}");
-
-        // 6. 角色映射（按 C-038 裁决）
+        // 4. 角色映射（按 C-038 裁决）
         string? role;
         if (!string.IsNullOrEmpty(user.StudentId))
         {
@@ -213,11 +124,11 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse.Error(401, "用户身份异常"));
         }
 
-        // 7. 生成 Token 并检测是否为首次登录
+        // 5. 生成 Token 并检测是否为首次登录
         var token = await _jwtService.GenerateToken(user, role);
         bool needChangePassword = user.IsFirstLogin == "Y";
 
-        // 8. 返回统一 ApiResponse
+        // 6. 返回统一 ApiResponse
         return Ok(ApiResponse.Ok(new
         {
             token,

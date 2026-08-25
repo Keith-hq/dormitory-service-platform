@@ -15,7 +15,6 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.10" />
     <PackageReference Include="Oracle.EntityFrameworkCore" Version="8.23.50" />
     <PackageReference Include="Quartz.Extensions.Hosting" Version="3.19.1" />
-    <PackageReference Include="SkiaSharp" Version="4.151.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
