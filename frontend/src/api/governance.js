@@ -6,6 +6,7 @@ export const governanceApi = {
   createAdmin: (data) => request.post('/auth/accounts/admins', data),
   updateAdmin: (id, data) => request.put(`/admins/${id}`, data),
   disableAdmin: (id, reason) => request.put(`/admins/${id}/disable`, { reason }),
+  enableAdmin: (id) => request.put(`/admins/${id}/enable`),
   resetAdminPassword: (id) => request.post(`/admins/${id}/password`),
   createStudent: async ({ profile, account }) => {
     await request.post('/students', profile)
