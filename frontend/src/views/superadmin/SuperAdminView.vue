@@ -47,6 +47,86 @@ const adminForm = reactive({
   password: ''
 })
 const disableReason = ref('')
+// —— C11：Excel 导入学生（IMPORT-01）——
+const importFile = ref(null)
+const importing = ref(false)
+const importResult = ref('')
+const handleImport = async () => {
+  const file = importFile.value?.files?.[0]
+  if (!file) return
+  importing.value = true
+  importResult.value = ''
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const data = await governanceApi.importStudents(form)
+    importResult.value =
+      data?.message ||
+      `导入成功，新增 ${data?.importedCount ?? 0} 条，跳过 ${data?.skippedRows?.length ?? 0} 行`
+    await load()
+  } catch (e) {
+    importResult.value = toUserMessage(e, '导入失败，请检查 CSV 文件')
+  } finally {
+    importing.value = false
+    if (importFile.value) importFile.value.value = ''
+  }
+}
+// —— C11：学院/专业管理（SUPER-01/02）——
+const colleges = ref([])
+const majors = ref([])
+const collegeForm = reactive({ collegeName: '', counselorName: '', contactPhone: '' })
+const majorForm = reactive({ majorName: '', collegeId: '' })
+const loadBaseData = async () => {
+  const results = await Promise.allSettled([governanceApi.getColleges(), governanceApi.getMajors()])
+  if (results[0].status === 'fulfilled')
+    colleges.value = normalizeCollection(results[0].value).items
+  if (results[1].status === 'fulfilled') majors.value = normalizeCollection(results[1].value).items
+}
+const createCollege = async () => {
+  if (!collegeForm.collegeName.trim()) return
+  try {
+    await governanceApi.createCollege({ ...collegeForm })
+    notice.value = '学院已创建'
+    Object.assign(collegeForm, { collegeName: '', counselorName: '', contactPhone: '' })
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '创建学院失败')
+  }
+}
+const deleteCollege = async (item) => {
+  if (!window.confirm(`确认删除学院"${item.collegeName}"吗？存在专业时后端会拒绝。`)) return
+  try {
+    await governanceApi.deleteCollege(item.collegeId)
+    notice.value = '学院已删除'
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '删除失败')
+  }
+}
+const createMajor = async () => {
+  if (!majorForm.majorName.trim() || !majorForm.collegeId) return
+  try {
+    await governanceApi.createMajor({
+      majorName: majorForm.majorName,
+      collegeId: Number(majorForm.collegeId)
+    })
+    notice.value = '专业已创建'
+    majorForm.majorName = ''
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '创建专业失败')
+  }
+}
+const deleteMajor = async (item) => {
+  if (!window.confirm(`确认删除专业"${item.majorName}"吗？存在学生时后端会拒绝。`)) return
+  try {
+    await governanceApi.deleteMajor(item.majorId)
+    notice.value = '专业已删除'
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '删除失败')
+  }
+}
 
 const section = computed(() => route.meta.section ?? 'overview')
 const title = computed(
@@ -104,7 +184,9 @@ const load = async () => {
     governanceApi.getStudents(),
     governanceApi.getAuditEvents({ page: 1, pageSize: 30 }),
     governanceApi.getReport('occupancy', { yearMonth: formatLocalMonthInput() }),
-    buildingApi.getList({ page: 1, pageSize: 100 })
+    buildingApi.getList({ page: 1, pageSize: 100 }),
+    governanceApi.getColleges(),
+    governanceApi.getMajors()
   ])
   const targets = [admins, students, audits]
   results.slice(0, 3).forEach((result, index) => {
@@ -114,6 +196,9 @@ const load = async () => {
   if (results[3].status === 'fulfilled') report.value = results[3].value
   if (results[4].status === 'fulfilled')
     buildings.value = normalizeCollection(results[4].value).items
+  if (results[5].status === 'fulfilled')
+    colleges.value = normalizeCollection(results[5].value).items
+  if (results[6].status === 'fulfilled') majors.value = normalizeCollection(results[6].value).items
   if (results.every((result) => result.status === 'rejected'))
     error.value = toUserMessage(results[0].reason, '治理数据暂时无法同步')
   loading.value = false
@@ -369,6 +454,10 @@ onMounted(load)
           <button class="btn btn-primary" type="button" @click="openCreateAdmin">
             新增管理人员
           </button>
+          <button class="btn" type="button" :disabled="importing" @click="importFile?.click()">
+            {{ importing ? '导入中…' : '导入学生' }}
+          </button>
+          <input ref="importFile" type="file" accept=".csv" hidden @change="handleImport" />
         </div>
       </header>
 
@@ -376,6 +465,7 @@ onMounted(load)
         <span>{{ notice }}</span
         ><button type="button" @click="notice = ''">关闭</button>
       </div>
+      <p v-if="importResult" class="import-result" role="status">{{ importResult }}</p>
 
       <div class="directory-controls">
         <div class="directory-tabs" aria-label="人员类型">
@@ -392,6 +482,13 @@ onMounted(load)
             @click="directory = 'students'"
           >
             学生名册 <b>{{ students.length }}</b>
+          </button>
+          <button
+            type="button"
+            :class="{ active: directory === 'college-major' }"
+            @click="directory = 'college-major'"
+          >
+            学院与专业 <b>{{ colleges.length + majors.length }}</b>
           </button>
         </div>
         <label class="directory-search">
@@ -452,7 +549,7 @@ onMounted(load)
         <p v-if="!filteredAdmins.length" class="empty">没有符合条件的管理人员</p>
       </div>
 
-      <div v-else class="directory-list student-directory">
+      <div v-else-if="directory === 'students'" class="directory-list student-directory">
         <article v-for="item in filteredStudents" :key="item.studentId" class="person-row">
           <div class="person-index">{{ item.studentId }}</div>
           <div class="person-primary">
@@ -495,6 +592,60 @@ onMounted(load)
           </div>
         </article>
         <p v-if="!filteredStudents.length" class="empty">没有符合条件的学生</p>
+      </div>
+
+      <div v-else-if="directory === 'college-major'" class="base-data-grid">
+        <article class="panel">
+          <header>
+            <span>COLLEGES</span>
+            <h2>学院管理</h2>
+          </header>
+          <form class="base-form" @submit.prevent="createCollege">
+            <label
+              >学院名称<input v-model.trim="collegeForm.collegeName" required maxlength="50"
+            /></label>
+            <label>辅导员<input v-model.trim="collegeForm.counselorName" maxlength="20" /></label>
+            <label>联系电话<input v-model.trim="collegeForm.contactPhone" maxlength="20" /></label>
+            <button class="btn btn-primary" type="submit">新增学院</button>
+          </form>
+          <div class="base-list">
+            <article v-for="item in colleges" :key="item.collegeId">
+              <b>{{ item.collegeName }}</b>
+              <span>{{ item.counselorName || '—' }} · {{ item.contactPhone || '—' }}</span>
+              <button type="button" class="danger" @click="deleteCollege(item)">删除</button>
+            </article>
+            <p v-if="!colleges.length">暂无学院。</p>
+          </div>
+        </article>
+
+        <article class="panel">
+          <header>
+            <span>MAJORS</span>
+            <h2>专业管理</h2>
+          </header>
+          <form class="base-form" @submit.prevent="createMajor">
+            <label
+              >专业名称<input v-model.trim="majorForm.majorName" required maxlength="50"
+            /></label>
+            <label
+              >所属学院<select v-model="majorForm.collegeId" required>
+                <option value="" disabled>选择学院</option>
+                <option v-for="item in colleges" :key="item.collegeId" :value="item.collegeId">
+                  {{ item.collegeName }}
+                </option>
+              </select></label
+            >
+            <button class="btn btn-primary" type="submit">新增专业</button>
+          </form>
+          <div class="base-list">
+            <article v-for="item in majors" :key="item.majorId">
+              <b>{{ item.majorName }}</b>
+              <span>学院 {{ item.collegeName || item.collegeId || '—' }}</span>
+              <button type="button" class="danger" @click="deleteMajor(item)">删除</button>
+            </article>
+            <p v-if="!majors.length">暂无专业。</p>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -813,6 +964,102 @@ onMounted(load)
   color: var(--color-text-muted);
   cursor: pointer;
   font: 9px var(--font-mono);
+}
+.import-result {
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--color-brand);
+  background: var(--color-brand-soft);
+  font-size: 13px;
+}
+.base-data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.base-data-grid .panel {
+  padding: 22px 24px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.base-data-grid header span {
+  color: var(--color-brand-strong);
+  font: 800 12px/1.4 var(--font-mono);
+  letter-spacing: 0.12em;
+}
+.base-data-grid header h2 {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font: 900 22px/1.2 var(--font-display);
+}
+.base-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+.base-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.base-form input,
+.base-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.base-form button {
+  grid-column: 1/-1;
+}
+.base-list {
+  display: grid;
+  gap: 8px;
+}
+.base-list article {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+.base-list b {
+  font-size: 14px;
+}
+.base-list span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.base-list button {
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.base-list p {
+  padding: 14px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+@media (max-width: 900px) {
+  .base-data-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .directory-controls {
   display: grid;

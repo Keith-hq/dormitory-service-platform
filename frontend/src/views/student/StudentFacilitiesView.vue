@@ -62,7 +62,13 @@ const resourceName = (item) =>
   `资源 #${item.facilityId || item.itemId || item.id}`
 const availableQuantity = (item) => Number(item.availableQty ?? item.quantity ?? item.stock ?? 0)
 const resourceStatus = (item) => item.status || (availableQuantity(item) > 0 ? '可用' : '暂无库存')
-const activeLoans = computed(() => loans.value.filter((loan) => !loan.returnTime))
+const formatLoanDate = (value) => (value ? new Date(value).toLocaleDateString() : '—')
+const isLoanOverdue = (loan) =>
+  !loan.returnTime && loan.dueTime && new Date(loan.dueTime).getTime() < Date.now()
+const loanStatus = (loan) =>
+  loan.returnTime ? '已归还' : isLoanOverdue(loan) ? '已超期' : '待归还'
+const loanTone = (loan) =>
+  loan.returnTime ? 'success' : isLoanOverdue(loan) ? 'danger' : 'warning'
 const switchMode = (mode) => {
   activeMode.value = mode
   selectedResource.value = null
@@ -334,21 +340,26 @@ onMounted(loadResources)
           ><InlineState v-else empty empty-text="从左侧选择设施或物品" />
           <section class="loan-ledger">
             <header>
-              <span>ACTIVE LOANS</span><strong>我的待归还 {{ activeLoans.length }}</strong>
+              <span>LOAN HISTORY</span><strong>我的借用 {{ loans.length }} 笔</strong>
             </header>
-            <article v-for="loan in activeLoans" :key="loan.loanId">
+            <article
+              v-for="loan in loans"
+              :key="loan.loanId"
+              :class="{ overdue: isLoanOverdue(loan) }"
+            >
               <div>
                 <b>物品 #{{ loan.itemId }}</b
                 ><small
-                  >借用单 #{{ loan.loanId }} ·
-                  {{
-                    loan.dueTime
-                      ? `应还 ${new Date(loan.dueTime).toLocaleDateString()}`
-                      : '归还期限待同步'
-                  }}</small
+                  >借用单 #{{ loan.loanId }} · 借 {{ formatLoanDate(loan.borrowTime) }} · 应还
+                  {{ formatLoanDate(loan.dueTime)
+                  }}{{ loan.returnTime ? ` · 已还 ${formatLoanDate(loan.returnTime)}` : '' }}</small
+                ><small v-if="isLoanOverdue(loan)" class="overdue-hint"
+                  >已超期，归还将扣 2 信用分</small
                 >
               </div>
+              <StatusTag :label="loanStatus(loan)" :tone="loanTone(loan)" size="small" />
               <button
+                v-if="!loan.returnTime"
                 class="btn btn-sm"
                 :disabled="actionLoading === `return-${loan.loanId}`"
                 @click="returnLoan(loan)"
@@ -356,7 +367,7 @@ onMounted(loadResources)
                 {{ actionLoading === `return-${loan.loanId}` ? '归还中…' : '确认归还' }}
               </button>
             </article>
-            <p v-if="!activeLoans.length">当前没有待归还物品。</p>
+            <p v-if="!loans.length">暂无借用记录。</p>
           </section></template
         >
       </aside>
@@ -614,6 +625,16 @@ onMounted(loadResources)
 .loan-ledger p {
   color: #83968a;
   font-size: 9px;
+}
+.loan-ledger article.overdue {
+  background: #fff1f0;
+  border-radius: var(--radius-lg);
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.loan-ledger .overdue-hint {
+  color: var(--color-danger);
+  font-weight: 800;
 }
 @media (max-width: 850px) {
   .workspace-page {

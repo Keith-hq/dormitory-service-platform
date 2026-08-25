@@ -8,7 +8,7 @@ namespace TemplateDormApi.DTO;
 public class NoticeItemDto
 {
     public int NoticeId { get; set; }
-    public string AdminId { get; set; } = string.Empty;
+    public string? AdminId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public DateTime PublishTime { get; set; }

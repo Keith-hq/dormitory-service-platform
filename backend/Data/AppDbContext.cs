@@ -502,6 +502,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.VioType).HasColumnName("VIO_TYPE").HasMaxLength(50).IsRequired();
             entity.Property(e => e.VioDate).HasColumnName("VIO_DATE").IsRequired();
             entity.Property(e => e.Penalty).HasColumnName("PENALTY").HasMaxLength(100);
+            entity.Property(e => e.Detail).HasColumnName("DETAIL").HasMaxLength(500);
+            entity.Property(e => e.RecordBy).HasColumnName("RECORD_BY").HasMaxLength(20);
 
             entity.HasOne<Student>()
                   .WithMany()
