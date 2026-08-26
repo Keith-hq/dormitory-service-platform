@@ -171,34 +171,46 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
     {
         var month = ParseMonth(query.YearMonth);
         var nextMonth = month.AddMonths(1);
-        var averages = await DbContext.HygieneRecords.AsNoTracking()
+
+        // 月榜取每间房"最新一次"打分的分数（不平均）：先按时间倒序，再按房间分组取第一条。
+        // 修正历史记录后，月榜即等于最新一次打分，不再被同月旧打分稀释。
+        var records = await DbContext.HygieneRecords.AsNoTracking()
             .Where(item =>
                 item.RoomId != null &&
                 item.CheckDate >= month &&
                 item.CheckDate < nextMonth &&
                 DbContext.Rooms.Any(room => room.RoomId == item.RoomId && room.BuildingId == buildingId))
-            .GroupBy(item => item.RoomId!.Value)
-            .Select(group => new { RoomId = group.Key, AverageScore = group.Average(item => item.Score) })
-            .OrderByDescending(item => item.AverageScore)
-            .ThenBy(item => item.RoomId)
+            .OrderByDescending(item => item.CheckDate)
+            .ThenByDescending(item => item.RecordId)
             .ToListAsync(cancellationToken);
+
+        var latestScores = records
+            .GroupBy(item => item.RoomId!.Value)
+            .Select(group => new
+            {
+                RoomId = group.Key,
+                LatestScore = group.First().Score
+            })
+            .OrderByDescending(item => item.LatestScore)
+            .ThenBy(item => item.RoomId)
+            .ToList();
 
         var result = new List<HygieneRankingDto>();
         decimal? previousScore = null;
         var rank = 0;
-        foreach (var item in averages)
+        foreach (var item in latestScores)
         {
-            if (previousScore != item.AverageScore)
+            if (previousScore != item.LatestScore)
             {
                 rank++;
-                previousScore = item.AverageScore;
+                previousScore = item.LatestScore;
             }
-            if (item.AverageScore >= 90m)
+            if (item.LatestScore >= 90m)
             {
                 result.Add(new HygieneRankingDto
                 {
                     RoomId = item.RoomId,
-                    AverageScore = Math.Round(item.AverageScore, 1),
+                    AverageScore = Math.Round(item.LatestScore, 1),
                     Rank = rank
                 });
             }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -103,7 +104,9 @@ public sealed class StudentSafetyImplementationTests
 
         var service = new LateEntryService(
             new LateEntryRepository(context),
-            CreateIdentityService(context));
+            CreateIdentityService(context),
+            new FakeNotificationService(),
+            NullLogger<LateEntryService>.Instance);
         var page = await service.GetStudentEntriesAsync(
             "20260001",
             101,
@@ -318,5 +321,24 @@ public sealed class StudentSafetyImplementationTests
 
         public Task<FileDeleteResultDto> DeleteAsync(string storageRef, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+    }
+
+    private sealed class FakeNotificationService : INotificationService
+    {
+        public Task<PagedResult<NotificationItemDto>> GetPagedAsync(
+            int recipientAccountId, int page, int pageSize, string? isRead)
+            => throw new NotSupportedException();
+
+        public Task MarkReadAsync(int notificationId, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task MarkBatchReadAsync(IReadOnlyCollection<int> notificationIds, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<UnreadCountDto> GetUnreadCountAsync(int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<NotificationItemDto> CreateAsync(NotificationCreateDto dto)
+            => Task.FromResult(new NotificationItemDto());
     }
 }

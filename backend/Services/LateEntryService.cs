@@ -1,7 +1,8 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
 using TemplateDormApi.Repository;
-using Microsoft.AspNetCore.Http;
 
 namespace TemplateDormApi.Services;
 
@@ -16,11 +17,19 @@ public sealed class LateEntryService : ILateEntryService
 {
     private readonly LateEntryRepository _repository;
     private readonly IStudentIdentityService _identityService;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<LateEntryService> _logger;
 
-    public LateEntryService(LateEntryRepository repository, IStudentIdentityService identityService)
+    public LateEntryService(
+        LateEntryRepository repository,
+        IStudentIdentityService identityService,
+        INotificationService notificationService,
+        ILogger<LateEntryService> logger)
     {
         _repository = repository;
         _identityService = identityService;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     public async Task<PagedResult<LateEntryDto>> GetStudentEntriesAsync(
@@ -81,6 +90,30 @@ public sealed class LateEntryService : ILateEntryService
             throw new BusinessException(400, "晚归时间不能晚于当前时间");
         }
 
-        return await _repository.CreateAsync(request, cancellationToken);
+        var result = await _repository.CreateAsync(request, cancellationToken);
+        await TryNotifyStudentAsync(request.StudentId, result, cancellationToken);
+        return result;
+    }
+
+    /// <summary>宿管登记晚归后通知学生本人（fail-soft，不阻断登记主流程）。</summary>
+    private async Task TryNotifyStudentAsync(
+        string studentId,
+        LateEntryDto entry,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificationService.CreateAsync(new NotificationCreateDto
+            {
+                StudentId = studentId,
+                Title = "晚归登记提醒",
+                Content = $"您有一条晚归记录（{entry.RecordTime:MM-dd HH:mm}），请在 24 小时内补充说明。",
+                NotificationType = "系统"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "晚归登记通知投递失败，studentId={StudentId}", studentId);
+        }
     }
 }

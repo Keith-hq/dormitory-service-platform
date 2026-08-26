@@ -5,19 +5,31 @@ import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
+import { formatLocalMonthInput } from '@/utils/localDate'
 
 const userStore = useUserStore()
 const activeSection = ref('late')
 const loading = ref(true)
 const failures = ref([])
-const data = ref({ late: [], leave: [], visitor: [], votes: [], appeals: [], credit: null })
+const data = ref({
+  late: [],
+  leave: [],
+  visitor: [],
+  votes: [],
+  appeals: [],
+  hygiene: [],
+  credit: null
+})
 const studentId = computed(() => userStore.userInfo?.id || '')
+const currentMonth = formatLocalMonthInput()
+const hygieneMonth = ref(currentMonth)
 const sections = [
   { key: 'late', code: '01', label: '晚归记录', hint: '查看与说明' },
   { key: 'leave', code: '02', label: '离校报备', hint: '申请与审批' },
   { key: 'visitor', code: '03', label: '访客授权', hint: '动态通行码' },
   { key: 'votes', code: '04', label: '房间投票', hint: '寝室共识' },
-  { key: 'credit', code: '05', label: '信用与申诉', hint: '分值与复核' }
+  { key: 'hygiene', code: '05', label: '卫生排名', hint: '月度月榜' },
+  { key: 'credit', code: '06', label: '信用与申诉', hint: '分值与复核' }
 ]
 const activeForm = ref(null) // 'late' | 'leave' | 'visitor' | 'votes' | 'appeals' | null
 const formLoading = ref(false)
@@ -36,9 +48,14 @@ const form = ref({
   eligibleCount: 4,
   creditRecordId: ''
 })
+const appealedLogIds = computed(
+  () => new Set((data.value.appeals || []).map((item) => item.creditRecordId))
+)
 const deductibleLogs = computed(() => {
   const items = data.value.credit?.items || data.value.credit?.Items || []
-  return items.filter((log) => Number(log.scoreChange) < 0)
+  return items.filter(
+    (log) => Number(log.scoreChange) < 0 && !appealedLogIds.value.has(log.logId)
+  )
 })
 const formTitle = computed(
   () =>
@@ -50,6 +67,7 @@ const formTitle = computed(
       appeals: '发起信用申诉'
     })[activeForm.value] || ''
 )
+const lateTarget = ref(null) // 正在补充说明的晚归记录
 const openForm = (key) => {
   feedback.value = ''
   form.value = {
@@ -66,10 +84,26 @@ const openForm = (key) => {
   }
   activeForm.value = key
 }
+const openLateForm = (target) => {
+  lateTarget.value = target ?? null
+  openForm('late')
+}
+const openHeaderForm = () => {
+  if (activeSection.value === 'late') {
+    openLateForm(data.value.late.find((item) => !item.reason) ?? data.value.late[0] ?? null)
+    return
+  }
+  openForm(activeSection.value === 'credit' ? 'appeals' : activeSection.value)
+}
 const closeForm = () => {
   activeForm.value = null
   formLoading.value = false
   feedback.value = ''
+}
+const switchSection = (key) => {
+  activeSection.value = key
+  closeForm()
+  expandedId.value = null
 }
 const submitForm = async () => {
   const key = activeForm.value
@@ -78,7 +112,7 @@ const submitForm = async () => {
   feedback.value = ''
   try {
     if (key === 'late') {
-      const record = data.value.late[0]
+      const record = lateTarget.value ?? data.value.late[0]
       if (!record?.recordId) throw new Error('暂无可补充说明的晚归记录')
       await studentApi.updateLateEntryReason(record.recordId, form.value.reason)
       feedback.value = '晚归说明已补充'
@@ -116,11 +150,7 @@ const submitForm = async () => {
     await loadCommunity()
     closeForm()
   } catch (requestError) {
-    if (key === 'appeals' && requestError?.status === 404) {
-      feedback.value = '申诉接口后端未实现（BUG-104），待补后可用'
-    } else {
-      feedback.value = toUserMessage(requestError, '提交失败，请稍后重试')
-    }
+    feedback.value = toUserMessage(requestError, '提交失败，请稍后重试')
   } finally {
     formLoading.value = false
   }
@@ -135,6 +165,59 @@ const currentItems = computed(() =>
   activeSection.value === 'credit' ? data.value.appeals : data.value[activeSection.value]
 )
 const activeCopy = computed(() => sections.find((section) => section.key === activeSection.value))
+
+// —— C8 房间投票响应（一人一票）——
+const voteStats = ref({})
+const votedVoteIds = ref(new Set())
+const votingVoteId = ref(null)
+const voteStatusTone = (status) =>
+  ({ 进行中: 'info', 已通过: 'success', 未通过: 'danger', 已结束: 'warning' })[status] || 'info'
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
+
+const submitVote = async (vote, choice) => {
+  if (votingVoteId.value) return
+  votingVoteId.value = vote.voteId
+  feedback.value = ''
+  try {
+    const stats = await studentApi.submitVoteResponse(vote.voteId, { choice })
+    voteStats.value = { ...voteStats.value, [vote.voteId]: stats }
+    votedVoteIds.value = new Set([...votedVoteIds.value, vote.voteId])
+    feedback.value = `已投「${choice}」`
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '投票失败，可能已投过')
+  } finally {
+    votingVoteId.value = null
+  }
+}
+
+const viewVoteStats = async (vote) => {
+  try {
+    const stats = await studentApi.getRoomVoteStats(vote.voteId)
+    voteStats.value = { ...voteStats.value, [vote.voteId]: stats }
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '统计获取失败')
+  }
+}
+
+// —— C8 访客授权撤销 ——
+const revokingId = ref(null)
+const revokeVisitor = async (item) => {
+  const authId = item.authorizationId ?? item.authId
+  if (!authId || revokingId.value) return
+  if (!window.confirm(`确认撤销访客「${item.visitorName || ''}」的授权？撤销后通行码立即失效。`))
+    return
+  revokingId.value = authId
+  feedback.value = ''
+  try {
+    await studentApi.revokeVisitorAuthorization(authId)
+    feedback.value = '访客授权已撤销'
+    await loadCommunity()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '撤销失败')
+  } finally {
+    revokingId.value = null
+  }
+}
 
 const loadCommunity = async () => {
   loading.value = true
@@ -158,8 +241,33 @@ const loadCommunity = async () => {
       else if (key === 'credit') data.value.credit = result.value
       else data.value[key] = normalizeCollection(result.value).items
     })
+    await loadHygiene()
+    await loadMyRoomHygiene()
   } finally {
     loading.value = false
+  }
+}
+
+const loadHygiene = async () => {
+  try {
+    const result = await studentApi.getHygieneRankings({ yearMonth: hygieneMonth.value })
+    data.value.hygiene = normalizeCollection(result).items
+  } catch {
+    failures.value.push('hygiene')
+  }
+}
+
+// 我的宿舍卫生成绩（STU-18：学生只能查自己房间，后端越权 403）
+const myRoomRecords = ref([])
+const myRoomExpanded = ref(false)
+const myRoomLatest = computed(() => myRoomRecords.value[0] ?? null)
+const loadMyRoomHygiene = async () => {
+  if (!roomId.value) return
+  try {
+    const result = await studentApi.getRoomHygieneRecords(roomId.value)
+    myRoomRecords.value = normalizeCollection(result).items
+  } catch {
+    // 自己房间卫生成绩获取失败不阻断页面
   }
 }
 
@@ -172,6 +280,7 @@ const itemTitle = (item) =>
   item.appealReason ||
   `记录 #${item.recordId || item.applyId || item.authId || item.voteId || item.appealId || '—'}`
 const itemMeta = (item) =>
+  item.recordTime ||
   item.returnTime ||
   item.leaveDate ||
   item.visitTime ||
@@ -239,7 +348,7 @@ onMounted(loadCommunity)
           v-for="section in sections"
           :key="section.key"
           :class="{ active: activeSection === section.key }"
-          @click="activeSection = section.key"
+          @click="switchSection(section.key)"
         >
           <span>{{ section.code }}</span>
           <div>
@@ -256,7 +365,11 @@ onMounted(loadCommunity)
             <h2>{{ activeCopy.label }}</h2>
             <p>{{ activeCopy.hint }}相关记录集中显示在这里。</p>
           </div>
-          <button class="btn btn-primary" @click="openForm(activeSection)">
+          <button
+            v-if="activeSection !== 'hygiene'"
+            class="btn btn-primary"
+            @click="openHeaderForm"
+          >
             {{
               activeSection === 'late'
                 ? '补充说明'
@@ -268,6 +381,9 @@ onMounted(loadCommunity)
                       ? '发起投票'
                       : '发起申诉'
             }}
+          </button>
+          <button v-else class="btn btn-primary" :disabled="loading" @click="loadCommunity">
+            刷新卫生排名
           </button>
         </header>
         <form v-if="activeForm" class="community-form" @submit.prevent="submitForm">
@@ -382,7 +498,125 @@ onMounted(loadCommunity)
           :empty="!loading && !currentItems.length"
           :empty-text="`暂无${activeCopy.label}记录`"
         />
-        <div class="community-records">
+        <template v-if="activeSection === 'votes'">
+          <div class="vote-list">
+            <article v-for="vote in data.votes" :key="vote.voteId" class="vote-card">
+              <time>{{ formatDate(vote.createTime) }}</time>
+              <div class="vote-main">
+                <div class="vote-head">
+                  <h3>{{ vote.topic }}</h3>
+                  <StatusTag :label="vote.status" :tone="voteStatusTone(vote.status)" size="small" />
+                </div>
+                <p>
+                  发起人 {{ vote.initiatorStudentId }} · 应参与 {{ vote.eligibleCount }} 人 ·
+                  截止 {{ formatDate(vote.deadline) }}
+                </p>
+                <div v-if="voteStats[vote.voteId]" class="vote-stats">
+                  <span>同意 <b>{{ voteStats[vote.voteId].agreeCount }}</b></span>
+                  <span>不同意 <b>{{ voteStats[vote.voteId].disagreeCount }}</b></span>
+                  <span>已投 <b>{{ voteStats[vote.voteId].totalCount }}/{{ vote.eligibleCount }}</b></span>
+                </div>
+              </div>
+              <div class="vote-actions">
+                <button
+                  v-if="vote.status === '进行中'"
+                  type="button"
+                  class="vote-btn agree"
+                  :disabled="votingVoteId === vote.voteId || votedVoteIds.has(vote.voteId)"
+                  @click="submitVote(vote, '同意')"
+                >
+                  同意
+                </button>
+                <button
+                  v-if="vote.status === '进行中'"
+                  type="button"
+                  class="vote-btn reject"
+                  :disabled="votingVoteId === vote.voteId || votedVoteIds.has(vote.voteId)"
+                  @click="submitVote(vote, '不同意')"
+                >
+                  不同意
+                </button>
+                <button type="button" class="vote-btn view" @click="viewVoteStats(vote)">
+                  查看统计
+                </button>
+                <span v-if="votedVoteIds.has(vote.voteId)" class="voted-hint">✓ 已投票</span>
+              </div>
+            </article>
+          </div>
+        </template>
+
+        <template v-else-if="activeSection === 'hygiene'">
+          <div class="my-room-card">
+            <div class="my-room-head">
+              <div>
+                <span>MY ROOM / SCORE</span>
+                <h3>我的宿舍 · 房间 {{ roomId }}</h3>
+              </div>
+              <div class="my-room-actions">
+                <StatusTag
+                  :label="
+                    myRoomLatest ? `最新 ${Number(myRoomLatest.score).toFixed(0)} 分` : '暂无评分'
+                  "
+                  :tone="
+                    myRoomLatest && Number(myRoomLatest.score) >= 90
+                      ? 'success'
+                      : myRoomLatest
+                        ? 'warning'
+                        : 'info'
+                  "
+                  size="small"
+                />
+                <button
+                  type="button"
+                  class="my-room-toggle"
+                  @click="myRoomExpanded = !myRoomExpanded"
+                >
+                  {{ myRoomExpanded ? '收起记录' : `查看评分记录 (${myRoomRecords.length})` }}
+                </button>
+              </div>
+            </div>
+            <div v-if="myRoomExpanded" class="my-room-records">
+              <article v-for="record in myRoomRecords" :key="record.recordId">
+                <time>{{ formatDate(record.checkDate) }}</time>
+                <div>
+                  <strong>{{ Number(record.score).toFixed(0) }} 分</strong>
+                  <small
+                    >{{ record.comment || '无备注'
+                    }}{{ record.inspectorId ? ` · 检查人 ${record.inspectorId}` : '' }}</small
+                  >
+                </div>
+              </article>
+              <p v-if="!myRoomRecords.length" class="my-room-empty">本宿舍暂无卫生评分记录</p>
+            </div>
+          </div>
+          <div class="hygiene-board">
+            <div class="hygiene-header">
+              <div>
+                <span>HYGIENE / MONTHLY</span>
+                <h3>{{ hygieneMonth }} 卫生月榜</h3>
+              </div>
+              <label class="hygiene-month"
+                >月份<input v-model="hygieneMonth" type="month" @change="loadHygiene"
+              /></label>
+            </div>
+            <div class="hygiene-list">
+              <article v-for="(item, index) in data.hygiene" :key="item.roomId">
+                <b>{{ String(item.rank ?? index + 1).padStart(2, '0') }}</b>
+                <div>
+                  <strong>房间 {{ item.roomId }}</strong
+                  ><small>月度平均</small>
+                </div>
+                <em>{{ Number(item.averageScore || 0).toFixed(1) }}</em>
+                <i :style="{ '--score': `${Math.min(100, Number(item.averageScore || 0))}%` }"></i>
+              </article>
+              <p v-if="!data.hygiene.length" class="hygiene-empty">
+                当前月份暂无卫生评分记录。
+              </p>
+            </div>
+          </div>
+        </template>
+
+        <div v-else class="community-records">
           <article
             v-for="(item, index) in currentItems"
             :key="
@@ -399,6 +633,23 @@ onMounted(loadCommunity)
               @click="toggleDetail(item)"
             >
               查看详情 ↗
+            </button>
+            <button
+              v-if="activeSection === 'late' && !item.reason"
+              type="button"
+              class="late-btn"
+              @click="openLateForm(item)"
+            >
+              补充说明
+            </button>
+            <button
+              v-if="activeSection === 'visitor' && item.status === '有效'"
+              type="button"
+              class="revoke-btn"
+              :disabled="revokingId === (item.authorizationId ?? item.authId)"
+              @click="revokeVisitor(item)"
+            >
+              {{ revokingId === (item.authorizationId ?? item.authId) ? '撤销中…' : '撤销' }}
             </button>
             <dl v-if="expandedId === itemKey(item)" class="record-detail">
               <template v-for="(value, field) in item" :key="field">
@@ -584,6 +835,344 @@ onMounted(loadCommunity)
   gap: 20px;
   transition: background 0.18s ease;
 }
+.vote-list {
+  display: grid;
+  gap: 14px;
+  margin: 14px 32px;
+}
+.vote-card {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+  min-height: 108px;
+  padding: 22px 26px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: 0 12px 24px rgba(23, 65, 120, 0.08);
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+.vote-card:hover {
+  background: var(--color-brand-soft);
+  box-shadow: 0 16px 32px rgba(11, 99, 199, 0.12);
+}
+.vote-card > time {
+  display: grid;
+  min-height: 62px;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: #edf5ff;
+  color: var(--color-brand-strong);
+  font: 15px var(--font-mono);
+  font-weight: 950;
+  text-align: center;
+}
+.vote-main {
+  min-width: 0;
+}
+.vote-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.vote-card h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.vote-main > p {
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.6;
+}
+.vote-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.vote-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+.vote-stats b {
+  color: var(--color-brand-strong);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 900;
+}
+.vote-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vote-btn {
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.vote-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(11, 99, 199, 0.08);
+}
+.vote-btn.agree {
+  border-color: #b4e6e1;
+  background: #e4f8f6;
+  color: #007c73;
+}
+.vote-btn.reject {
+  border-color: #efc4bc;
+  background: var(--color-danger-soft);
+  color: #a34239;
+}
+.vote-btn.view {
+  border-color: var(--color-brand-border);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+.vote-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+.voted-hint {
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 850;
+}
+.hygiene-board {
+  margin: 14px 32px;
+}
+.hygiene-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 4px 16px;
+}
+.hygiene-header span {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+}
+.hygiene-header h3 {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 950;
+}
+.hygiene-header small {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.hygiene-month {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.hygiene-month input {
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13px;
+}
+.hygiene-list {
+  display: grid;
+  gap: 10px;
+}
+.hygiene-list article {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 14px;
+  overflow: hidden;
+  padding: 18px 20px 20px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: 0 12px 24px rgba(23, 65, 120, 0.08);
+}
+.hygiene-list article > b {
+  color: var(--color-brand-strong);
+  font: 800 13px var(--font-mono);
+}
+.hygiene-list article div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.hygiene-list strong {
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+.hygiene-list small {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.hygiene-list em {
+  color: var(--color-brand-strong);
+  font: 900 26px var(--font-display);
+  font-style: normal;
+  text-align: right;
+}
+.hygiene-list i {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 12px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(185, 216, 251, 0.6);
+}
+.hygiene-list i::before {
+  display: block;
+  width: var(--score);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand);
+  content: '';
+}
+.hygiene-empty {
+  margin: 0;
+  padding: 26px;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-size: 14px;
+}
+.my-room-card {
+  margin: 14px 32px 0;
+  padding: 22px 26px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: 0 12px 24px rgba(23, 65, 120, 0.08);
+}
+.my-room-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.my-room-head span {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+}
+.my-room-head h3 {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 950;
+}
+.my-room-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.my-room-toggle {
+  min-height: 36px;
+  padding: 7px 16px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.my-room-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(11, 99, 199, 0.08);
+}
+.my-room-records {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.my-room-records article {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+.my-room-records time {
+  color: var(--color-brand-strong);
+  font: 13px var(--font-mono);
+  font-weight: 900;
+}
+.my-room-records strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 900;
+}
+.my-room-records small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+.my-room-empty {
+  margin: 0;
+  padding: 18px;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-size: 14px;
+}
 .credit-summary {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -673,6 +1262,26 @@ onMounted(loadCommunity)
   font-weight: 900;
   cursor: pointer;
 }
+.community-records .revoke-btn {
+  border-color: #efc4bc;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.community-records .revoke-btn:hover:not(:disabled) {
+  border-color: #e0a89e;
+}
+.community-records .revoke-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.community-records .late-btn {
+  border-color: #b8d7e8;
+  background: #eef8ff;
+  color: #276582;
+}
+.community-records .late-btn:hover:not(:disabled) {
+  border-color: #7fb6d6;
+}
 .community-guide {
   position: relative;
   overflow: hidden;
@@ -699,6 +1308,7 @@ onMounted(loadCommunity)
 }
 .community-guide h2 {
   margin-bottom: 42px;
+  color: #fff;
 }
 .community-guide > div {
   padding: 24px 0;
@@ -759,6 +1369,23 @@ onMounted(loadCommunity)
   .community-guide {
     grid-column: auto;
   }
+  .vote-list,
+  .hygiene-board,
+  .my-room-card {
+    margin: 10px 24px;
+  }
+  .vote-card {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 20px 22px;
+  }
+  .vote-card > time {
+    justify-items: center;
+    min-height: 46px;
+  }
+  .vote-actions {
+    justify-content: flex-start;
+  }
   .community-records article {
     grid-template-columns: 58px 1fr;
   }
@@ -771,6 +1398,7 @@ onMounted(loadCommunity)
 .community-form {
   display: grid;
   gap: 18px;
+  min-width: 0;
   margin: 26px;
   padding: 26px;
   border-radius: var(--radius-lg);
@@ -784,6 +1412,7 @@ onMounted(loadCommunity)
 }
 .community-form label {
   display: grid;
+  min-width: 0;
   gap: 9px;
   color: var(--color-text);
   font-size: 15px;
@@ -792,6 +1421,8 @@ onMounted(loadCommunity)
 .community-form input,
 .community-form textarea,
 .community-form select {
+  width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 12px 14px;
   border: 1px solid var(--color-line-strong);

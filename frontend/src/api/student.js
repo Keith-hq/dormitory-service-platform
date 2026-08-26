@@ -53,9 +53,12 @@ export const studentApi = {
   getRoomVotes: (roomId, params) => request.get(`/rooms/${roomId}/votes`, { params }),
   createRoomVote: (data) => request.post('/room-votes', data),
   submitVoteResponse: (voteId, data) => request.post(`/room-votes/${voteId}/responses`, data),
+  getRoomVoteStats: (voteId) => request.get(`/room-votes/${voteId}`),
   getVisitorAuthorizations: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/visitor-authorizations`, { params }),
   createVisitorAuthorization: (data) => request.post('/visitor-authorizations', data),
+  revokeVisitorAuthorization: (authId) =>
+    request.post(`/visitor-authorizations/${authId}/revoke`),
   getCredit: (studentId) => request.get(`/students/${encodeURIComponent(studentId)}/credit`),
   getCreditAppeals: (studentId) =>
     request.get(`/students/${encodeURIComponent(studentId)}/credit-appeals`),
@@ -63,5 +66,7 @@ export const studentApi = {
   getMonthlyFeeReport: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/reports/monthly-fee`, { params }),
   getFacilityUsageReport: (studentId, params) =>
-    request.get(`/students/${encodeURIComponent(studentId)}/reports/facility-usage`, { params })
+    request.get(`/students/${encodeURIComponent(studentId)}/reports/facility-usage`, { params }),
+  getHygieneRankings: (params) => request.get('/hygiene-rankings', { params }),
+  getRoomHygieneRecords: (roomId) => request.get(`/rooms/${roomId}/hygiene`)
 }

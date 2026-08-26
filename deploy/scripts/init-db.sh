@@ -207,6 +207,7 @@ SCRIPTS=(
     "ddl/extensions/032_admin_role_include_counselor.sql"
     "ddl/extensions/033_credit_appeal.sql"
     "ddl/extensions/034_visitor_registry.sql"
+    "ddl/extensions/039_violation_status.sql"
     # 存储过程
     "sp/sp_fee_sharing.sql"
     "sp/sp_billing.sql"

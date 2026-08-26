@@ -16,8 +16,9 @@ const working = ref('')
 const error = ref('')
 const feedback = ref('')
 const hygiene = ref({ roomId: '', score: '', comment: '' })
-const correction = ref({ recordId: '', score: '', comment: '' })
+const correction = ref({ roomId: '', score: '', comment: '' })
 const lateEntry = ref({ studentId: '', recordTime: localDateTime, reason: '' })
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
 
 const average = computed(() => {
   if (!rankings.value.length) return '—'
@@ -82,14 +83,23 @@ const createHygiene = async () => {
 const updateHygiene = async () => {
   const ok = await run(
     'correction',
-    () =>
-      adminApi.updateHygieneRecord(correction.value.recordId, {
+    async () => {
+      if (!correction.value.roomId) throw new Error('请填写宿舍号')
+      const records = await adminApi.getRoomHygieneRecords(correction.value.roomId)
+      const items = normalizeCollection(records).items
+      if (!items.length) throw new Error('该宿舍暂无评分记录，无法修正')
+      const latest = items[0] // 按 checkDate 倒序，取最近一次打分
+      await adminApi.updateHygieneRecord(latest.recordId, {
         score: Number(correction.value.score),
         comment: correction.value.comment || null
-      }),
+      })
+    },
     '卫生记录已修正'
   )
-  if (ok) await loadRankings()
+  if (ok) {
+    correction.value = { roomId: '', score: '', comment: '' }
+    await loadRankings()
+  }
 }
 
 const createLateEntry = async () => {
@@ -106,8 +116,17 @@ const createLateEntry = async () => {
   if (ok) lateEntry.value = { studentId: '', recordTime: localDateTime, reason: '' }
 }
 
-// C6 违规登记：D_Violation_Record 落库；注意违规登记本身不触发信用扣分（与信用扣分解耦）
+// C6 违规登记：落库 D_Violation_Record 后自动扣信用分（违章电器 -10、其余 -5），扣分失败整体回滚
 const violation = ref({ studentId: '', type: '查寝未归', detail: '' })
+const violations = ref([])
+const loadViolations = async () => {
+  try {
+    const data = await adminApi.getViolations({ page: 1, pageSize: 20 })
+    violations.value = normalizeCollection(data).items
+  } catch {
+    // 违规列表失败不阻断登记
+  }
+}
 const registerViolation = async () => {
   const ok = await run(
     'violation',
@@ -117,12 +136,18 @@ const registerViolation = async () => {
         type: violation.value.type,
         detail: violation.value.detail || null
       }),
-    '违规已登记，学生端/超管报表可见'
+    '违规已登记并扣分，学生端信用与申诉可见'
   )
-  if (ok) violation.value = { studentId: '', type: '查寝未归', detail: '' }
+  if (ok) {
+    violation.value = { studentId: '', type: '查寝未归', detail: '' }
+    await loadViolations()
+  }
 }
 
-onMounted(loadRankings)
+onMounted(async () => {
+  await loadRankings()
+  await loadViolations()
+})
 </script>
 
 <template>
@@ -187,7 +212,7 @@ onMounted(loadRankings)
             <summary>修正已有记录</summary>
             <form @submit.prevent="updateHygiene">
               <label
-                >记录 ID<input v-model="correction.recordId" required min="1" type="number"
+                >宿舍号<input v-model="correction.roomId" required min="1" type="number"
               /></label>
               <label
                 >修正分数<input
@@ -255,11 +280,21 @@ onMounted(loadRankings)
               >情况说明<textarea
                 v-model.trim="violation.detail"
                 rows="3"
-                placeholder="可选；违规登记不触发信用扣分"
+                placeholder="可选；登记后自动扣分（违章电器 -10，其他 -5）"
               ></textarea>
             </label>
             <button class="btn" :disabled="working === 'violation'">登记违规</button>
           </form>
+          <div v-if="violations.length" class="violation-list">
+            <p class="violation-list__title">最近违规</p>
+            <article v-for="item in violations.slice(0, 5)" :key="item.violationId">
+              <b>{{ item.studentId }}</b>
+              <span>
+                {{ item.type }} · {{ item.detail || '—' }} · {{ item.status || '有效' }}
+              </span>
+              <time>{{ formatDate(item.recordTime) }}</time>
+            </article>
+          </div>
         </section>
       </aside>
     </section>
@@ -469,6 +504,45 @@ onMounted(loadRankings)
 }
 .late-card form > button {
   grid-column: auto;
+}
+.violation-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+.violation-list__title {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+.violation-list article {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+}
+.violation-list b {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+.violation-list span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.violation-list time {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 @media (max-width: 900px) {
   .inspection-layout {

@@ -69,6 +69,30 @@ public class CreditAppealController : ControllerBase
         return Ok(ApiResponse.Ok(result));
     }
 
+    /// <summary>申诉复核队列 — GET /credit-appeals（楼长/超管，可按状态过滤分页）</summary>
+    [HttpGet("credit-appeals")]
+    [Authorize(Policy = AuthPolicies.DormAdmin)]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var accountId = CurrentUser.GetAccountId(User);
+        if (!accountId.HasValue)
+        {
+            return Unauthorized(ApiResponse.Error(401, "用户身份无效"));
+        }
+
+        var result = await _service.GetAllAsync(
+            accountId.Value,
+            status,
+            page,
+            pageSize,
+            cancellationToken);
+        return Ok(ApiResponse.Ok(result));
+    }
+
     /// <summary>APPEAL-03 复核申诉 — PUT /credit-appeals/{appealId}/review（楼长/超管）</summary>
     [HttpPut("credit-appeals/{appealId}/review")]
     [Authorize(Policy = AuthPolicies.DormAdmin)]

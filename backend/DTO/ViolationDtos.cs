@@ -35,4 +35,5 @@ public sealed class ViolationDto
     public string? Detail { get; set; }
     public DateTime RecordTime { get; set; }
     public string? RecordBy { get; set; }
+    public string Status { get; set; } = "有效";
 }

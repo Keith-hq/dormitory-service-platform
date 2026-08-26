@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -24,19 +25,22 @@ public class CreditAppealService : ICreditAppealService
     private readonly ICreditService _creditService;
     private readonly INotificationService _notificationService;
     private readonly IAuditService _auditService;
+    private readonly ILogger<CreditAppealService> _logger;
 
     public CreditAppealService(
         AppDbContext context,
         UserAccountRepository userAccountRepository,
         ICreditService creditService,
         INotificationService notificationService,
-        IAuditService auditService)
+        IAuditService auditService,
+        ILogger<CreditAppealService> logger)
     {
         _context = context;
         _userAccountRepository = userAccountRepository;
         _creditService = creditService;
         _notificationService = notificationService;
         _auditService = auditService;
+        _logger = logger;
     }
 
     public async Task<CreditAppealDto> SubmitAsync(
@@ -110,6 +114,53 @@ public class CreditAppealService : ICreditAppealService
         pageSize = pageSize is < 1 or > 100 ? 10 : pageSize;
 
         var query = _context.CreditAppeals.Where(a => a.StudentId == studentId);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(a => a.CreateTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var dtoItems = new List<CreditAppealDto>(items.Count);
+        foreach (var item in items)
+        {
+            dtoItems.Add(await ToDtoAsync(item, cancellationToken));
+        }
+
+        return new PagedResult<CreditAppealDto>
+        {
+            Items = dtoItems,
+            Total = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<PagedResult<CreditAppealDto>> GetAllAsync(
+        int accountId,
+        string? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        // 鉴权：仅楼长/超管可查看全局申诉复核队列（与复核接口 DormAdmin 策略一致）
+        var reviewerAdminId = await _userAccountRepository.GetAdminIdByAccountIdAsync(
+            accountId,
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(reviewerAdminId))
+        {
+            throw new BusinessException(403, "当前账号未关联宿管身份，无法查看申诉队列", 403);
+        }
+
+        page = Math.Max(page, 1);
+        pageSize = pageSize is < 1 or > 100 ? 10 : pageSize;
+
+        var query = _context.CreditAppeals.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(a => a.Status == status);
+        }
+
         var total = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderByDescending(a => a.CreateTime)
@@ -218,7 +269,77 @@ public class CreditAppealService : ICreditAppealService
             targetId: appeal.AppealId.ToString(),
             details: dto.Note ?? appeal.Reason);
 
+        // 申诉通过 → 违规联动：自动撤销对应违规 + 通知超管（可去治理页彻底删除）
+        if (pass)
+        {
+            await RevokeLinkedViolationAsync(appeal, cancellationToken);
+            await NotifySuperAdminsAsync(appeal, cancellationToken);
+        }
+
         return await ToDtoAsync(appeal, cancellationToken);
+    }
+
+    /// <summary>
+    /// 申诉通过后：若被申诉扣分来自违规登记（扣分流水 EventKey=「违规-{违规ID}」），
+    /// 自动把对应违规标记为「已撤销」，保持"申诉通过则违规不再有效"的数据一致。
+    /// </summary>
+    private async Task RevokeLinkedViolationAsync(CreditAppeal appeal, CancellationToken cancellationToken)
+    {
+        var log = await _context.CreditLogs.AsNoTracking()
+            .FirstOrDefaultAsync(l => l.LogId == appeal.CreditLogId, cancellationToken);
+        if (log?.EventKey?.StartsWith("违规-", StringComparison.Ordinal) != true)
+        {
+            return;
+        }
+
+        var suffix = log.EventKey["违规-".Length..];
+        if (!int.TryParse(suffix, out var violationId))
+        {
+            return;
+        }
+
+        var violation = await _context.ViolationRecords
+            .FirstOrDefaultAsync(v => v.RecordId == violationId, cancellationToken);
+        if (violation is null || violation.Status == "已撤销")
+        {
+            return;
+        }
+
+        violation.Status = "已撤销";
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogEventAsync(
+            "申诉通过自动撤销违规",
+            targetType: "Violation",
+            targetId: violationId.ToString(),
+            details: $"申诉 #{appeal.AppealId} 通过，违规记录 {violationId} 已标记已撤销");
+    }
+
+    /// <summary>申诉通过后通知所有超管（fail-soft，不阻断复核主流程）。</summary>
+    private async Task NotifySuperAdminsAsync(CreditAppeal appeal, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var superAdminIds = await _context.Admins.AsNoTracking()
+                .Where(a => a.RoleLevel == "超级管理员")
+                .Select(a => a.AdminId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var adminId in superAdminIds)
+            {
+                await _notificationService.CreateAsync(new NotificationCreateDto
+                {
+                    AdminId = adminId,
+                    Title = "违规申诉已通过，待撤销违规",
+                    Content = $"学生 {appeal.StudentId} 的违规申诉已通过（扣分明细 #{appeal.CreditLogId}）。如确属误登记，请前往治理页删除对应违规。",
+                    NotificationType = "信用"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "申诉通过后通知超管失败，appealId={AppealId}", appeal.AppealId);
+        }
     }
 
     private async Task<string> ResolveOwnStudentIdAsync(int accountId, CancellationToken cancellationToken)
