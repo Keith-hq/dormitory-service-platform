@@ -207,6 +207,10 @@ SCRIPTS=(
     "ddl/extensions/032_admin_role_include_counselor.sql"
     "ddl/extensions/033_credit_appeal.sql"
     "ddl/extensions/034_visitor_registry.sql"
+    "ddl/extensions/035_fix_byte_columns_fee_attempt_audit.sql"
+    "ddl/extensions/036_ensure_missing_sequence_objects.sql"
+    "ddl/extensions/037_violation_detail_recordby.sql"
+    "ddl/extensions/038_building_room_asset_id_triggers.sql"
     "ddl/extensions/039_violation_status.sql"
     # 存储过程
     "sp/sp_fee_sharing.sql"
