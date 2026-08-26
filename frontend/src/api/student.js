@@ -57,8 +57,7 @@ export const studentApi = {
   getVisitorAuthorizations: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/visitor-authorizations`, { params }),
   createVisitorAuthorization: (data) => request.post('/visitor-authorizations', data),
-  revokeVisitorAuthorization: (authId) =>
-    request.post(`/visitor-authorizations/${authId}/revoke`),
+  revokeVisitorAuthorization: (authId) => request.post(`/visitor-authorizations/${authId}/revoke`),
   getCredit: (studentId) => request.get(`/students/${encodeURIComponent(studentId)}/credit`),
   getCreditAppeals: (studentId) =>
     request.get(`/students/${encodeURIComponent(studentId)}/credit-appeals`),

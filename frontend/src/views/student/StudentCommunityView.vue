@@ -53,9 +53,7 @@ const appealedLogIds = computed(
 )
 const deductibleLogs = computed(() => {
   const items = data.value.credit?.items || data.value.credit?.Items || []
-  return items.filter(
-    (log) => Number(log.scoreChange) < 0 && !appealedLogIds.value.has(log.logId)
-  )
+  return items.filter((log) => Number(log.scoreChange) < 0 && !appealedLogIds.value.has(log.logId))
 })
 const formTitle = computed(
   () =>
@@ -505,16 +503,27 @@ onMounted(loadCommunity)
               <div class="vote-main">
                 <div class="vote-head">
                   <h3>{{ vote.topic }}</h3>
-                  <StatusTag :label="vote.status" :tone="voteStatusTone(vote.status)" size="small" />
+                  <StatusTag
+                    :label="vote.status"
+                    :tone="voteStatusTone(vote.status)"
+                    size="small"
+                  />
                 </div>
                 <p>
-                  发起人 {{ vote.initiatorStudentId }} · 应参与 {{ vote.eligibleCount }} 人 ·
-                  截止 {{ formatDate(vote.deadline) }}
+                  发起人 {{ vote.initiatorStudentId }} · 应参与 {{ vote.eligibleCount }} 人 · 截止
+                  {{ formatDate(vote.deadline) }}
                 </p>
                 <div v-if="voteStats[vote.voteId]" class="vote-stats">
-                  <span>同意 <b>{{ voteStats[vote.voteId].agreeCount }}</b></span>
-                  <span>不同意 <b>{{ voteStats[vote.voteId].disagreeCount }}</b></span>
-                  <span>已投 <b>{{ voteStats[vote.voteId].totalCount }}/{{ vote.eligibleCount }}</b></span>
+                  <span
+                    >同意 <b>{{ voteStats[vote.voteId].agreeCount }}</b></span
+                  >
+                  <span
+                    >不同意 <b>{{ voteStats[vote.voteId].disagreeCount }}</b></span
+                  >
+                  <span
+                    >已投
+                    <b>{{ voteStats[vote.voteId].totalCount }}/{{ vote.eligibleCount }}</b></span
+                  >
                 </div>
               </div>
               <div class="vote-actions">
@@ -609,9 +618,7 @@ onMounted(loadCommunity)
                 <em>{{ Number(item.averageScore || 0).toFixed(1) }}</em>
                 <i :style="{ '--score': `${Math.min(100, Number(item.averageScore || 0))}%` }"></i>
               </article>
-              <p v-if="!data.hygiene.length" class="hygiene-empty">
-                当前月份暂无卫生评分记录。
-              </p>
+              <p v-if="!data.hygiene.length" class="hygiene-empty">当前月份暂无卫生评分记录。</p>
             </div>
           </div>
         </template>

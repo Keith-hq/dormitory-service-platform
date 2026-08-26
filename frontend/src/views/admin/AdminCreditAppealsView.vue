@@ -76,7 +76,9 @@ const review = async (item, result) => {
       ...(result === '驳回' ? { note } : {})
     })
     feedback.value =
-      result === '通过' ? `申诉 #${item.appealId} 已通过，信用分已恢复` : `申诉 #${item.appealId} 已驳回`
+      result === '通过'
+        ? `申诉 #${item.appealId} 已通过，信用分已恢复`
+        : `申诉 #${item.appealId} 已驳回`
     await load()
   } catch (e) {
     error.value = toUserMessage(e, '复核操作失败')

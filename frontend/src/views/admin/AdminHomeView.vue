@@ -176,10 +176,17 @@ onMounted(load)
         <article v-for="(item, index) in pulseItems" :key="item.buildingId ?? index">
           <time>0{{ index + 1 }}</time>
           <div>
-            <h3>{{ item.buildingName ?? (item.buildingId ? `楼栋 ${item.buildingId}` : `楼栋 ${index + 1}`) }}</h3>
+            <h3>
+              {{
+                item.buildingName ??
+                (item.buildingId ? `楼栋 ${item.buildingId}` : `楼栋 ${index + 1}`)
+              }}
+            </h3>
             <p>{{ item.buildingType ?? '实时在楼人数' }}</p>
           </div>
-          <span>{{ item.onlineCount ?? item.currentCount ?? item.count ?? item.floorCount ?? '—' }}</span>
+          <span>{{
+            item.onlineCount ?? item.currentCount ?? item.count ?? item.floorCount ?? '—'
+          }}</span>
         </article>
       </section>
     </div>
