@@ -354,6 +354,28 @@ onMounted(loadCommunity)
             </button>
           </div>
         </form>
+        <div v-if="activeSection === 'credit' && data.credit" class="credit-summary">
+          <div class="credit-summary__score">
+            <span>当前信用分</span>
+            <strong>{{ data.credit.currentScore ?? data.credit.score ?? '—' }}</strong>
+          </div>
+          <div class="credit-summary__state">
+            <span>账户状态</span>
+            <StatusTag
+              :label="data.credit.isFrozen ? '已冻结' : '正常'"
+              :tone="data.credit.isFrozen ? 'danger' : 'success'"
+            />
+          </div>
+          <div v-if="data.credit.items?.length" class="credit-summary__logs">
+            <span>信用变更记录</span>
+            <p v-for="log in data.credit.items" :key="log.logId">
+              {{ String(log.createTime || '').slice(0, 10) }} ·
+              <b :class="{ minus: Number(log.scoreChange) < 0 }">{{ log.scoreChange }} 分</b> ·
+              {{ log.reason }}
+            </p>
+          </div>
+          <p v-else class="credit-summary__empty">当前无信用变更记录。</p>
+        </div>
         <InlineState
           :loading="loading"
           :error="failures.includes(activeSection) ? `${activeCopy.label}暂时无法同步` : ''"
@@ -561,6 +583,51 @@ onMounted(loadCommunity)
   color: var(--color-text);
   gap: 20px;
   transition: background 0.18s ease;
+}
+.credit-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0 32px 16px;
+  padding: 18px 22px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: 0 12px 24px rgba(23, 65, 120, 0.08);
+}
+.credit-summary__score span,
+.credit-summary__state span,
+.credit-summary__logs span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.credit-summary__score strong {
+  margin-top: 6px;
+  font: 900 32px var(--font-display);
+}
+.credit-summary__state {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.credit-summary__logs {
+  grid-column: 1/-1;
+  display: grid;
+  gap: 6px;
+}
+.credit-summary__logs p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.credit-summary__logs b.minus {
+  color: var(--color-danger);
+}
+.credit-summary__empty {
+  grid-column: 1/-1;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
 }
 .community-records article:hover {
   background: #eef4ff;

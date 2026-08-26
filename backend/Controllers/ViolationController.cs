@@ -36,7 +36,9 @@ public sealed class ViolationController : ControllerBase
         [FromBody] CreateViolationRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.CreateAsync(request, cancellationToken);
+        // Record_By 取当前管理员登录名（ClaimTypes.Name），标记登记人
+        var recordBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        var result = await _service.CreateAsync(request, recordBy, cancellationToken);
         return Ok(ApiResponse.Ok(result, "违规记录登记成功"));
     }
 

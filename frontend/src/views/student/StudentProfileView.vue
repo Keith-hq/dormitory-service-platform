@@ -76,8 +76,8 @@ onMounted(loadProfile)
       description="个人联系方式由你维护，住宿与床位信息由宿管业务统一同步。"
     >
       <StatusTag
-        :label="accommodation ? '当前在住' : '等待同步'"
-        :tone="accommodation ? 'success' : 'warning'"
+        :label="accommodation?.checkOutDate ? '已退宿' : accommodation ? '当前在住' : '等待同步'"
+        :tone="accommodation?.checkOutDate ? 'default' : accommodation ? 'success' : 'warning'"
       />
     </WorkspaceHeader>
 

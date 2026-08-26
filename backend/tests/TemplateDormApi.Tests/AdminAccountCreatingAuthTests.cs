@@ -328,6 +328,89 @@ public class AuthTests : IClassFixture<TestWebApplicationFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, protectedResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task EnableAdmin_AfterDisable_RestoresLogin()
+    {
+        // Arrange: 创建超级管理员和楼长管理员
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var superAdminId = $"SUPER_{suffix}";
+        var targetAdminId = $"ADMIN_{suffix}";
+        var superLoginName = $"super_{suffix}";
+        var targetLoginName = $"admin_{suffix}";
+        var password = "Test@123";
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            context.Admins.Add(new Admin
+            {
+                AdminId = superAdminId,
+                AdminName = "测试超级管理员",
+                RoleLevel = "超级管理员",
+                TokenVersion = 0
+            });
+            context.UserAccounts.Add(new UserAccount
+            {
+                LoginName = superLoginName,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                AccountStatus = "正常",
+                AdminId = superAdminId,
+                IsFirstLogin = "N"
+            });
+
+            context.Admins.Add(new Admin
+            {
+                AdminId = targetAdminId,
+                AdminName = "测试楼长",
+                RoleLevel = "楼长",
+                TokenVersion = 0
+            });
+            context.UserAccounts.Add(new UserAccount
+            {
+                LoginName = targetLoginName,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                AccountStatus = "正常",
+                AdminId = targetAdminId,
+                IsFirstLogin = "N"
+            });
+
+            await context.SaveChangesAsync();
+        }
+
+        // 1. 登录超级管理员，获取 tokenSuper
+        var loginSuperJson = await LoginAsync(superLoginName, password);
+        var tokenSuper = loginSuperJson.GetProperty("data").GetProperty("token").GetString();
+
+        // 2. 使用超级管理员 token 停用楼长
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenSuper);
+        var disableResponse = await _client.PutAsJsonAsync($"/api/admins/{targetAdminId}/disable", new { reason = "测试停用" });
+        disableResponse.EnsureSuccessStatusCode();
+
+        // 3. 停用后楼长无法登录（账号已停用）
+        _client.DefaultRequestHeaders.Authorization = null;
+        var disabledLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new { loginName = targetLoginName, password });
+        Assert.Equal(HttpStatusCode.Unauthorized, disabledLoginResponse.StatusCode);
+
+        // 4. 使用超级管理员 token 恢复楼长
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenSuper);
+        var enableResponse = await _client.PutAsJsonAsync($"/api/admins/{targetAdminId}/enable", new { });
+        enableResponse.EnsureSuccessStatusCode();
+
+        // 5. 校验数据库 AccountStatus 已回到"正常"
+        using (var verifyScope = _factory.Services.CreateScope())
+        {
+            var verifyContext = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var account = verifyContext.UserAccounts.FirstOrDefault(u => u.AdminId == targetAdminId);
+            Assert.NotNull(account);
+            Assert.Equal("正常", account.AccountStatus);
+        }
+
+        // 6. 楼长重新登录成功
+        _client.DefaultRequestHeaders.Authorization = null;
+        var reloginJson = await LoginAsync(targetLoginName, password);
+        Assert.Equal(200, reloginJson.GetProperty("code").GetInt32());
+    }
+
     private async Task AuthenticateAsync(string loginName, string password)
     {
         var loginJson = await LoginAsync(loginName, password);

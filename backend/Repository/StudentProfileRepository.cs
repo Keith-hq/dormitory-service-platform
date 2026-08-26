@@ -43,7 +43,6 @@ public sealed class StudentProfileRepository : FrameworkRepositoryBase
             .AsNoTracking()
             .Where(item =>
                 item.StudentId == studentId &&
-                item.CheckOutDate == null &&
                 item.RoomId != null)
             .OrderByDescending(item => item.CheckInDate)
             .ThenByDescending(item => item.AllocationId)

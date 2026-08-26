@@ -6,6 +6,7 @@ export const governanceApi = {
   createAdmin: (data) => request.post('/auth/accounts/admins', data),
   updateAdmin: (id, data) => request.put(`/admins/${id}`, data),
   disableAdmin: (id, reason) => request.put(`/admins/${id}/disable`, { reason }),
+  enableAdmin: (id) => request.put(`/admins/${id}/enable`),
   resetAdminPassword: (id) => request.post(`/admins/${id}/password`),
   createStudent: async ({ profile, account }) => {
     await request.post('/students', profile)
@@ -25,5 +26,18 @@ export const governanceApi = {
   disableStudent: (id, reason) => request.put(`/students/${id}/disable`, { reason }),
   resetStudentPassword: (id) => request.post(`/students/${id}/password`),
   getAuditEvents: (params) => request.get('/audit-events', { params }),
-  getReport: (type, params) => request.get(`/reports/${type}`, { params })
+  getReport: (type, params) => request.get(`/reports/${type}`, { params }),
+  // C11：Excel 批量导入学生（IMPORT-01，multipart file）
+  importStudents: (formData) =>
+    request.post('/students/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  // C11：学院管理（SUPER-01）
+  getColleges: () => request.get('/colleges'),
+  createCollege: (data) => request.post('/colleges', data),
+  deleteCollege: (id) => request.delete(`/colleges/${id}`),
+  // C11：专业管理（SUPER-02）
+  getMajors: () => request.get('/majors'),
+  createMajor: (data) => request.post('/majors', data),
+  deleteMajor: (id) => request.delete(`/majors/${id}`)
 }

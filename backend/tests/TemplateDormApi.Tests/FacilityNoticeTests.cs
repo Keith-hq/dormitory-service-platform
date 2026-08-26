@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -14,6 +16,18 @@ namespace TemplateDormApi.Tests;
 /// </summary>
 public class FacilityNoticeTests
 {
+    /// <summary>NoticeService 构造依赖 IHttpContextAccessor（发布人取 JWT Name claim），测试提供默认上下文。</summary>
+    private static IHttpContextAccessor CreateHttpContextAccessor(string? name = "IT_ADMIN_001")
+    {
+        var httpContext = new DefaultHttpContext();
+        if (name is not null)
+        {
+            httpContext.User = new ClaimsPrincipal(
+                new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, name) }));
+        }
+        return new HttpContextAccessor { HttpContext = httpContext };
+    }
+
     [Fact]
     public async Task FacilityService_GetPagedAsync_FillsPageAndPageSize_AndDefaultsToNormal()
     {
@@ -98,7 +112,7 @@ public class FacilityNoticeTests
     public async Task NoticeService_CreateAsync_WithPinnedCreatesDisplay()
     {
         await using var context = TestDbContextFactory.Create();
-        var service = new NoticeService(new NoticeRepository(context));
+        var service = new NoticeService(new NoticeRepository(context), CreateHttpContextAccessor());
 
         var notice = await service.CreateAsync(new NoticeCreateDto
         {
@@ -120,7 +134,7 @@ public class FacilityNoticeTests
         context.Notices.Add(new Notice { Title = "t", Content = "c", PublishTime = DateTime.Now });
         await context.SaveChangesAsync();
 
-        var service = new NoticeService(new NoticeRepository(context));
+        var service = new NoticeService(new NoticeRepository(context), CreateHttpContextAccessor());
         var result = await service.GetPagedAsync(2, 5);
 
         Assert.Equal(2, result.Page);
@@ -142,7 +156,7 @@ public class FacilityNoticeTests
         });
         await context.SaveChangesAsync();
 
-        var controller = new NoticeController(new NoticeService(new NoticeRepository(context)));
+        var controller = new NoticeController(new NoticeService(new NoticeRepository(context), CreateHttpContextAccessor()));
         var actionResult = await controller.GetPaged(1, 5);
 
         var ok = Assert.IsType<OkObjectResult>(actionResult.Result);

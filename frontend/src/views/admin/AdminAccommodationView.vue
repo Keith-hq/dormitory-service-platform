@@ -13,6 +13,10 @@ const occupants = ref([])
 const roomSummary = ref(null)
 const checkout = ref({ allocationId: '', checkoutId: '', reason: '', checkoutDate: today })
 const checkoutSummary = ref(null)
+// 生效清算单号：优先已填的清算单 ID，否则取面板已载入的清算单号（登记成功后自动带出）
+const effectiveCheckoutId = computed(
+  () => checkout.value.checkoutId || checkoutSummary.value?.checkoutId || ''
+)
 const working = ref('')
 const feedback = ref({ type: '', text: '' })
 
@@ -109,7 +113,7 @@ const registerCheckout = async () => {
 const loadCheckout = async (success = '清算单状态已刷新') => {
   const data = await run(
     'checkout',
-    () => accommodationApi.getCheckout(checkout.value.checkoutId),
+    () => accommodationApi.getCheckout(effectiveCheckoutId.value),
     success
   )
   if (data) checkoutSummary.value = data
@@ -117,12 +121,12 @@ const loadCheckout = async (success = '清算单状态已刷新') => {
 
 const transitionCheckout = async (action) => {
   const handlers = {
-    settle: () => accommodationApi.settleCheckout(checkout.value.checkoutId),
+    settle: () => accommodationApi.settleCheckout(effectiveCheckoutId.value),
     confirm: () =>
-      accommodationApi.confirmCheckout(checkout.value.checkoutId, {
+      accommodationApi.confirmCheckout(effectiveCheckoutId.value, {
         checkoutDate: checkout.value.checkoutDate || null
       }),
-    cancel: () => accommodationApi.cancelCheckout(checkout.value.checkoutId)
+    cancel: () => accommodationApi.cancelCheckout(effectiveCheckoutId.value)
   }
   const labels = {
     settle: '三步清算校验已执行',
@@ -130,7 +134,17 @@ const transitionCheckout = async (action) => {
     cancel: '退宿办理已取消'
   }
   const data = await run(action, handlers[action], labels[action])
-  if (data) checkoutSummary.value = data
+  if (data) {
+    checkoutSummary.value = data
+    return
+  }
+  // 失败（如清算被拒/状态不可操作）也重拉清算单，让已拒绝/已取消等状态机结果持久显示在面板，
+  // 同时保留 run() 已展示的错误/拒绝原因。
+  try {
+    checkoutSummary.value = await accommodationApi.getCheckout(checkout.value.checkoutId)
+  } catch {
+    // 状态重拉失败则保留面板原状
+  }
 }
 </script>
 
@@ -284,21 +298,21 @@ const transitionCheckout = async (action) => {
           <div class="checkout-actions">
             <button
               class="btn"
-              :disabled="!checkout.checkoutId || working"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('settle')"
             >
               执行清算
             </button>
             <button
               class="btn btn-primary"
-              :disabled="!checkout.checkoutId || working"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('confirm')"
             >
               确认退宿
             </button>
             <button
               class="btn btn-danger"
-              :disabled="!checkout.checkoutId || working"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('cancel')"
             >
               取消办理

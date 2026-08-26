@@ -15,6 +15,19 @@ const store = useUserStore(),
   feedback = ref('')
 const completion = ref({ content: '', repairResult: '已修复' })
 const state = (item) => String(item.status ?? item.ticketStatus ?? '待处理')
+const ticketTitle = (item) =>
+  item.issueDesc ?? item.title ?? item.category ?? item.repairType ?? '宿舍报修'
+const ticketLocation = (item) =>
+  item.location ?? item.roomName ?? (item.roomId ? `房间 ${item.roomId}` : '位置待确认')
+const ticketContent = (item) => item.issueDesc ?? item.description ?? item.content ?? '暂无补充描述'
+const attachmentsOf = (item) =>
+  (item?.attachmentRefs || '')
+    .split(';')
+    .filter(Boolean)
+    .map((entry) => {
+      const [name, ref] = entry.split('|')
+      return { name: name || '附件', ref: ref || '' }
+    })
 const selectTicket = (item) => {
   selected.value = item
   feedback.value = ''
@@ -101,8 +114,8 @@ onMounted(load)
           @click="selectTicket(item)"
         >
           <small>#{{ item.ticketId }} · {{ state(item) }}</small
-          ><strong>{{ item.title ?? item.category ?? item.repairType ?? '宿舍报修' }}</strong>
-          <p>{{ item.roomName ?? item.location ?? '位置待确认' }}</p>
+          ><strong>{{ ticketTitle(item) }}</strong>
+          <p>{{ ticketLocation(item) }}</p>
         </button>
         <p v-if="!tickets.length" class="empty">暂无待处理工单</p>
       </aside>
@@ -110,14 +123,14 @@ onMounted(load)
         <header>
           <div>
             <span>WORK ORDER #{{ selected.ticketId }}</span>
-            <h2>{{ selected.title ?? selected.category ?? selected.repairType ?? '宿舍报修' }}</h2>
+            <h2>{{ ticketTitle(selected) }}</h2>
           </div>
           <b>{{ state(selected) }}</b>
         </header>
         <dl>
           <div>
             <dt>报修位置</dt>
-            <dd>{{ selected.roomName ?? selected.location ?? '—' }}</dd>
+            <dd>{{ ticketLocation(selected) }}</dd>
           </div>
           <div>
             <dt>提交时间</dt>
@@ -130,7 +143,20 @@ onMounted(load)
         </dl>
         <section>
           <span>ISSUE DESCRIPTION</span>
-          <p>{{ selected.description ?? selected.content ?? '暂无补充描述' }}</p>
+          <p>{{ ticketContent(selected) }}</p>
+        </section>
+        <section v-if="attachmentsOf(selected).length">
+          <span>ATTACHMENTS</span>
+          <div class="attachments">
+            <a
+              v-for="(att, index) in attachmentsOf(selected)"
+              :key="index"
+              :href="`/uploads/${att.ref}`"
+              target="_blank"
+              rel="noopener"
+              >{{ att.name }}</a
+            >
+          </div>
         </section>
         <div class="actions">
           <button class="btn" :disabled="working" @click="claim">接收工单</button>
@@ -292,6 +318,20 @@ onMounted(load)
   color: var(--color-text-muted);
   font-size: 14px;
   line-height: 1.8;
+}
+.attachments {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.attachments a {
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.attachments a:hover {
+  text-decoration: underline;
 }
 .actions {
   display: grid;

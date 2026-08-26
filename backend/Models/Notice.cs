@@ -10,8 +10,8 @@ public class Notice
     [Key]
     public int NoticeId { get; set; }
 
-    /// <summary>发布人（宿管工号，FK → D_Admin）</summary>
-    public string AdminId { get; set; } = string.Empty;
+    /// <summary>发布人（宿管工号，FK → D_Admin）。历史数据可能为 NULL，声明可空避免读取 ORA-50032</summary>
+    public string? AdminId { get; set; }
 
     /// <summary>公告标题</summary>
     public string Title { get; set; } = string.Empty;

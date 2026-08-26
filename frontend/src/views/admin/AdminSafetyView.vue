@@ -106,6 +106,22 @@ const createLateEntry = async () => {
   if (ok) lateEntry.value = { studentId: '', recordTime: localDateTime, reason: '' }
 }
 
+// C6 违规登记：D_Violation_Record 落库；注意违规登记本身不触发信用扣分（与信用扣分解耦）
+const violation = ref({ studentId: '', type: '查寝未归', detail: '' })
+const registerViolation = async () => {
+  const ok = await run(
+    'violation',
+    () =>
+      adminApi.createViolation({
+        studentId: violation.value.studentId,
+        type: violation.value.type,
+        detail: violation.value.detail || null
+      }),
+    '违规已登记，学生端/超管报表可见'
+  )
+  if (ok) violation.value = { studentId: '', type: '查寝未归', detail: '' }
+}
+
 onMounted(loadRankings)
 </script>
 
@@ -213,6 +229,36 @@ onMounted(loadRankings)
               ></textarea>
             </label>
             <button class="btn" :disabled="working === 'late'">登记晚归</button>
+          </form>
+        </section>
+
+        <section class="late-card violation-card">
+          <header>
+            <span>04 / VIOLATION</span>
+            <h2>违规登记</h2>
+          </header>
+          <form @submit.prevent="registerViolation">
+            <label
+              >学生学号<input
+                v-model.trim="violation.studentId"
+                required
+                placeholder="输入学生学号"
+            /></label>
+            <label
+              >违规类型<select v-model="violation.type">
+                <option>查寝未归</option>
+                <option>违章电器</option>
+                <option>其他</option>
+              </select></label
+            >
+            <label
+              >情况说明<textarea
+                v-model.trim="violation.detail"
+                rows="3"
+                placeholder="可选；违规登记不触发信用扣分"
+              ></textarea>
+            </label>
+            <button class="btn" :disabled="working === 'violation'">登记违规</button>
           </form>
         </section>
       </aside>
@@ -387,6 +433,7 @@ onMounted(loadRankings)
   grid-column: 1/-1;
 }
 .inspection-desk input,
+.inspection-desk select,
 .inspection-desk textarea {
   width: 100%;
   min-height: 44px;
@@ -394,9 +441,12 @@ onMounted(loadRankings)
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: inherit;
   font-size: 14px;
 }
 .inspection-desk input:focus-visible,
+.inspection-desk select:focus-visible,
 .inspection-desk textarea:focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: 1px;

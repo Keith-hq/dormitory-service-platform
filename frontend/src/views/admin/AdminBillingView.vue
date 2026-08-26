@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { utilityApi } from '@/api/utility'
 import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
@@ -17,7 +17,7 @@ const page = ref(1)
 const PAGE_SIZE = 20
 const selected = ref(null)
 const details = ref([])
-const filters = ref({ buildingId: '', yearMonth: currentMonth, isPaid: '', publishStatus: '' })
+const filters = ref({ buildingId: '', yearMonth: '', isPaid: '', publishStatus: '' })
 const createForm = ref({ roomId: '', yearMonth: currentMonth, waterFee: '', elecFee: '' })
 const editForm = ref({ waterFee: '', elecFee: '' })
 const powerRoomId = ref('')
@@ -44,6 +44,7 @@ const metrics = computed(() => [
 const load = async () => {
   loading.value = true
   error.value = ''
+  working.value = '' // 兜底：清掉卡住的请求标记，避免操作按钮被意外禁用
   try {
     const data = await utilityApi.getBills({
       buildingId: filters.value.buildingId || undefined,
@@ -58,6 +59,8 @@ const load = async () => {
     total.value = normalized.total
     if (selected.value) {
       selected.value = bills.value.find((item) => item.feeId === selected.value.feeId) ?? null
+    } else if (bills.value.length) {
+      selectBill(bills.value[0])
     }
   } catch (e) {
     error.value = toUserMessage(e, '水电账单暂时无法同步')
@@ -110,14 +113,21 @@ const createBill = async () => {
 }
 
 const selectBill = (bill) => {
+  if (!bill) return
   selected.value = bill
   editForm.value = { waterFee: bill.waterFee ?? '', elecFee: bill.powerFee ?? bill.elecFee ?? '' }
   details.value = []
   feedback.value = ''
 }
 
-const updateBill = () =>
-  run(
+// 兜底自动选中：账单列表变化且当前未选中时，选中第一条，保证操作栏有可操作的账单
+watch(bills, (list) => {
+  if (!selected.value && list.length) selectBill(list[0])
+})
+
+const updateBill = () => {
+  if (!requireSelection()) return
+  return run(
     'update',
     () =>
       utilityApi.updateBill(selected.value.feeId, {
@@ -127,12 +137,33 @@ const updateBill = () =>
     '账单金额已更新',
     true
   )
+}
 
-const publishBill = () =>
-  run('publish', () => utilityApi.publishBill(selected.value.feeId), '账单已发布并触发分摊', true)
-const allocateBill = () =>
-  run('allocate', () => utilityApi.allocateBill(selected.value.feeId), '账单分摊已执行', true)
+const requireSelection = () => {
+  if (selected.value) return true
+  feedback.value = '请先在列表中选择一条账单'
+  return false
+}
+const publishBill = () => {
+  if (!requireSelection()) return
+  return run(
+    'publish',
+    () => utilityApi.publishBill(selected.value.feeId),
+    '账单已发布并触发分摊',
+    true
+  )
+}
+const allocateBill = () => {
+  if (!requireSelection()) return
+  return run(
+    'allocate',
+    () => utilityApi.allocateBill(selected.value.feeId),
+    '账单分摊已执行',
+    true
+  )
+}
 const loadDetails = async () => {
+  if (!requireSelection()) return
   const data = await run(
     'details',
     () => utilityApi.getBillDetails(selected.value.feeId),
@@ -187,6 +218,54 @@ onMounted(load)
     <InlineState :loading="loading" :error="error" />
     <p v-if="feedback" class="feedback">{{ feedback }}</p>
 
+    <section v-if="selected" class="bill-sheet">
+      <header>
+        <div>
+          <span>SELECTED BILL</span>
+          <h2>#{{ selected.feeId }} · 房间 {{ selected.roomId }}</h2>
+        </div>
+        <b>{{ statusOf(selected) }}</b>
+      </header>
+      <div class="bill-actions">
+        <form @submit.prevent="updateBill">
+          <label
+            >水费<input
+              v-model="editForm.waterFee"
+              required
+              min="0"
+              step="0.01"
+              type="number" /></label
+          ><label
+            >电费<input
+              v-model="editForm.elecFee"
+              required
+              min="0"
+              step="0.01"
+              type="number" /></label
+          ><button class="btn">保存金额</button>
+        </form>
+        <div>
+          <button class="btn btn-primary" @click="publishBill">发布并分摊</button>
+          <button class="btn" @click="allocateBill">重新分摊</button>
+          <button class="btn" @click="loadDetails">查看明细</button>
+        </div>
+      </div>
+      <div v-if="details.length" class="detail-table">
+        <div class="detail-row detail-row--head">
+          <span>学生</span><span>在住天数</span><span>水费分摊</span><span>电费分摊</span
+          ><span>应缴合计</span><span>状态</span>
+        </div>
+        <div v-for="item in details" :key="item.detailId" class="detail-row">
+          <span>{{ item.studentId }}</span
+          ><span>{{ item.stayDays }} / {{ item.totalDays }}</span
+          ><span>{{ formatMoney(item.waterShare) }}</span
+          ><span>{{ formatMoney(item.powerShare) }}</span
+          ><span>{{ formatMoney(item.total) }}</span
+          ><span>{{ item.isPaid }}</span>
+        </div>
+      </div>
+    </section>
+
     <section v-if="!loading" class="ledger-layout">
       <div class="ledger-main">
         <header>
@@ -220,7 +299,9 @@ onMounted(load)
               ><small>{{ String(bill.isPaid) === '是' ? '已缴' : '待缴' }}</small></span
             >
           </button>
-          <p v-if="!bills.length" class="empty">当前筛选条件下暂无账单。</p>
+          <p v-if="!bills.length" class="empty">
+            当前筛选条件下暂无账单，请调整账期/发布状态筛选，或在右侧「录入账单」新建。
+          </p>
         </div>
         <nav class="pager" aria-label="账单分页">
           <button class="btn btn-sm" :disabled="page <= 1" @click="goToPage(page - 1)">
@@ -273,56 +354,6 @@ onMounted(load)
           </p>
         </section>
       </aside>
-    </section>
-
-    <section v-if="selected" class="bill-sheet">
-      <header>
-        <div>
-          <span>SELECTED BILL</span>
-          <h2>#{{ selected.feeId }} · 房间 {{ selected.roomId }}</h2>
-        </div>
-        <b>{{ statusOf(selected) }}</b>
-      </header>
-      <div class="bill-actions">
-        <form @submit.prevent="updateBill">
-          <label
-            >水费<input
-              v-model="editForm.waterFee"
-              required
-              min="0"
-              step="0.01"
-              type="number" /></label
-          ><label
-            >电费<input
-              v-model="editForm.elecFee"
-              required
-              min="0"
-              step="0.01"
-              type="number" /></label
-          ><button class="btn" :disabled="working">保存金额</button>
-        </form>
-        <div>
-          <button class="btn" :disabled="working" @click="publishBill">发布并分摊</button
-          ><button class="btn" :disabled="working" @click="allocateBill">重新分摊</button
-          ><button class="btn btn-primary" :disabled="working" @click="loadDetails">
-            查看明细
-          </button>
-        </div>
-      </div>
-      <div v-if="details.length" class="detail-table">
-        <div class="detail-row detail-row--head">
-          <span>学生</span><span>在住天数</span><span>水费分摊</span><span>电费分摊</span
-          ><span>应缴合计</span><span>状态</span>
-        </div>
-        <div v-for="item in details" :key="item.detailId" class="detail-row">
-          <span>{{ item.studentId }}</span
-          ><span>{{ item.stayDays }} / {{ item.totalDays }}</span
-          ><span>{{ formatMoney(item.waterShare) }}</span
-          ><span>{{ formatMoney(item.powerShare) }}</span
-          ><span>{{ formatMoney(item.total) }}</span
-          ><span>{{ item.isPaid }}</span>
-        </div>
-      </div>
     </section>
   </main>
 </template>

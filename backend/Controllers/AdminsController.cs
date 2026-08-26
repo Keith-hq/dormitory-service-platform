@@ -200,6 +200,42 @@ public class AdminsController : ControllerBase
         return Ok(ApiResponse.Ok(new { message = $"宿管 {admin.AdminName} 已停用，5 分钟内会话将失效" }));
     }
 
+    // PUT /admins/{id}/enable - 恢复宿管（SUPER-06 反向操作）
+    // 只翻转账号状态为"正常"，不重置密码、不改首登标记；旧 Token 已在停用自增 TokenVersion 时失效
+    [HttpPut("{id}/enable")]
+    public async Task<IActionResult> EnableAdmin(string id)
+    {
+        // 1. 检查宿管是否存在
+        var admin = await _context.Admins.FindAsync(id);
+        if (admin == null)
+            return NotFound(ApiResponse.Error(404, "宿管不存在"));
+
+        // 2. 查找对应的 UserAccount
+        var userAccount = await _context.UserAccounts
+            .FirstOrDefaultAsync(u => u.AdminId == id);
+        if (userAccount == null)
+            return BadRequest(ApiResponse.Error(400, "该宿管没有关联账号，请先创建账号"));
+
+        // 3. 已是正常状态则幂等返回
+        if (userAccount.AccountStatus == "正常")
+            return Ok(ApiResponse.Ok(new { message = $"宿管 {admin.AdminName} 已是正常状态" }));
+
+        // 4. 恢复账号状态
+        userAccount.AccountStatus = "正常";
+        await _context.SaveChangesAsync();
+
+        // 5. 写入审计日志
+        await _auditService.LogEventAsync(
+            eventType: $"PUT /admins/{id}/enable",
+            targetType: "Admin",
+            targetId: id,
+            actorAccountId: GetCurrentUserId(),
+            details: $"恢复宿管 {id}：{admin.AdminName}"
+        );
+
+        return Ok(ApiResponse.Ok(new { message = $"宿管 {admin.AdminName} 已恢复，可正常登录" }));
+    }
+
     // POST /admins/{id}/password - 重置宿管密码（PWD-02）
     // 契约要求：下发 8 位随机初始密码，写入审计日志
     [HttpPost("{id}/password")]
