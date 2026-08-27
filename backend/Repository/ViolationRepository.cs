@@ -13,7 +13,8 @@ public sealed class ViolationRepository : FrameworkRepositoryBase
 
     /// <summary>
     /// VIOL-01 登记违规（迁移 037 落地实现，解除 501 占位）。
-    /// 落库 D_Violation_Record；注意：违规登记不触发信用扣分（与信用扣分解耦）。
+    /// 落库 D_Violation_Record；信用扣分由 ViolationService 在创建后按类型触发
+    /// （违章电器 -10、其余 -5，EventKey 幂等，失败时由服务层回删补偿）。
     /// 主键取 SEQ_D_VIOLATION；序列缺失时回退 MAX+1。
     /// </summary>
     public async Task<ViolationDto> CreateAsync(
@@ -66,7 +67,8 @@ public sealed class ViolationRepository : FrameworkRepositoryBase
             VioDate = DateTime.Now,
             Penalty = null,
             Detail = string.IsNullOrWhiteSpace(request.Detail) ? null : request.Detail.Trim(),
-            RecordBy = string.IsNullOrWhiteSpace(recordBy) ? null : recordBy
+            RecordBy = string.IsNullOrWhiteSpace(recordBy) ? null : recordBy,
+            Status = "有效"
         };
         DbContext.ViolationRecords.Add(record);
         await DbContext.SaveChangesAsync(cancellationToken);
@@ -78,15 +80,86 @@ public sealed class ViolationRepository : FrameworkRepositoryBase
             Type = record.VioType,
             Detail = record.Detail,
             RecordTime = record.VioDate,
-            RecordBy = record.RecordBy
+            RecordBy = record.RecordBy,
+            Status = record.Status
         };
     }
 
-    public Task<PagedResult<ViolationDto>> GetPagedAsync(
+    /// <summary>按主键标记违规为「已撤销」（信用申诉通过时联动，幂等）。</summary>
+    public async Task<bool> MarkRevokedAsync(int violationId, CancellationToken cancellationToken)
+    {
+        var record = await DbContext.ViolationRecords
+            .FirstOrDefaultAsync(item => item.RecordId == violationId, cancellationToken);
+        if (record is null || record.Status == "已撤销")
+        {
+            return false;
+        }
+
+        record.Status = "已撤销";
+        await DbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>按主键查询违规记录（补偿回删前重查用）。</summary>
+    public async Task<ViolationRecord?> FindByIdAsync(int id, CancellationToken cancellationToken)
+        => await DbContext.ViolationRecords.FirstOrDefaultAsync(
+            item => item.RecordId == id,
+            cancellationToken);
+
+    /// <summary>删除违规记录（补偿回删用，仅删记录不联动信用分）。</summary>
+    public Task DeleteAsync(ViolationRecord record, CancellationToken cancellationToken)
+    {
+        DbContext.ViolationRecords.Remove(record);
+        return DbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<PagedResult<ViolationDto>> GetPagedAsync(
         ViolationQueryDto query,
         CancellationToken cancellationToken)
-        => PendingAsync<PagedResult<ViolationDto>>(
-            "VIOL-02",
-            "按楼栋筛选所需关联和返回字段口径待确认",
-            cancellationToken);
+    {
+        query.Page = Math.Max(query.Page, 1);
+        query.PageSize = query.PageSize is < 1 or > 100 ? 10 : query.PageSize;
+
+        var itemsQuery = DbContext.ViolationRecords.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(query.StudentId))
+        {
+            itemsQuery = itemsQuery.Where(item => item.StudentId == query.StudentId);
+        }
+
+        // 楼栋筛选：违规时的房间（Violation.RoomId）→ 楼栋（Room.BuildingId）
+        if (query.BuildingId.HasValue)
+        {
+            var buildingId = (int)query.BuildingId.Value;
+            itemsQuery = itemsQuery.Where(
+                item => DbContext.Rooms.Any(
+                    room => room.RoomId == item.RoomId && room.BuildingId == buildingId));
+        }
+
+        var total = await itemsQuery.CountAsync(cancellationToken);
+        var items = await itemsQuery
+            .OrderByDescending(item => item.VioDate)
+            .ThenByDescending(item => item.RecordId)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(item => new ViolationDto
+            {
+                ViolationId = item.RecordId,
+                StudentId = item.StudentId ?? string.Empty,
+                Type = item.VioType,
+                Detail = item.Detail,
+                RecordTime = item.VioDate,
+                RecordBy = item.RecordBy,
+                Status = item.Status
+            })
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<ViolationDto>
+        {
+            Items = items,
+            Total = total,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
+    }
 }

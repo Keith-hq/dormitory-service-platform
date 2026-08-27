@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { adminApi } from '@/api/admin'
 import { buildingApi } from '@/api/building'
 import { InlineState, MetricStrip, StatusTag, WorkspaceHeader } from '@/components'
+import { useNoticeStore } from '@/store/notice'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
 
@@ -12,9 +13,13 @@ const failures = ref([])
 const buildings = ref([])
 const density = ref([])
 const notices = ref([])
+const noticeStore = useNoticeStore()
 
 const totalInBuilding = computed(() =>
-  density.value.reduce((sum, item) => sum + Number(item.currentCount ?? item.count ?? 0), 0)
+  density.value.reduce(
+    (sum, item) => sum + Number(item.onlineCount ?? item.currentCount ?? item.count ?? 0),
+    0
+  )
 )
 
 const metrics = computed(() => [
@@ -24,7 +29,12 @@ const metrics = computed(() => [
     value: totalInBuilding.value,
     hint: '实时在楼'
   },
-  { label: '近期公告', value: notices.value.length, hint: '交接事项' }
+  { label: '近期公告', value: notices.value.length, hint: '交接事项' },
+  {
+    label: '未读通知',
+    value: String(noticeStore.unreadCount),
+    hint: noticeStore.hasUnread ? '有未读消息' : '首页提醒'
+  }
 ])
 
 const syncLabel = computed(() => {
@@ -87,6 +97,18 @@ const load = async () => {
       error.value = toUserMessage(rejectedResults[0].reason, '运营数据暂时无法同步')
   } finally {
     loading.value = false
+  }
+
+  noticeStore.fetchNotices({ page: 1, pageSize: 5 }).catch(() => {})
+  noticeStore.fetchUnreadCount().catch(() => {})
+}
+
+const markAllRead = () => {
+  const unreadIds = noticeStore.notices
+    .filter((item) => !item.readTime)
+    .map((item) => item.notificationId)
+  if (unreadIds.length) {
+    noticeStore.markBatchRead(unreadIds).catch(() => {})
   }
 }
 
@@ -154,10 +176,17 @@ onMounted(load)
         <article v-for="(item, index) in pulseItems" :key="item.buildingId ?? index">
           <time>0{{ index + 1 }}</time>
           <div>
-            <h3>{{ item.buildingName ?? `楼栋 ${index + 1}` }}</h3>
+            <h3>
+              {{
+                item.buildingName ??
+                (item.buildingId ? `楼栋 ${item.buildingId}` : `楼栋 ${index + 1}`)
+              }}
+            </h3>
             <p>{{ item.buildingType ?? '实时在楼人数' }}</p>
           </div>
-          <span>{{ item.currentCount ?? item.count ?? item.floorCount ?? '—' }}</span>
+          <span>{{
+            item.onlineCount ?? item.currentCount ?? item.count ?? item.floorCount ?? '—'
+          }}</span>
         </article>
       </section>
     </div>
@@ -185,6 +214,54 @@ onMounted(load)
           <p>{{ notice.content ?? notice.summary ?? '查看通知详情并纳入本班交接。' }}</p>
         </div>
         <span>{{ notice.noticeType ?? notice.category ?? '系统' }}</span>
+      </article>
+    </section>
+
+    <section class="handover-board notice-center">
+      <header>
+        <div>
+          <span>NOTIFY / CENTER</span>
+          <h2>通知与已读</h2>
+        </div>
+        <div class="notice-actions">
+          <b v-if="noticeStore.hasUnread" class="unread-badge">{{ noticeStore.unreadCount }}</b>
+          <button
+            type="button"
+            class="mark-all"
+            :disabled="!noticeStore.hasUnread"
+            @click="markAllRead"
+          >
+            全部已读
+          </button>
+          <small>{{ noticeStore.notices.length }} 条通知</small>
+        </div>
+      </header>
+      <InlineState
+        :loading="noticeStore.loading"
+        :error="noticeStore.errorMessage ? '通知暂时无法同步' : ''"
+        :empty="!noticeStore.loading && !noticeStore.notices.length"
+        empty-text="暂无通知"
+      />
+      <article
+        v-for="item in noticeStore.notices"
+        :key="item.notificationId"
+        :class="{ unread: !item.readTime }"
+      >
+        <time>{{ formatDate(item.createTime) }}</time>
+        <div>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.content }}</p>
+        </div>
+        <button
+          v-if="!item.readTime"
+          type="button"
+          class="mark-read"
+          :disabled="noticeStore.isMarking(item.notificationId)"
+          @click="noticeStore.markRead(item.notificationId)"
+        >
+          标为已读
+        </button>
+        <span v-else>{{ item.notificationType || '系统' }}</span>
       </article>
     </section>
   </main>
@@ -413,6 +490,7 @@ onMounted(load)
 .handover-board h2,
 .quick-station h2 {
   margin: 8px 0 0;
+  color: var(--color-ink) !important;
   font-family: var(--font-display);
   font-size: clamp(26px, 2.4vw, 36px) !important;
   font-weight: 950 !important;
@@ -585,6 +663,50 @@ onMounted(load)
 
 .handover-board {
   margin-top: 54px;
+}
+
+.notice-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.notice-actions small {
+  color: var(--color-text-muted);
+  font-size: 15px !important;
+  font-weight: 700;
+}
+.unread-badge {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  font: 13px var(--font-mono);
+  font-weight: 900;
+}
+.mark-all,
+.mark-read {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.mark-read {
+  border-color: var(--color-line-strong);
+  background: var(--color-surface);
+}
+.mark-all:disabled,
+.mark-read:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 @media (max-width: 1180px) {

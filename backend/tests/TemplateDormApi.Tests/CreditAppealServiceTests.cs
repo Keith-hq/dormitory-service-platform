@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Logging.Abstractions;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -30,7 +31,8 @@ public class CreditAppealServiceTests
             new UserAccountRepository(context),
             creditService,
             notificationService,
-            auditService);
+            auditService,
+            NullLogger<CreditAppealService>.Instance);
     }
 
     private static async Task<AppDbContext> SeedStudentContextAsync()

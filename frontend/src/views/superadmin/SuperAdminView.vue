@@ -1,9 +1,10 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { adminApi } from '@/api/admin'
 import { buildingApi } from '@/api/building'
 import { governanceApi } from '@/api/governance'
-import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
+import { InlineState, MetricStrip, StatusTag, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
 import { formatLocalMonthInput } from '@/utils/localDate'
@@ -19,6 +20,8 @@ const students = ref([])
 const audits = ref([])
 const buildings = ref([])
 const report = ref(null)
+const violations = ref([])
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
 const directory = ref('admins')
 const keyword = ref('')
 const modalElement = ref(null)
@@ -127,6 +130,27 @@ const deleteMajor = async (item) => {
     actionError.value = toUserMessage(e, '删除失败')
   }
 }
+const removeViolation = async (item) => {
+  const reason = window.prompt(
+    `确认删除违规 #${item.violationId}（学生 ${item.studentId}，${item.type}）？请输入删除原因：`
+  )
+  if (reason === null) return
+  if (!reason.trim()) {
+    window.alert('删除原因不能为空')
+    return
+  }
+  working.value = true
+  actionError.value = ''
+  try {
+    await governanceApi.deleteViolation(item.violationId, reason.trim())
+    notice.value = '违规记录已删除'
+    await load()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '删除失败')
+  } finally {
+    working.value = false
+  }
+}
 
 const section = computed(() => route.meta.section ?? 'overview')
 const title = computed(
@@ -186,7 +210,8 @@ const load = async () => {
     governanceApi.getReport('occupancy', { yearMonth: formatLocalMonthInput() }),
     buildingApi.getList({ page: 1, pageSize: 100 }),
     governanceApi.getColleges(),
-    governanceApi.getMajors()
+    governanceApi.getMajors(),
+    adminApi.getViolations({ page: 1, pageSize: 20 })
   ])
   const targets = [admins, students, audits]
   results.slice(0, 3).forEach((result, index) => {
@@ -199,6 +224,8 @@ const load = async () => {
   if (results[5].status === 'fulfilled')
     colleges.value = normalizeCollection(results[5].value).items
   if (results[6].status === 'fulfilled') majors.value = normalizeCollection(results[6].value).items
+  if (results[7].status === 'fulfilled')
+    violations.value = normalizeCollection(results[7].value).items
   if (results.every((result) => result.status === 'rejected'))
     error.value = toUserMessage(results[0].reason, '治理数据暂时无法同步')
   loading.value = false
@@ -440,6 +467,39 @@ onMounted(load)
           ><b>{{ admins.filter((item) => item.roleLevel === role).length }}</b>
         </div>
       </article>
+    </section>
+
+    <section v-if="!loading && !error && section === 'overview'" class="violation-board">
+      <header>
+        <div>
+          <span>VIOLATION RECORDS</span>
+          <h2>违规记录</h2>
+        </div>
+        <small>{{ violations.length }} 条违规</small>
+      </header>
+      <article v-for="item in violations" :key="item.violationId">
+        <time>{{ formatDate(item.recordTime) }}</time>
+        <div>
+          <div class="violation-head">
+            <h3>{{ item.studentId }}</h3>
+            <StatusTag
+              :label="item.status || '有效'"
+              :tone="item.status === '已撤销' ? 'danger' : 'success'"
+              size="small"
+            />
+          </div>
+          <p>{{ item.type }} · {{ item.detail || '—' }} · 登记人 {{ item.recordBy || '—' }}</p>
+        </div>
+        <button
+          type="button"
+          class="danger"
+          :disabled="working || item.status === '已撤销'"
+          @click="removeViolation(item)"
+        >
+          {{ item.status === '已撤销' ? '已撤销' : '删除' }}
+        </button>
+      </article>
+      <p v-if="!violations.length" class="empty">暂无违规记录</p>
     </section>
 
     <section v-else-if="!loading && !error && section === 'people'" class="people-workspace">
@@ -2074,6 +2134,122 @@ onMounted(load)
   gap: 10px;
   padding: 18px 28px;
   background: var(--color-surface-muted);
+}
+
+.violation-board {
+  margin-top: 22px;
+  overflow: hidden;
+  padding: 22px 30px 30px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.violation-board > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 0 18px;
+}
+
+.violation-board header span {
+  display: block;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.violation-board header h2 {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.violation-board header small {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.violation-board article {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  min-height: 84px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: #f6f9fe;
+}
+
+.violation-board article + article {
+  margin-top: 10px;
+}
+
+.violation-board article time {
+  color: var(--color-brand);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.violation-board article h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 900;
+}
+.violation-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.violation-board article p {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.violation-board article button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  color: var(--color-danger);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.violation-board article button:hover:not(:disabled) {
+  border-color: #efc4bc;
+  background: var(--color-danger-soft);
+}
+
+.violation-board article button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.violation-board .empty {
+  margin: 0;
+  padding: 26px 16px;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-size: 14px;
 }
 
 @media (max-width: 1120px) {

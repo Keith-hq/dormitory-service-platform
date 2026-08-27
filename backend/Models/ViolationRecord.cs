@@ -34,4 +34,8 @@ public class ViolationRecord
     [Column("RECORD_BY")]
     [MaxLength(20)]
     public string? RecordBy { get; set; }
+
+    [Column("STATUS")]
+    [MaxLength(20)]
+    public string Status { get; set; } = "有效";
 }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -133,7 +134,9 @@ public sealed class StudentSafetyApprovedImplementationTests
         await context.SaveChangesAsync();
         var service = new LateEntryService(
             new LateEntryRepository(context),
-            new StudentIdentityService(new UserAccountRepository(context)));
+            new StudentIdentityService(new UserAccountRepository(context)),
+            new FakeNotificationService(),
+            NullLogger<LateEntryService>.Instance);
         var lateTime = DateTime.Today.AddDays(-1).AddHours(23).AddMinutes(45);
 
         var created = await service.CreateAsync(
@@ -369,5 +372,24 @@ public sealed class StudentSafetyApprovedImplementationTests
 
         public Task<FileDeleteResultDto> DeleteAsync(string storageRef, CancellationToken cancellationToken)
             => Task.FromResult(new FileDeleteResultDto { StorageRef = storageRef, Deleted = true });
+    }
+
+    private sealed class FakeNotificationService : INotificationService
+    {
+        public Task<PagedResult<NotificationItemDto>> GetPagedAsync(
+            int recipientAccountId, int page, int pageSize, string? isRead)
+            => throw new NotSupportedException();
+
+        public Task MarkReadAsync(int notificationId, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task MarkBatchReadAsync(IReadOnlyCollection<int> notificationIds, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<UnreadCountDto> GetUnreadCountAsync(int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<NotificationItemDto> CreateAsync(NotificationCreateDto dto)
+            => Task.FromResult(new NotificationItemDto());
     }
 }

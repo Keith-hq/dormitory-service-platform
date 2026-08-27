@@ -22,6 +22,14 @@ public interface ICreditAppealService
         bool isDormAdmin,
         CancellationToken cancellationToken);
 
+    /// <summary>申诉复核队列（分页，可按状态过滤）— 楼长/超管</summary>
+    Task<PagedResult<CreditAppealDto>> GetAllAsync(
+        int accountId,
+        string? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
     /// <summary>APPEAL-03 复核申诉（通过恢复信用分 / 驳回）— 楼长/超管</summary>
     /// <param name="accountId">当前登录账号 ID，服务内解析为其 Admin_ID 作为复核人</param>
     Task<CreditAppealDto> ReviewAsync(

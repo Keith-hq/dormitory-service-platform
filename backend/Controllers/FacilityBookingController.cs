@@ -18,11 +18,19 @@ public class FacilityBookingController : ControllerBase
 {
     private readonly IFacilityBookingService _service;
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<FacilityBookingController> _logger;
 
-    public FacilityBookingController(IFacilityBookingService service, AppDbContext context)
+    public FacilityBookingController(
+        IFacilityBookingService service,
+        AppDbContext context,
+        INotificationService notificationService,
+        ILogger<FacilityBookingController> logger)
     {
         _service = service;
         _context = context;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     /// <summary>从 JWT 解析当前学生的 Student_ID</summary>
@@ -49,9 +57,56 @@ public class FacilityBookingController : ControllerBase
         var (rc, bookingId) = await _service.BookFacility(req.FacilityId, studentId);
 
         var msgs = new[] { "预约成功", "设施不存在或不可用", "信用分不足（低于60）", "已有活跃预约", "设施已被占用" };
-        return rc == 0
-            ? Ok(ApiResponse.Ok(new { bookingId }, msgs[0]))
-            : Ok(ApiResponse.Error(400, msgs[rc]));
+        if (rc != 0)
+        {
+            return Ok(ApiResponse.Error(400, msgs[rc]));
+        }
+
+        await TryNotifyBookingAsync(studentId, req.FacilityId, bookingId);
+        return Ok(ApiResponse.Ok(new { bookingId }, msgs[0]));
+    }
+
+    /// <summary>
+    /// 预约成功后的通知（fail-soft，不阻断预约主流程）：
+    /// 通知学生本人 + 设施所在楼栋宿管。
+    /// </summary>
+    private async Task TryNotifyBookingAsync(string studentId, int facilityId, int bookingId)
+    {
+        try
+        {
+            await _notificationService.CreateAsync(new NotificationCreateDto
+            {
+                StudentId = studentId,
+                Title = "设施预约成功",
+                Content = $"您已成功预约设施（ID {facilityId}），预约单号 {bookingId}，请按时使用。",
+                NotificationType = "预约"
+            });
+
+            var facility = await _context.Facilities.AsNoTracking()
+                .FirstOrDefaultAsync(item => item.FacilityId == facilityId);
+            if (facility is not null)
+            {
+                var adminId = await _context.Admins.AsNoTracking()
+                    .Where(admin => admin.BuildingId == facility.BuildingId)
+                    .OrderBy(admin => admin.AdminId)
+                    .Select(admin => admin.AdminId)
+                    .FirstOrDefaultAsync();
+                if (!string.IsNullOrWhiteSpace(adminId))
+                {
+                    await _notificationService.CreateAsync(new NotificationCreateDto
+                    {
+                        AdminId = adminId,
+                        Title = "新增设施预约",
+                        Content = $"学生 {studentId} 预约了设施（ID {facilityId}，预约单 {bookingId}）。",
+                        NotificationType = "预约"
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "设施预约通知投递失败，studentId={StudentId}, bookingId={BookingId}", studentId, bookingId);
+        }
     }
 
     /// <summary>STU-20 配套：查询我的预约记录（含状态，供前端展示与释放操作）。</summary>

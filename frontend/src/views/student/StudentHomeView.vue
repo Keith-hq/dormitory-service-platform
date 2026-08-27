@@ -1,18 +1,18 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { notificationApi } from '@/api/notification'
 import { studentApi } from '@/api/student'
 import { InlineState, MetricStrip, StatusTag, WorkspaceHeader } from '@/components'
+import { useNoticeStore } from '@/store/notice'
 import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
 
 const userStore = useUserStore()
+const noticeStore = useNoticeStore()
 const loading = ref(true)
 const failures = ref([])
 const wallet = ref(null)
 const fees = ref([])
 const accommodation = ref(null)
-const notifications = ref([])
 
 const studentId = computed(() => userStore.userInfo?.id || '')
 const unpaidFees = computed(() => fees.value.filter((item) => item.isPaid !== '是'))
@@ -36,8 +36,8 @@ const metrics = computed(() => [
   },
   {
     label: '未读通知',
-    value: String(notifications.value.filter((item) => !item.readTime).length),
-    hint: '首页提醒'
+    value: String(noticeStore.unreadCount),
+    hint: noticeStore.hasUnread ? '有未读消息' : '首页提醒'
   }
 ])
 
@@ -64,8 +64,7 @@ const loadHome = async () => {
   const requests = [
     ['wallet', studentApi.getWallet(studentId.value)],
     ['fees', studentApi.getFees(studentId.value)],
-    ['accommodation', studentApi.getAccommodation(studentId.value)],
-    ['notifications', notificationApi.getList({ page: 1, pageSize: 5 })]
+    ['accommodation', studentApi.getAccommodation(studentId.value)]
   ]
   const results = await Promise.allSettled(requests.map(([, request]) => request))
   results.forEach((result, index) => {
@@ -77,9 +76,19 @@ const loadHome = async () => {
     if (key === 'wallet') wallet.value = result.value
     if (key === 'fees') fees.value = normalizeCollection(result.value).items
     if (key === 'accommodation') accommodation.value = result.value
-    if (key === 'notifications') notifications.value = normalizeCollection(result.value).items
   })
   loading.value = false
+  noticeStore.fetchNotices({ page: 1, pageSize: 5 }).catch(() => {})
+  noticeStore.fetchUnreadCount().catch(() => {})
+}
+
+const markAllRead = () => {
+  const unreadIds = noticeStore.notices
+    .filter((item) => !item.readTime)
+    .map((item) => item.notificationId)
+  if (unreadIds.length) {
+    noticeStore.markBatchRead(unreadIds).catch(() => {})
+  }
 }
 
 onMounted(loadHome)
@@ -132,16 +141,27 @@ onMounted(loadHome)
             <span>NOTICE / LATEST</span>
             <h2>通知与提醒</h2>
           </div>
-          <small>{{ notifications.length }} 条最新消息</small>
+          <div class="notice-actions">
+            <b v-if="noticeStore.hasUnread" class="unread-badge">{{ noticeStore.unreadCount }}</b>
+            <button
+              type="button"
+              class="mark-all"
+              :disabled="!noticeStore.hasUnread"
+              @click="markAllRead"
+            >
+              全部已读
+            </button>
+            <small>{{ noticeStore.notices.length }} 条最新消息</small>
+          </div>
         </header>
         <InlineState
-          :loading="loading"
-          :error="failures.includes('notifications') ? '通知暂时无法同步' : ''"
-          :empty="!loading && !notifications.length"
+          :loading="noticeStore.loading"
+          :error="noticeStore.errorMessage ? '通知暂时无法同步' : ''"
+          :empty="!noticeStore.loading && !noticeStore.notices.length"
           empty-text="暂无通知"
         />
         <article
-          v-for="notice in notifications"
+          v-for="notice in noticeStore.notices"
           :key="notice.notificationId"
           :class="{ unread: !notice.readTime }"
         >
@@ -152,7 +172,16 @@ onMounted(loadHome)
             <h3>{{ notice.title }}</h3>
             <p>{{ notice.content }}</p>
           </div>
-          <span>{{ notice.notificationType || '系统' }}</span>
+          <button
+            v-if="!notice.readTime"
+            type="button"
+            class="mark-read"
+            :disabled="noticeStore.isMarking(notice.notificationId)"
+            @click="noticeStore.markRead(notice.notificationId)"
+          >
+            标为已读
+          </button>
+          <span v-else>{{ notice.notificationType || '系统' }}</span>
         </article>
       </section>
     </div>
@@ -398,6 +427,44 @@ onMounted(loadHome)
 .notice-ledger > header > small {
   flex: 0 0 auto;
   padding-right: 10px;
+}
+.notice-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.unread-badge {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  font: 13px var(--font-mono);
+  font-weight: 900;
+}
+.mark-all,
+.mark-read {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.mark-read {
+  border-color: var(--color-line-strong);
+  background: var(--color-surface);
+}
+.mark-all:disabled,
+.mark-read:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .quick-station {

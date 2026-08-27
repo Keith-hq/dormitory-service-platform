@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
 using TemplateDormApi.Models;
@@ -24,10 +25,20 @@ public interface IVisitorService
 public class VisitorService : IVisitorService
 {
     private readonly VisitorRepository _repository;
+    private readonly ICreditService _creditService;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<VisitorService> _logger;
 
-    public VisitorService(VisitorRepository repository)
+    public VisitorService(
+        VisitorRepository repository,
+        ICreditService creditService,
+        INotificationService notificationService,
+        ILogger<VisitorService> logger)
     {
         _repository = repository;
+        _creditService = creditService;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     public async Task<VisitorAuthorization> ApplyAsync(string studentId, VisitorApplyRequest dto)
@@ -36,6 +47,11 @@ public class VisitorService : IVisitorService
         var endTime = dto.EndTime!.Value;
         if (endTime <= now)
             throw new BusinessException(400, "授权截止时间必须晚于当前时间");
+
+        // 信用冻结检查：分数 < 60（阈值在 CreditService，预约/借物由存储过程拦截，此处补齐访客口子）
+        var credit = await _creditService.GetStatusAsync(studentId, CancellationToken.None);
+        if (credit.IsFrozen)
+            throw new BusinessException(400, "信用分低于 60 分，访客申请已冻结，请恢复信用后再申请");
 
         // Room_ID 为 NOT NULL：只读查询当前学生房间，无在住房间则不允许申请
         var roomId = await _repository.GetActiveRoomIdAsync(studentId)
@@ -52,7 +68,11 @@ public class VisitorService : IVisitorService
             Status = "有效",
             CreateTime = now
         };
-        return await _repository.AddAsync(auth);
+        var saved = await _repository.AddAsync(auth);
+
+        await TryNotifyAsync(studentId, (int)roomId, dto, endTime);
+
+        return saved;
     }
 
     public async Task<PagedResult<VisitorAuthorization>> GetMyListAsync(
@@ -98,4 +118,41 @@ public class VisitorService : IVisitorService
     public async Task<int> ExpireAsync()
         => await _repository.ExpireAsync(DateTime.Now);
 
+    /// <summary>
+    /// 访客申请成功后的通知（fail-soft，不阻断主流程）：
+    /// 通知学生本人 + 该学生所在楼栋宿管（体现"一端写入、他端接收"连通性）。
+    /// </summary>
+    private async Task TryNotifyAsync(
+        string studentId,
+        int roomId,
+        VisitorApplyRequest dto,
+        DateTime endTime)
+    {
+        try
+        {
+            await _notificationService.CreateAsync(new NotificationCreateDto
+            {
+                StudentId = studentId,
+                Title = "访客授权已申请",
+                Content = $"您的访客码已生成，访客「{dto.VisitorName}」可凭码进入楼栋，授权截止 {endTime:yyyy-MM-dd HH:mm}。",
+                NotificationType = "访客"
+            });
+
+            var adminId = await _repository.GetBuildingAdminIdAsync(roomId, CancellationToken.None);
+            if (!string.IsNullOrWhiteSpace(adminId))
+            {
+                await _notificationService.CreateAsync(new NotificationCreateDto
+                {
+                    AdminId = adminId,
+                    Title = "新增访客授权待值守",
+                    Content = $"学生 {studentId} 申请了访客授权（访客：{dto.VisitorName}，截止 {endTime:yyyy-MM-dd HH:mm}），请值守台留意。",
+                    NotificationType = "访客"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "访客授权通知投递失败，studentId={StudentId}", studentId);
+        }
+    }
 }
