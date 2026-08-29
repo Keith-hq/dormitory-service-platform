@@ -4,6 +4,7 @@ import { adminApi } from '@/api/admin'
 import { buildingApi } from '@/api/building'
 import { InlineState, MetricStrip, StatusTag, WorkspaceHeader } from '@/components'
 import { useNoticeStore } from '@/store/notice'
+import { useUserStore } from '@/store/user'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
 
@@ -14,6 +15,10 @@ const buildings = ref([])
 const density = ref([])
 const notices = ref([])
 const noticeStore = useNoticeStore()
+const userStore = useUserStore()
+
+// 宿管负责楼栋（登录时 /auth/me 返回），首页头部展示
+const myBuilding = computed(() => userStore.userInfo?.buildingName || '')
 
 const totalInBuilding = computed(() =>
   density.value.reduce(
@@ -123,6 +128,7 @@ onMounted(load)
         title="今日宿舍运营"
         description="楼栋承载、访客值守和公告交接集中在首页，异常事项优先显露。"
       >
+        <span v-if="myBuilding" class="my-building">负责楼栋：{{ myBuilding }}</span>
         <StatusTag :label="syncLabel" :tone="syncTone" :dot="false" />
         <button class="btn btn-sm" type="button" :disabled="loading" @click="load">重新同步</button>
       </WorkspaceHeader>
@@ -336,6 +342,19 @@ onMounted(load)
   font-size: 17px;
   font-weight: 700;
   line-height: 1.8;
+}
+
+.my-building {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .home-portal :deep(.workspace-header__aside) {
