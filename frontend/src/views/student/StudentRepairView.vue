@@ -137,7 +137,8 @@ const closeViewer = () => {
 }
 const viewerPrev = () => {
   if (viewer.value.images.length > 1)
-    viewer.value.index = (viewer.value.index + viewer.value.images.length - 1) % viewer.value.images.length
+    viewer.value.index =
+      (viewer.value.index + viewer.value.images.length - 1) % viewer.value.images.length
 }
 const viewerNext = () => {
   if (viewer.value.images.length > 1)
@@ -314,10 +315,7 @@ onMounted(loadTickets)
     >
       <button class="viewer-close" type="button" aria-label="关闭" @click="closeViewer">×</button>
       <figure class="viewer-body">
-        <img
-          :src="viewer.images[viewer.index]?.src"
-          :alt="viewer.images[viewer.index]?.name"
-        />
+        <img :src="viewer.images[viewer.index]?.src" :alt="viewer.images[viewer.index]?.name" />
         <figcaption v-if="viewer.images.length > 1" class="viewer-caption">
           <button type="button" :disabled="viewer.images.length < 2" @click="viewerPrev">
             ‹ 上一张
