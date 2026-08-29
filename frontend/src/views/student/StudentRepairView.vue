@@ -37,7 +37,10 @@ const loadTickets = async () => {
   error.value = ''
   try {
     tickets.value = normalizeCollection(await studentApi.getRepairTickets(studentId.value)).items
-    activeTicket.value = activeTicket.value || tickets.value[0] || null
+    const previousId = activeTicket.value?.ticketId
+    // 刷新后按 ticketId 重新取最新对象，否则时间线停留旧状态（如完工后仍显示已派单）
+    activeTicket.value =
+      tickets.value.find((ticket) => ticket.ticketId === previousId) || tickets.value[0] || null
   } catch (requestError) {
     error.value = toUserMessage(requestError, '报修记录暂时无法同步')
   } finally {
@@ -61,6 +64,8 @@ const submitRepair = async () => {
     }
     description.value = ''
     pendingFiles.value = []
+    // 清空 file input 元素值，避免选择文件处残留上一次的图片
+    if (pendingInput.value) pendingInput.value.value = ''
     feedback.value = '报修已提交，系统将自动进入派单队列'
     await loadTickets()
   } catch (requestError) {
@@ -93,6 +98,8 @@ const cancelActive = async () => {
 const pendingFiles = ref([])
 const activeFiles = ref([])
 const uploading = ref(false)
+const pendingInput = ref(null)
+const activeInput = ref(null)
 const uploadActive = async () => {
   const ticket = activeTicket.value
   if (!ticket || !activeFiles.value.length) return
@@ -104,6 +111,7 @@ const uploadActive = async () => {
     await studentApi.addRepairAttachments(ticket.ticketId, form)
     feedback.value = '图片已上传'
     activeFiles.value = []
+    if (activeInput.value) activeInput.value.value = ''
     await loadTickets()
   } catch (requestError) {
     feedback.value = toUserMessage(requestError, '上传失败')
@@ -117,6 +125,36 @@ const tone = (status) =>
     : ['已撤销', 'cancelled'].includes(status)
       ? 'neutral'
       : 'warning'
+// 工单提交时间：后端字段是 submitTime，格式化为 YYYY-MM-DD HH:mm
+const formatTicketTime = (value) => {
+  if (!value) return '时间待同步'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '时间待同步'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+// —— 图片查看器：从列表打开工单图片的大图弹窗 ——
+const viewer = ref({ open: false, images: [], index: 0 })
+const openViewer = (ticket) => {
+  const images = (ticket.attachments || []).map((att) => ({
+    src: `/uploads/${att.storageRef}`,
+    name: att.originalName
+  }))
+  if (!images.length) return
+  viewer.value = { open: true, images, index: 0 }
+}
+const closeViewer = () => {
+  viewer.value.open = false
+}
+const viewerPrev = () => {
+  if (viewer.value.images.length > 1)
+    viewer.value.index =
+      (viewer.value.index + viewer.value.images.length - 1) % viewer.value.images.length
+}
+const viewerNext = () => {
+  if (viewer.value.images.length > 1)
+    viewer.value.index = (viewer.value.index + 1) % viewer.value.images.length
+}
 onMounted(loadTickets)
 </script>
 
@@ -162,16 +200,31 @@ onMounted(loadTickets)
               placeholder="例如：书桌右侧插座松动，使用时有火花…"
             ></textarea>
           </label>
-          <label
-            >图片附件（可选，jpg/png，单张 ≤5MB）
+          <div class="attachment-picker">
             <input
+              ref="pendingInput"
               type="file"
               accept="image/*"
               multiple
+              hidden
               @change="pendingFiles = [...($event.target.files || [])]"
             />
-            <small v-if="pendingFiles.length">已选 {{ pendingFiles.length }} 张</small></label
-          >
+            <button
+              v-if="!pendingFiles.length"
+              type="button"
+              class="btn btn-sm"
+              @click="pendingInput?.click()"
+            >
+              添加图片
+            </button>
+            <template v-else>
+              <span class="attachment-picker__count">已选 {{ pendingFiles.length }} 张</span>
+              <button type="button" class="btn btn-sm" @click="pendingInput?.click()">
+                继续添加
+              </button>
+            </template>
+            <small class="attachment-picker__hint">可选，jpg/png，单张 ≤5MB</small>
+          </div>
           <p v-if="feedback" role="status">{{ feedback }}</p>
           <button class="btn btn-primary" :disabled="submitting || !description.trim()">
             {{ submitting ? '提交中…' : '提交报修' }}
@@ -201,7 +254,15 @@ onMounted(loadTickets)
           <time>#{{ ticket.ticketId }}</time>
           <div>
             <b>{{ ticket.issueDesc || ticket.description || '报修事项' }}</b
-            ><small>{{ ticket.createTime || ticket.createdAt || '时间待同步' }}</small>
+            ><small>{{ formatTicketTime(ticket.submitTime) }}</small>
+            <span
+              v-if="ticket.attachments?.length"
+              class="ticket-view"
+              title="查看报修图片"
+              @click.stop="openViewer(ticket)"
+            >
+              查看图片
+            </span>
           </div>
           <StatusTag :label="ticket.status || '待处理'" :tone="tone(ticket.status)" size="small" />
         </button>
@@ -218,13 +279,31 @@ onMounted(loadTickets)
           <div class="timeline-step" :class="{ done: activeTicket.status !== '待处理' }">
             <i></i><b>等待派单</b><span>根据区域与负载匹配维修员</span>
           </div>
+          <div class="timeline-step" :class="{ done: !!activeTicket.claimTime }">
+            <i></i><b>已接收</b
+            ><span v-if="activeTicket.claimTime"
+              >维修员接单 · {{ formatTicketTime(activeTicket.claimTime) }}</span
+            ><span v-else>等待维修员接单</span>
+          </div>
           <div
             class="timeline-step"
             :class="{ done: ['已完成', 'completed'].includes(activeTicket.status) }"
           >
             <i></i><b>维修处理</b><span>维修员更新过程与材料记录</span>
+            <div v-if="activeTicket.log" class="timeline-log">
+              <p class="log-desc">{{ activeTicket.log.processDescription }}</p>
+              <p v-if="activeTicket.log.repairResult" class="log-result">
+                维修结果：{{ activeTicket.log.repairResult }}
+              </p>
+              <span class="log-meta"
+                >维修员 {{ activeTicket.log.adminId || '—' }} ·
+                {{ formatTicketTime(activeTicket.log.resolveTime) }}</span
+              >
+            </div>
           </div>
-          <div class="timeline-step"><i></i><b>结果归档</b><span>完成后可回看维修结果</span></div>
+          <div class="timeline-step" :class="{ done: !!activeTicket.log }">
+            <i></i><b>结果归档</b><span>完成后可回看维修结果</span>
+          </div>
           <div class="ticket-tools">
             <div v-if="activeTicket.attachments?.length" class="attachments">
               <span>已传附件</span>
@@ -241,6 +320,7 @@ onMounted(loadTickets)
               <label class="btn btn-sm">
                 上传图片
                 <input
+                  ref="activeInput"
                   type="file"
                   accept="image/*"
                   multiple
@@ -267,6 +347,28 @@ onMounted(loadTickets)
           </div></template
         ><InlineState v-else empty empty-text="选择一张工单查看处理过程" />
       </aside>
+    </div>
+
+    <div
+      v-if="viewer.open"
+      class="image-viewer"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closeViewer"
+    >
+      <button class="viewer-close" type="button" aria-label="关闭" @click="closeViewer">×</button>
+      <figure class="viewer-body">
+        <img :src="viewer.images[viewer.index]?.src" :alt="viewer.images[viewer.index]?.name" />
+        <figcaption v-if="viewer.images.length > 1" class="viewer-caption">
+          <button type="button" :disabled="viewer.images.length < 2" @click="viewerPrev">
+            ‹ 上一张
+          </button>
+          <span>{{ viewer.index + 1 }} / {{ viewer.images.length }}</span>
+          <button type="button" :disabled="viewer.images.length < 2" @click="viewerNext">
+            下一张 ›
+          </button>
+        </figcaption>
+      </figure>
     </div>
   </div>
 </template>
@@ -318,6 +420,7 @@ onMounted(loadTickets)
 }
 .repair-compose {
   padding: 30px;
+  min-width: 0; /* 允许网格项随窗口收缩，不被内容最小宽撑开 */
 }
 .repair-compose header > span,
 .ticket-queue header span,
@@ -343,17 +446,47 @@ onMounted(loadTickets)
 }
 .repair-compose form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* 表单列可收缩并填满容器 */
   margin-top: 21px;
   gap: 14px;
+  min-width: 0;
 }
 .repair-compose label {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* label 填满并可收缩 */
   color: var(--color-text-muted);
   font-size: 16px;
   gap: 10px;
+  min-width: 0;
+}
+.repair-compose :where(input, select, textarea) {
+  width: 100%;
+  max-width: 100%;
 }
 .repair-compose textarea {
   resize: vertical;
+}
+.repair-compose input[type='file'] {
+  min-width: 0;
+  font-size: 13px;
+}
+.repair-compose form button {
+  justify-self: start; /* 按钮保持内容宽度，不拉伸占满整行 */
+}
+.attachment-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.attachment-picker__count {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.attachment-picker__hint {
+  width: 100%;
+  color: var(--color-text-soft);
+  font-size: 12px;
 }
 .repair-compose form p {
   margin: 0;
@@ -400,21 +533,109 @@ onMounted(loadTickets)
 .ticket-row div {
   display: grid;
   gap: 5px;
+  min-width: 0; /* 允许收缩，长描述换行而非溢出 */
 }
 .ticket-row b {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 .ticket-row small {
   color: var(--color-text-muted);
   font-size: 14px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.ticket-view {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 6px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ticket-view:hover {
+  background: var(--color-brand);
+  color: #fff;
+}
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 22, 33, 0.82);
+}
+.viewer-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.viewer-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.viewer-body {
+  display: grid;
+  place-items: center;
+  width: min(88vw, 900px);
+  height: min(78vh, 620px); /* 统一弹窗尺寸，不随图片大小变化 */
+  margin: 0;
+  padding: 18px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.viewer-body img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+}
+.viewer-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 12px;
+  color: #fff;
+  font-size: 13px;
+}
+.viewer-caption button {
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.viewer-caption button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+.viewer-caption button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .repair-timeline {
   padding-bottom: 18px;
   background: #fff;
   color: var(--color-text);
+  min-width: 0; /* 允许收缩，长内容换行而非溢出 */
 }
 .repair-timeline > header {
   border-color: transparent;
@@ -465,6 +686,31 @@ onMounted(loadTickets)
   font-size: 8px;
   line-height: 1.5;
 }
+.timeline-log {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+.timeline-log .log-desc {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.timeline-log .log-result {
+  margin: 6px 0 0;
+  color: var(--color-brand-strong);
+  font-weight: 700;
+  font-size: 12px;
+}
+.timeline-log .log-meta {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-text-soft);
+  font-size: 10px;
+}
 .ticket-tools {
   margin: 6px 28px 0;
   padding: 14px 16px;
@@ -484,6 +730,7 @@ onMounted(loadTickets)
   display: grid;
   gap: 6px;
   margin-bottom: 12px;
+  min-width: 0; /* 允许收缩，长文件名换行 */
 }
 .attachments span {
   color: var(--color-brand-strong);
@@ -495,6 +742,7 @@ onMounted(loadTickets)
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
+  overflow-wrap: anywhere; /* 长文件名换行而非溢出 */
 }
 @media (max-width: 1000px) {
   .repair-layout {

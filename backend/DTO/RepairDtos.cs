@@ -43,6 +43,7 @@ public sealed class RepairTicketDto
     public string? SlaLevel { get; set; }
     public DateTime? Deadline { get; set; }
     public string? AssignedTo { get; set; }
+    public DateTime? ClaimTime { get; set; }
     public RepairLogDto? Log { get; set; }
     public IReadOnlyList<RepairAttachmentDto> Attachments { get; set; } = Array.Empty<RepairAttachmentDto>();
 }
@@ -51,6 +52,7 @@ public sealed class RepairLogDto
 {
     public string? AdminId { get; set; }
     public string? ProcessDescription { get; set; }
+    public string? RepairResult { get; set; }
     public DateTime ResolveTime { get; set; }
 }
 

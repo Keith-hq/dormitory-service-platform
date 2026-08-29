@@ -221,6 +221,36 @@ public class StudentsController : ControllerBase
         return Ok(ApiResponse.Ok(new { studentId, accountStatus = account.AccountStatus }, "学生账号已停用"));
     }
 
+    /// <summary>恢复学生登录账号（停用的反向操作），仅翻转状态为"正常"，不动密码与业务档案。</summary>
+    [HttpPut("{studentId}/enable")]
+    public async Task<IActionResult> EnableStudent(string studentId)
+    {
+        var student = await _context.Students.FindAsync(studentId);
+        if (student == null)
+            return NotFound(ApiResponse.Error(404, "学生不存在"));
+
+        var account = await _context.UserAccounts.FirstOrDefaultAsync(item => item.StudentId == studentId);
+        if (account == null)
+            return BadRequest(ApiResponse.Error(400, "该学生尚未开通登录账号"));
+
+        // 已是正常状态则幂等返回
+        if (account.AccountStatus == "正常")
+            return Ok(ApiResponse.Ok(new { studentId, accountStatus = account.AccountStatus }, "学生账号已是正常状态"));
+
+        account.AccountStatus = "正常";
+        await _context.SaveChangesAsync();
+
+        await _auditService.LogEventAsync(
+            eventType: $"PUT /students/{studentId}/enable",
+            targetType: "Student",
+            targetId: studentId,
+            actorAccountId: GetCurrentUserId(),
+            details: $"恢复学生账号 {studentId}：{student.Name}"
+        );
+
+        return Ok(ApiResponse.Ok(new { studentId, accountStatus = account.AccountStatus }, "学生账号已恢复，可正常登录"));
+    }
+
     /// <summary>重置学生密码；新密码仅在本次响应中返回。</summary>
     [HttpPost("{studentId}/password")]
     public async Task<IActionResult> ResetStudentPassword(string studentId)

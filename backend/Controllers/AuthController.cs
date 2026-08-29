@@ -159,6 +159,27 @@ public class AuthController : ControllerBase
 
         bool needChangePassword = user.IsFirstLogin == "Y";
 
+        // 宿管负责楼栋（楼长/维修员等有 BuildingId 的管理员），随 me 返回，前端首页展示
+        string? buildingId = null;
+        string? buildingName = null;
+        if (!string.IsNullOrEmpty(user.AdminId))
+        {
+            var adminBuilding = await _context.Admins
+                .Where(admin => admin.AdminId == user.AdminId)
+                .Select(admin => new
+                {
+                    admin.BuildingId,
+                    BuildingName = admin.Building != null ? admin.Building.BuildingName : null
+                })
+                .FirstOrDefaultAsync();
+
+            if (adminBuilding is not null)
+            {
+                buildingId = adminBuilding.BuildingId?.ToString();
+                buildingName = adminBuilding.BuildingName;
+            }
+        }
+
         return Ok(ApiResponse.Ok(new
         {
             role,
@@ -166,6 +187,8 @@ public class AuthController : ControllerBase
             loginName = user.LoginName,
             studentId = user.StudentId,
             adminId = user.AdminId,
+            buildingId,
+            buildingName,
             needChangePassword
         }, "登录成功"));
     }
