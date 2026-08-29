@@ -379,6 +379,7 @@ onMounted(loadTickets)
 }
 .repair-compose {
   padding: 30px;
+  min-width: 0; /* 允许网格项随窗口收缩，不被内容最小宽撑开 */
 }
 .repair-compose header > span,
 .ticket-queue header span,
@@ -404,17 +405,32 @@ onMounted(loadTickets)
 }
 .repair-compose form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* 表单列可收缩并填满容器 */
   margin-top: 21px;
   gap: 14px;
+  min-width: 0;
 }
 .repair-compose label {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* label 填满并可收缩 */
   color: var(--color-text-muted);
   font-size: 16px;
   gap: 10px;
+  min-width: 0;
+}
+.repair-compose :where(input, select, textarea) {
+  width: 100%;
+  max-width: 100%;
 }
 .repair-compose textarea {
   resize: vertical;
+}
+.repair-compose input[type='file'] {
+  min-width: 0;
+  font-size: 13px;
+}
+.repair-compose form button {
+  justify-self: start; /* 按钮保持内容宽度，不拉伸占满整行 */
 }
 .repair-compose form p {
   margin: 0;
@@ -461,16 +477,19 @@ onMounted(loadTickets)
 .ticket-row div {
   display: grid;
   gap: 5px;
+  min-width: 0; /* 允许收缩，长描述换行而非溢出 */
 }
 .ticket-row b {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 .ticket-row small {
   color: var(--color-text-muted);
   font-size: 14px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .ticket-view {
   display: inline-block;
@@ -514,16 +533,22 @@ onMounted(loadTickets)
   background: rgba(255, 255, 255, 0.3);
 }
 .viewer-body {
-  max-width: min(88vw, 900px);
-  max-height: 86vh;
+  display: grid;
+  place-items: center;
+  width: min(88vw, 900px);
+  height: min(78vh, 620px); /* 统一弹窗尺寸，不随图片大小变化 */
   margin: 0;
+  padding: 18px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 .viewer-body img {
   display: block;
   max-width: 100%;
-  max-height: 78vh;
+  max-height: 100%;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
 }
 .viewer-caption {
