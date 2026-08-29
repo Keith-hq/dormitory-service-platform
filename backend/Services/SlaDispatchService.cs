@@ -142,6 +142,7 @@ public class SlaDispatchService : ISlaDispatchService
                         t.Submit_Time AS ""SubmitTime"", t.Status AS ""Status"",
                         t.SLA_Level AS ""SlaLevel"", t.Deadline AS ""Deadline"",
                         t.Assigned_To AS ""AssignedTo"", t.Escalation_Time AS ""EscalationTime"",
+                        t.Claim_Time AS ""ClaimTime"",
                         TRIM(b.Building_Name) || ' ' || TO_CHAR(t.Room_ID) AS ""Location"",
                         (SELECT LISTAGG(a.Original_Name || '|' || a.Storage_Ref, ';')
                                  WITHIN GROUP (ORDER BY a.Attachment_ID)

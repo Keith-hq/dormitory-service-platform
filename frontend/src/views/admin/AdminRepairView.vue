@@ -15,6 +15,9 @@ const store = useUserStore(),
   feedback = ref('')
 const completion = ref({ content: '', repairResult: '已修复' })
 const state = (item) => String(item.status ?? item.ticketStatus ?? '待处理')
+// 已接单：后端迁移 040 在接单时落库 claimTime，UI 派生显示「已接收」（状态机保持 4 值不变）
+const accepted = (item) => !!item.claimTime
+const displayState = (item) => (accepted(item) ? '已接收' : state(item))
 const ticketTitle = (item) =>
   item.issueDesc ?? item.title ?? item.category ?? item.repairType ?? '宿舍报修'
 const ticketLocation = (item) =>
@@ -36,13 +39,13 @@ const metrics = computed(() => [
   { label: '工单总量', value: tickets.value.length, hint: '当前队列' },
   {
     label: '待响应',
-    value: tickets.value.filter((x) => /待|派单|pending/i.test(state(x))).length,
-    hint: '需优先'
+    value: tickets.value.filter((x) => !accepted(x)).length,
+    hint: '未接单'
   },
   {
     label: '处理中',
-    value: tickets.value.filter((x) => /处理中|维修|claimed/i.test(state(x))).length,
-    hint: '执行中'
+    value: tickets.value.filter((x) => accepted(x)).length,
+    hint: '已接单执行中'
   }
 ])
 const load = async () => {
@@ -113,7 +116,7 @@ onMounted(load)
           :class="{ active: selected?.ticketId === item.ticketId }"
           @click="selectTicket(item)"
         >
-          <small>#{{ item.ticketId }} · {{ state(item) }}</small
+          <small>#{{ item.ticketId }} · {{ displayState(item) }}</small
           ><strong>{{ ticketTitle(item) }}</strong>
           <p>{{ ticketLocation(item) }}</p>
         </button>
@@ -159,7 +162,9 @@ onMounted(load)
           </div>
         </section>
         <div class="actions">
-          <button class="btn" :disabled="working" @click="claim">接收工单</button>
+          <button class="btn" :disabled="working || accepted(selected)" @click="claim">
+            {{ accepted(selected) ? '已接收' : '接收工单' }}
+          </button>
           <form @submit.prevent="complete">
             <select v-model="completion.repairResult">
               <option>已修复</option>

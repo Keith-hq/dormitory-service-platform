@@ -185,6 +185,7 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         SlaLevel = item.SlaLevel,
         Deadline = item.Deadline,
         AssignedTo = item.AssignedTo,
+        ClaimTime = item.ClaimTime,
         Log = item.Log is null ? null : new RepairLogDto
         {
             AdminId = item.Log.AdminId,

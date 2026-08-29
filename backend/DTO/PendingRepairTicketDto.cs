@@ -17,6 +17,7 @@ public class PendingRepairTicketDto
     public DateTime? Deadline { get; set; }
     public string? AssignedTo { get; set; }
     public DateTime? EscalationTime { get; set; }
+    public DateTime? ClaimTime { get; set; }
 
     /// <summary>报修位置（楼栋名 + 房间号，如"男生宿舍楼 900101"），JOIN D_Room/D_Building 得出</summary>
     public string? Location { get; set; }

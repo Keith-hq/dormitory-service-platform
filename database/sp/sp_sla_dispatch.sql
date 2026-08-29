@@ -99,9 +99,12 @@ CREATE OR REPLACE PROCEDURE SP_Claim_Ticket(
 BEGIN
     p_Result_Code := 0;
 
-    -- 原子守门（自赋值 UPDATE，仅利用其行计数判定是否命中）
+    -- 原子守门（自赋值 UPDATE + 写接单时间，行计数判定是否命中）
+    -- 迁移 040：Claim_Time 持久化接单时刻（COALESCE 保留首次接单时间），
+    -- 状态机仍保持 4 值不变（四审 PR #44），UI 派生显示"已接收"。
     UPDATE D_Repair_Ticket
-    SET Assigned_To = Assigned_To
+    SET Assigned_To = Assigned_To,
+        Claim_Time = COALESCE(Claim_Time, SYSDATE)
     WHERE Ticket_ID = p_Ticket_ID
       AND Status = '已派单'
       AND Assigned_To = p_Admin_ID;

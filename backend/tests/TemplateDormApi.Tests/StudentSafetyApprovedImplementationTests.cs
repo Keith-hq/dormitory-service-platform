@@ -73,7 +73,9 @@ public sealed class StudentSafetyApprovedImplementationTests
     {
         await using var context = TestDbContextFactory.Create();
         AddStudentAccount(context, 101, "20260001");
-        context.RepairTickets.Add(CreateTicket(1, "待处理", DateTime.Now));
+        var claimedTicket = CreateTicket(1, "已派单", DateTime.Now);
+        claimedTicket.ClaimTime = DateTime.Now.AddMinutes(-5); // 迁移 040：接单落库
+        context.RepairTickets.Add(claimedTicket);
         context.RepairAttachments.Add(new RepairAttachment
         {
             AttachmentId = 1,
@@ -112,6 +114,7 @@ public sealed class StudentSafetyApprovedImplementationTests
         Assert.Equal("已更换插座面板", ticket.Log.ProcessDescription);
         Assert.Equal("已修复", ticket.Log.RepairResult);
         Assert.Equal("A001", ticket.Log.AdminId);
+        Assert.NotNull(ticket.ClaimTime);
     }
 
     [Fact]

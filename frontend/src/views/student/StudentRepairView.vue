@@ -265,6 +265,12 @@ onMounted(loadTickets)
           <div class="timeline-step" :class="{ done: activeTicket.status !== '待处理' }">
             <i></i><b>等待派单</b><span>根据区域与负载匹配维修员</span>
           </div>
+          <div class="timeline-step" :class="{ done: !!activeTicket.claimTime }">
+            <i></i><b>已接收</b
+            ><span v-if="activeTicket.claimTime"
+              >维修员接单 · {{ formatTicketTime(activeTicket.claimTime) }}</span
+            ><span v-else>等待维修员接单</span>
+          </div>
           <div
             class="timeline-step"
             :class="{ done: ['已完成', 'completed'].includes(activeTicket.status) }"

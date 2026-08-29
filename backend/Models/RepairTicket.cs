@@ -20,6 +20,9 @@ public sealed class RepairTicket
     /// <summary>SLA 首次升级时间（NULL=未升级，NOT NULL=已升级，防二次升级，难点⑤）</summary>
     public DateTime? EscalationTime { get; set; }
 
+    /// <summary>接单时间（迁移 040；NULL=未接单，NOT NULL=已由指派维修员接单，UI 派生显示"已接收"）</summary>
+    public DateTime? ClaimTime { get; set; }
+
     public RepairLog? Log { get; set; }
     public ICollection<RepairAttachment> Attachments { get; set; } = new List<RepairAttachment>();
 }
