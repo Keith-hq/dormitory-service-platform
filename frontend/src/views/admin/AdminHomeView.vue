@@ -143,7 +143,9 @@ onMounted(load)
       </section>
     </section>
 
-    <MetricStrip :metrics="metrics" />
+    <div class="metric-strip-wrap">
+      <MetricStrip :metrics="metrics" style="--metric-count: 4" />
+    </div>
 
     <div class="home-grid">
       <aside class="quick-station">
@@ -355,6 +357,12 @@ onMounted(load)
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* 指标条收窄并居中，避免横跨满宽导致各指标之间太开 */
+.metric-strip-wrap {
+  max-width: 820px;
+  margin: 0 auto;
 }
 
 .home-portal :deep(.workspace-header__aside) {
