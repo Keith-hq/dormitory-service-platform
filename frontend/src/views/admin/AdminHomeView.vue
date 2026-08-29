@@ -19,6 +19,10 @@ const userStore = useUserStore()
 
 // 宿管负责楼栋（登录时 /auth/me 返回），首页头部展示
 const myBuilding = computed(() => userStore.userInfo?.buildingName || '')
+const myBuildingId = computed(() => {
+  const raw = userStore.userInfo?.buildingId
+  return raw ? Number(raw) : null
+})
 
 const totalInBuilding = computed(() =>
   density.value.reduce(
@@ -97,6 +101,12 @@ const load = async () => {
       }
       targets[key].value = normalizeCollection(result.value).items
     })
+    // 宿管只统计/展示自己负责的楼栋（在管楼栋不再显示全站数量）
+    if (myBuildingId.value) {
+      buildings.value = buildings.value.filter(
+        (building) => Number(building.buildingId) === myBuildingId.value
+      )
+    }
     const rejectedResults = results.filter((result) => result.status === 'rejected')
     if (rejectedResults.length === results.length)
       error.value = toUserMessage(rejectedResults[0].reason, '运营数据暂时无法同步')
