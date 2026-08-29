@@ -25,6 +25,7 @@ export const governanceApi = {
   },
   updateStudent: (id, data) => request.put(`/students/${id}`, data),
   disableStudent: (id, reason) => request.put(`/students/${id}/disable`, { reason }),
+  enableStudent: (id) => request.put(`/students/${id}/enable`),
   resetStudentPassword: (id) => request.post(`/students/${id}/password`),
   getAuditEvents: (params) => request.get('/audit-events', { params }),
   getReport: (type, params) => request.get(`/reports/${type}`, { params }),

@@ -322,6 +322,22 @@ const restoreAdmin = async (item) => {
     working.value = false
   }
 }
+const restoreStudent = async (item) => {
+  const personName = display(item, 'name')
+  if (!window.confirm(`确认恢复 ${personName} 的登录账号？恢复后该账号可正常登录。`)) return
+  working.value = true
+  notice.value = ''
+  actionError.value = ''
+  try {
+    await governanceApi.enableStudent(item.studentId)
+    notice.value = `${personName} 的登录账号已恢复`
+    await load()
+  } catch (cause) {
+    actionError.value = toUserMessage(cause, '恢复操作未完成，请稍后重试')
+  } finally {
+    working.value = false
+  }
+}
 const numberOrNull = (value) => (value === '' || value === null ? null : Number(value))
 const showCredential = (titleText, loginName, password) => {
   credential.title = titleText
@@ -648,6 +664,13 @@ onMounted(load)
               @click="openDisable('student', item)"
             >
               停用
+            </button>
+            <button
+              type="button"
+              :disabled="item.accountStatus === '正常' || working"
+              @click="restoreStudent(item)"
+            >
+              恢复
             </button>
           </div>
         </article>
