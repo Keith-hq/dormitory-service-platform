@@ -37,7 +37,10 @@ const loadTickets = async () => {
   error.value = ''
   try {
     tickets.value = normalizeCollection(await studentApi.getRepairTickets(studentId.value)).items
-    activeTicket.value = activeTicket.value || tickets.value[0] || null
+    const previousId = activeTicket.value?.ticketId
+    // 刷新后按 ticketId 重新取最新对象，否则时间线停留旧状态（如完工后仍显示已派单）
+    activeTicket.value =
+      tickets.value.find((ticket) => ticket.ticketId === previousId) || tickets.value[0] || null
   } catch (requestError) {
     error.value = toUserMessage(requestError, '报修记录暂时无法同步')
   } finally {
@@ -267,8 +270,20 @@ onMounted(loadTickets)
             :class="{ done: ['已完成', 'completed'].includes(activeTicket.status) }"
           >
             <i></i><b>维修处理</b><span>维修员更新过程与材料记录</span>
+            <div v-if="activeTicket.log" class="timeline-log">
+              <p class="log-desc">{{ activeTicket.log.processDescription }}</p>
+              <p v-if="activeTicket.log.repairResult" class="log-result">
+                维修结果：{{ activeTicket.log.repairResult }}
+              </p>
+              <span class="log-meta"
+                >维修员 {{ activeTicket.log.adminId || '—' }} ·
+                {{ formatTicketTime(activeTicket.log.resolveTime) }}</span
+              >
+            </div>
           </div>
-          <div class="timeline-step"><i></i><b>结果归档</b><span>完成后可回看维修结果</span></div>
+          <div class="timeline-step" :class="{ done: !!activeTicket.log }">
+            <i></i><b>结果归档</b><span>完成后可回看维修结果</span>
+          </div>
           <div class="ticket-tools">
             <div v-if="activeTicket.attachments?.length" class="attachments">
               <span>已传附件</span>
@@ -635,6 +650,31 @@ onMounted(loadTickets)
   color: #819388;
   font-size: 8px;
   line-height: 1.5;
+}
+.timeline-log {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+.timeline-log .log-desc {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.timeline-log .log-result {
+  margin: 6px 0 0;
+  color: var(--color-brand-strong);
+  font-weight: 700;
+  font-size: 12px;
+}
+.timeline-log .log-meta {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-text-soft);
+  font-size: 10px;
 }
 .ticket-tools {
   margin: 6px 28px 0;

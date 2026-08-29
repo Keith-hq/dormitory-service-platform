@@ -69,7 +69,7 @@ public sealed class StudentSafetyApprovedImplementationTests
     }
 
     [Fact]
-    public async Task RepairList_IncludesAttachments()
+    public async Task RepairList_ReturnsAttachmentsAndLog()
     {
         await using var context = TestDbContextFactory.Create();
         AddStudentAccount(context, 101, "20260001");
@@ -83,6 +83,15 @@ public sealed class StudentSafetyApprovedImplementationTests
             ContentType = "image/png",
             FileSize = 128,
             CreateTime = DateTime.Now
+        });
+        context.RepairLogs.Add(new RepairLog
+        {
+            LogId = 1,
+            TicketId = 1,
+            AdminId = "A001",
+            ProcessDescription = "已更换插座面板",
+            RepairResult = "已修复",
+            ResolveTime = DateTime.Now
         });
         await context.SaveChangesAsync();
 
@@ -99,6 +108,10 @@ public sealed class StudentSafetyApprovedImplementationTests
         Assert.Equal("2026/08/test.png", attachment.StorageRef);
         Assert.Equal("fault.png", attachment.OriginalName);
         Assert.Equal(128, attachment.FileSize);
+        Assert.NotNull(ticket.Log);
+        Assert.Equal("已更换插座面板", ticket.Log.ProcessDescription);
+        Assert.Equal("已修复", ticket.Log.RepairResult);
+        Assert.Equal("A001", ticket.Log.AdminId);
     }
 
     [Fact]

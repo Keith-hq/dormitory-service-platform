@@ -87,8 +87,28 @@ public sealed class RepairRepository : FrameworkRepositoryBase
             .ThenByDescending(item => item.TicketId)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Include(item => item.Attachments)
             .ToListAsync(cancellationToken);
+
+        // 四审 Oracle 实测教训：避开导航 Include（投影会拼影子列触发 ORA-00904），
+        // 用三段独立查询手动挂载日志与附件，学生端可回看维修记录。
+        var ticketIds = tickets.Select(item => item.TicketId).ToList();
+        var logs = await DbContext.RepairLogs
+            .AsNoTracking()
+            .Where(log => log.TicketId.HasValue && ticketIds.Contains(log.TicketId.Value))
+            .ToListAsync(cancellationToken);
+        var attachments = await DbContext.RepairAttachments
+            .AsNoTracking()
+            .Where(att => ticketIds.Contains(att.TicketId))
+            .ToListAsync(cancellationToken);
+
+        foreach (var ticket in tickets)
+        {
+            ticket.Log = logs.FirstOrDefault(log => log.TicketId == ticket.TicketId);
+            ticket.Attachments = attachments
+                .Where(att => att.TicketId == ticket.TicketId)
+                .OrderBy(att => att.CreateTime)
+                .ToList();
+        }
 
         var items = tickets.Select(ToDto).ToList();
 
@@ -169,6 +189,7 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         {
             AdminId = item.Log.AdminId,
             ProcessDescription = item.Log.ProcessDescription,
+            RepairResult = item.Log.RepairResult,
             ResolveTime = item.Log.ResolveTime
         },
         Attachments = item.Attachments.OrderBy(item => item.CreateTime).Select(ToDto).ToList()

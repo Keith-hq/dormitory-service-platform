@@ -51,6 +51,7 @@ public sealed class RepairLogDto
 {
     public string? AdminId { get; set; }
     public string? ProcessDescription { get; set; }
+    public string? RepairResult { get; set; }
     public DateTime ResolveTime { get; set; }
 }
 
