@@ -26,11 +26,11 @@ const ticketContent = (item) => item.issueDesc ?? item.description ?? item.conte
 const attachmentsOf = (item) =>
   (item?.attachmentRefs || '')
     .split(';')
-    .filter(Boolean)
     .map((entry) => {
       const [name, ref] = entry.split('|')
-      return { name: name || '附件', ref: ref || '' }
+      return { name: name || '', ref: (ref || '').trim() }
     })
+    .filter((att) => att.ref) // 只保留有真实存储路径的附件，空 ref 的假条目不渲染
 const selectTicket = (item) => {
   selected.value = item
   feedback.value = ''

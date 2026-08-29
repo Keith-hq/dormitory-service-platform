@@ -144,10 +144,10 @@ public class SlaDispatchService : ISlaDispatchService
                         t.Assigned_To AS ""AssignedTo"", t.Escalation_Time AS ""EscalationTime"",
                         t.Claim_Time AS ""ClaimTime"",
                         TRIM(b.Building_Name) || ' ' || TO_CHAR(t.Room_ID) AS ""Location"",
-                        (SELECT LISTAGG(a.Original_Name || '|' || a.Storage_Ref, ';')
+                        NVL((SELECT LISTAGG(a.Original_Name || '|' || a.Storage_Ref, ';')
                                  WITHIN GROUP (ORDER BY a.Attachment_ID)
                            FROM D_Repair_Attachment a
-                          WHERE a.Ticket_ID = t.Ticket_ID) AS ""AttachmentRefs""
+                          WHERE a.Ticket_ID = t.Ticket_ID), '') AS ""AttachmentRefs""
                  FROM D_Repair_Ticket t
                  LEFT JOIN D_Room r ON r.Room_ID = t.Room_ID
                  LEFT JOIN D_Building b ON b.Building_ID = r.Building_ID
