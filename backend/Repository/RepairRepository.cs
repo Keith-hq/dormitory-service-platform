@@ -82,24 +82,15 @@ public sealed class RepairRepository : FrameworkRepositoryBase
             .Where(item => item.StudentId == studentId);
 
         var total = await ticketQuery.CountAsync(cancellationToken);
-        var items = await ticketQuery
+        var tickets = await ticketQuery
             .OrderByDescending(item => item.SubmitTime)
             .ThenByDescending(item => item.TicketId)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(item => new RepairTicketDto
-            {
-                TicketId = item.TicketId,
-                StudentId = item.StudentId!,
-                RoomId = item.RoomId ?? 0,
-                Description = item.IssueDescription,
-                SubmitTime = item.SubmitTime,
-                Status = item.Status ?? string.Empty,
-                SlaLevel = item.SlaLevel,
-                Deadline = item.Deadline,
-                AssignedTo = item.AssignedTo
-            })
+            .Include(item => item.Attachments)
             .ToListAsync(cancellationToken);
+
+        var items = tickets.Select(ToDto).ToList();
 
         return new PagedResult<RepairTicketDto>
         {

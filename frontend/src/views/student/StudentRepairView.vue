@@ -61,6 +61,8 @@ const submitRepair = async () => {
     }
     description.value = ''
     pendingFiles.value = []
+    // 清空 file input 元素值，避免选择文件处残留上一次的图片
+    if (pendingInput.value) pendingInput.value.value = ''
     feedback.value = '报修已提交，系统将自动进入派单队列'
     await loadTickets()
   } catch (requestError) {
@@ -93,6 +95,8 @@ const cancelActive = async () => {
 const pendingFiles = ref([])
 const activeFiles = ref([])
 const uploading = ref(false)
+const pendingInput = ref(null)
+const activeInput = ref(null)
 const uploadActive = async () => {
   const ticket = activeTicket.value
   if (!ticket || !activeFiles.value.length) return
@@ -104,6 +108,7 @@ const uploadActive = async () => {
     await studentApi.addRepairAttachments(ticket.ticketId, form)
     feedback.value = '图片已上传'
     activeFiles.value = []
+    if (activeInput.value) activeInput.value.value = ''
     await loadTickets()
   } catch (requestError) {
     feedback.value = toUserMessage(requestError, '上传失败')
@@ -165,6 +170,7 @@ onMounted(loadTickets)
           <label
             >图片附件（可选，jpg/png，单张 ≤5MB）
             <input
+              ref="pendingInput"
               type="file"
               accept="image/*"
               multiple
@@ -202,6 +208,14 @@ onMounted(loadTickets)
           <div>
             <b>{{ ticket.issueDesc || ticket.description || '报修事项' }}</b
             ><small>{{ ticket.createTime || ticket.createdAt || '时间待同步' }}</small>
+            <span v-if="ticket.attachments?.length" class="ticket-thumbs">
+              <img
+                v-for="att in ticket.attachments"
+                :key="att.attachmentId"
+                :src="'/uploads/' + att.storageRef"
+                :alt="att.originalName"
+              />
+            </span>
           </div>
           <StatusTag :label="ticket.status || '待处理'" :tone="tone(ticket.status)" size="small" />
         </button>
@@ -241,6 +255,7 @@ onMounted(loadTickets)
               <label class="btn btn-sm">
                 上传图片
                 <input
+                  ref="activeInput"
                   type="file"
                   accept="image/*"
                   multiple
@@ -410,6 +425,18 @@ onMounted(loadTickets)
   color: var(--color-text-muted);
   font-size: 14px;
   line-height: 1.6;
+}
+.ticket-thumbs {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ticket-thumbs img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--color-line);
 }
 .repair-timeline {
   padding-bottom: 18px;

@@ -69,6 +69,39 @@ public sealed class StudentSafetyApprovedImplementationTests
     }
 
     [Fact]
+    public async Task RepairList_IncludesAttachments()
+    {
+        await using var context = TestDbContextFactory.Create();
+        AddStudentAccount(context, 101, "20260001");
+        context.RepairTickets.Add(CreateTicket(1, "待处理", DateTime.Now));
+        context.RepairAttachments.Add(new RepairAttachment
+        {
+            AttachmentId = 1,
+            TicketId = 1,
+            StorageRef = "2026/08/test.png",
+            OriginalName = "fault.png",
+            ContentType = "image/png",
+            FileSize = 128,
+            CreateTime = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
+        context.ChangeTracker.Clear();
+        var service = CreateRepairService(context, new FakeFileStorageService());
+        var page = await service.GetStudentTicketsAsync(
+            "20260001",
+            101,
+            new RepairTicketQueryDto { Page = 1, PageSize = 10 },
+            CancellationToken.None);
+
+        var ticket = Assert.Single(page.Items);
+        var attachment = Assert.Single(ticket.Attachments);
+        Assert.Equal("2026/08/test.png", attachment.StorageRef);
+        Assert.Equal("fault.png", attachment.OriginalName);
+        Assert.Equal(128, attachment.FileSize);
+    }
+
+    [Fact]
     public async Task RepairCancel_EnforcesStatusDeadlineAndExistingLog()
     {
         await using var context = TestDbContextFactory.Create();
