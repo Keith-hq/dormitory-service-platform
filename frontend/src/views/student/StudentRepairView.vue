@@ -122,6 +122,27 @@ const tone = (status) =>
     : ['已撤销', 'cancelled'].includes(status)
       ? 'neutral'
       : 'warning'
+// —— 图片查看器：从列表打开工单图片的大图弹窗 ——
+const viewer = ref({ open: false, images: [], index: 0 })
+const openViewer = (ticket) => {
+  const images = (ticket.attachments || []).map((att) => ({
+    src: `/uploads/${att.storageRef}`,
+    name: att.originalName
+  }))
+  if (!images.length) return
+  viewer.value = { open: true, images, index: 0 }
+}
+const closeViewer = () => {
+  viewer.value.open = false
+}
+const viewerPrev = () => {
+  if (viewer.value.images.length > 1)
+    viewer.value.index = (viewer.value.index + viewer.value.images.length - 1) % viewer.value.images.length
+}
+const viewerNext = () => {
+  if (viewer.value.images.length > 1)
+    viewer.value.index = (viewer.value.index + 1) % viewer.value.images.length
+}
 onMounted(loadTickets)
 </script>
 
@@ -208,13 +229,13 @@ onMounted(loadTickets)
           <div>
             <b>{{ ticket.issueDesc || ticket.description || '报修事项' }}</b
             ><small>{{ ticket.createTime || ticket.createdAt || '时间待同步' }}</small>
-            <span v-if="ticket.attachments?.length" class="ticket-thumbs">
-              <img
-                v-for="att in ticket.attachments"
-                :key="att.attachmentId"
-                :src="'/uploads/' + att.storageRef"
-                :alt="att.originalName"
-              />
+            <span
+              v-if="ticket.attachments?.length"
+              class="ticket-view"
+              title="查看报修图片"
+              @click.stop="openViewer(ticket)"
+            >
+              查看图片
             </span>
           </div>
           <StatusTag :label="ticket.status || '待处理'" :tone="tone(ticket.status)" size="small" />
@@ -282,6 +303,31 @@ onMounted(loadTickets)
           </div></template
         ><InlineState v-else empty empty-text="选择一张工单查看处理过程" />
       </aside>
+    </div>
+
+    <div
+      v-if="viewer.open"
+      class="image-viewer"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closeViewer"
+    >
+      <button class="viewer-close" type="button" aria-label="关闭" @click="closeViewer">×</button>
+      <figure class="viewer-body">
+        <img
+          :src="viewer.images[viewer.index]?.src"
+          :alt="viewer.images[viewer.index]?.name"
+        />
+        <figcaption v-if="viewer.images.length > 1" class="viewer-caption">
+          <button type="button" :disabled="viewer.images.length < 2" @click="viewerPrev">
+            ‹ 上一张
+          </button>
+          <span>{{ viewer.index + 1 }} / {{ viewer.images.length }}</span>
+          <button type="button" :disabled="viewer.images.length < 2" @click="viewerNext">
+            下一张 ›
+          </button>
+        </figcaption>
+      </figure>
     </div>
   </div>
 </template>
@@ -426,17 +472,83 @@ onMounted(loadTickets)
   font-size: 14px;
   line-height: 1.6;
 }
-.ticket-thumbs {
-  display: flex;
-  gap: 6px;
+.ticket-view {
+  display: inline-block;
   margin-top: 6px;
-}
-.ticket-thumbs img {
-  width: 44px;
-  height: 44px;
+  padding: 4px 12px;
+  border: 1px solid var(--color-brand-border);
   border-radius: 6px;
-  object-fit: cover;
-  border: 1px solid var(--color-line);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ticket-view:hover {
+  background: var(--color-brand);
+  color: #fff;
+}
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 22, 33, 0.82);
+}
+.viewer-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.viewer-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.viewer-body {
+  max-width: min(88vw, 900px);
+  max-height: 86vh;
+  margin: 0;
+}
+.viewer-body img {
+  display: block;
+  max-width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
+.viewer-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 12px;
+  color: #fff;
+  font-size: 13px;
+}
+.viewer-caption button {
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.viewer-caption button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+.viewer-caption button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .repair-timeline {
   padding-bottom: 18px;
