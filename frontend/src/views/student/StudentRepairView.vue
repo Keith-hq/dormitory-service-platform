@@ -200,17 +200,31 @@ onMounted(loadTickets)
               placeholder="例如：书桌右侧插座松动，使用时有火花…"
             ></textarea>
           </label>
-          <label
-            >图片附件（可选，jpg/png，单张 ≤5MB）
+          <div class="attachment-picker">
             <input
               ref="pendingInput"
               type="file"
               accept="image/*"
               multiple
+              hidden
               @change="pendingFiles = [...($event.target.files || [])]"
             />
-            <small v-if="pendingFiles.length">已选 {{ pendingFiles.length }} 张</small></label
-          >
+            <button
+              v-if="!pendingFiles.length"
+              type="button"
+              class="btn btn-sm"
+              @click="pendingInput?.click()"
+            >
+              添加图片
+            </button>
+            <template v-else>
+              <span class="attachment-picker__count">已选 {{ pendingFiles.length }} 张</span>
+              <button type="button" class="btn btn-sm" @click="pendingInput?.click()">
+                继续添加
+              </button>
+            </template>
+            <small class="attachment-picker__hint">可选，jpg/png，单张 ≤5MB</small>
+          </div>
           <p v-if="feedback" role="status">{{ feedback }}</p>
           <button class="btn btn-primary" :disabled="submitting || !description.trim()">
             {{ submitting ? '提交中…' : '提交报修' }}
@@ -458,6 +472,21 @@ onMounted(loadTickets)
 }
 .repair-compose form button {
   justify-self: start; /* 按钮保持内容宽度，不拉伸占满整行 */
+}
+.attachment-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.attachment-picker__count {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.attachment-picker__hint {
+  width: 100%;
+  color: var(--color-text-soft);
+  font-size: 12px;
 }
 .repair-compose form p {
   margin: 0;
