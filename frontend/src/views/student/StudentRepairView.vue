@@ -122,6 +122,14 @@ const tone = (status) =>
     : ['已撤销', 'cancelled'].includes(status)
       ? 'neutral'
       : 'warning'
+// 工单提交时间：后端字段是 submitTime，格式化为 YYYY-MM-DD HH:mm
+const formatTicketTime = (value) => {
+  if (!value) return '时间待同步'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '时间待同步'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
 // —— 图片查看器：从列表打开工单图片的大图弹窗 ——
 const viewer = ref({ open: false, images: [], index: 0 })
 const openViewer = (ticket) => {
@@ -229,7 +237,7 @@ onMounted(loadTickets)
           <time>#{{ ticket.ticketId }}</time>
           <div>
             <b>{{ ticket.issueDesc || ticket.description || '报修事项' }}</b
-            ><small>{{ ticket.createTime || ticket.createdAt || '时间待同步' }}</small>
+            ><small>{{ formatTicketTime(ticket.submitTime) }}</small>
             <span
               v-if="ticket.attachments?.length"
               class="ticket-view"
