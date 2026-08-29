@@ -615,7 +615,7 @@ onMounted(load)
             </button>
             <button
               type="button"
-              :disabled="item.accountStatus === '正常' || working"
+              :disabled="item.accountStatus !== '停用' || working"
               @click="restoreAdmin(item)"
             >
               恢复
@@ -667,7 +667,7 @@ onMounted(load)
             </button>
             <button
               type="button"
-              :disabled="item.accountStatus === '正常' || working"
+              :disabled="item.accountStatus !== '停用' || working"
               @click="restoreStudent(item)"
             >
               恢复
