@@ -25,8 +25,8 @@ defineProps({ metrics: { type: Array, default: () => [] } })
 }
 .metric-strip article {
   display: grid;
-  min-height: 132px;
-  padding: 30px 34px;
+  min-height: 116px;
+  padding: 22px 26px;
   align-content: space-between;
 }
 .metric-strip > article > span {
@@ -37,9 +37,8 @@ defineProps({ metrics: { type: Array, default: () => [] } })
 }
 .metric-strip article div {
   display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 10px;
+  align-items: baseline;
+  gap: 14px; /* 数字与提示靠拢，不再顶到两端 */
 }
 .metric-strip strong {
   color: var(--color-ink);
