@@ -585,6 +585,7 @@ onMounted(loadTickets)
   padding-bottom: 18px;
   background: #fff;
   color: var(--color-text);
+  min-width: 0; /* 允许收缩，长内容换行而非溢出 */
 }
 .repair-timeline > header {
   border-color: transparent;
@@ -654,6 +655,7 @@ onMounted(loadTickets)
   display: grid;
   gap: 6px;
   margin-bottom: 12px;
+  min-width: 0; /* 允许收缩，长文件名换行 */
 }
 .attachments span {
   color: var(--color-brand-strong);
@@ -665,6 +667,7 @@ onMounted(loadTickets)
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
+  overflow-wrap: anywhere; /* 长文件名换行而非溢出 */
 }
 @media (max-width: 1000px) {
   .repair-layout {
