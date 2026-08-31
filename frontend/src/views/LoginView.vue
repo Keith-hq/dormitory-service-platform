@@ -5,6 +5,8 @@ import { authApi } from '@/api/auth'
 import { getSafeAuthRedirect } from '@/router/authRedirect'
 import { getRoleHome } from '@/router/roleAccess'
 import { useUserStore } from '@/store/user'
+import campusLogoMark from '@/assets/campus-logo-mark.png'
+import loginDormitoryBg from '@/assets/login-dormitory-bg.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +21,13 @@ const mockAccounts = import.meta.env.DEV
       { label: '超级管理员', loginName: 'super001', password: '123456' }
     ]
   : []
+
+const loginIntroStyle = {
+  backgroundImage: [
+    'linear-gradient(180deg, rgba(7, 47, 122, 0.42) 0%, rgba(18, 110, 220, 0.34) 100%)',
+    `url(${loginDormitoryBg})`
+  ].join(', ')
+}
 
 const loginName = ref('')
 const password = ref('')
@@ -64,7 +73,7 @@ const submitLogin = async () => {
 
 <template>
   <main class="login-page">
-    <section class="login-intro" aria-labelledby="platform-title">
+    <section class="login-intro" :style="loginIntroStyle" aria-labelledby="platform-title">
       <span class="eyebrow">DORMITORY SERVICE PLATFORM</span>
       <h1 id="platform-title">高校宿舍后勤与共享生活服务系统</h1>
       <p>让楼栋后勤、报修协作与共享生活服务在同一个工作台高效流转。</p>
@@ -72,7 +81,7 @@ const submitLogin = async () => {
 
     <section class="login-card" aria-labelledby="login-title">
       <div class="login-heading">
-        <span class="brand-mark" aria-hidden="true">舍</span>
+        <img class="brand-mark" :src="campusLogoMark" alt="" aria-hidden="true" />
         <div>
           <h2 id="login-title">欢迎登录</h2>
           <p>请输入你的平台账号</p>
@@ -156,16 +165,10 @@ const submitLogin = async () => {
   overflow: hidden;
   padding: clamp(48px, 8vw, 112px);
   text-align: left;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    radial-gradient(circle at 16% 18%, rgba(110, 213, 190, 0.24), transparent 32%),
-    linear-gradient(145deg, #132f33 0%, #135c59 58%, #168279 100%);
-  background-size:
-    40px 40px,
-    40px 40px,
-    auto,
-    auto;
+  background-color: #0b3d87;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
   color: #fff;
 }
 
@@ -185,28 +188,35 @@ const submitLogin = async () => {
 
 .eyebrow {
   margin-bottom: 24px;
+  font-family: 'Segoe UI Black', 'Arial Black', 'Inter', sans-serif;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  font-weight: 900;
+  letter-spacing: 0;
   opacity: 0.72;
 }
 
 .login-intro h1 {
   max-width: 600px;
   margin: 0 0 22px;
-  font-size: clamp(42px, 5vw, 68px);
+  font-size: 68px;
   line-height: 1.08;
   color: #fffdf8;
   font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-weight: 900;
+  letter-spacing: 0;
+  -webkit-text-stroke: 0.5px currentColor;
+  text-shadow: 0 14px 30px rgba(7, 18, 40, 0.3);
 }
 
 .login-intro p {
   max-width: 520px;
+  font-family: var(--font-display);
   font-size: 17px;
-  line-height: 1.8;
+  font-weight: 750;
+  line-height: 1.65;
   color: rgba(255, 255, 255, 0.76);
+  -webkit-text-stroke: 0.1px currentColor;
+  text-shadow: 0 10px 22px rgba(7, 18, 40, 0.22);
 }
 
 .login-card {
@@ -230,15 +240,15 @@ const submitLogin = async () => {
 }
 
 .brand-mark {
-  display: grid;
+  display: block;
   width: 48px;
   height: 48px;
-  place-items: center;
+  box-sizing: border-box;
+  padding: 3px;
+  border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
-  background: var(--color-ink);
-  color: #fff;
-  font-size: 21px;
-  font-weight: 700;
+  background: #fff;
+  object-fit: contain;
 }
 
 .login-heading h2 {
@@ -246,12 +256,17 @@ const submitLogin = async () => {
   color: var(--color-ink);
   font-family: var(--font-display);
   font-size: 25px;
-  font-weight: 700;
+  font-weight: 900;
+  letter-spacing: 0;
+  -webkit-text-stroke: 0.25px currentColor;
 }
 
 .login-heading p {
   color: var(--color-text-muted);
+  font-family: var(--font-display);
   font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 0;
 }
 
 .login-form {

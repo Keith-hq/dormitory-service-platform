@@ -16,8 +16,9 @@ const working = ref('')
 const error = ref('')
 const feedback = ref('')
 const hygiene = ref({ roomId: '', score: '', comment: '' })
-const correction = ref({ recordId: '', score: '', comment: '' })
+const correction = ref({ roomId: '', score: '', comment: '' })
 const lateEntry = ref({ studentId: '', recordTime: localDateTime, reason: '' })
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
 
 const average = computed(() => {
   if (!rankings.value.length) return '—'
@@ -82,14 +83,23 @@ const createHygiene = async () => {
 const updateHygiene = async () => {
   const ok = await run(
     'correction',
-    () =>
-      adminApi.updateHygieneRecord(correction.value.recordId, {
+    async () => {
+      if (!correction.value.roomId) throw new Error('请填写宿舍号')
+      const records = await adminApi.getRoomHygieneRecords(correction.value.roomId)
+      const items = normalizeCollection(records).items
+      if (!items.length) throw new Error('该宿舍暂无评分记录，无法修正')
+      const latest = items[0] // 按 checkDate 倒序，取最近一次打分
+      await adminApi.updateHygieneRecord(latest.recordId, {
         score: Number(correction.value.score),
         comment: correction.value.comment || null
-      }),
+      })
+    },
     '卫生记录已修正'
   )
-  if (ok) await loadRankings()
+  if (ok) {
+    correction.value = { roomId: '', score: '', comment: '' }
+    await loadRankings()
+  }
 }
 
 const createLateEntry = async () => {
@@ -106,7 +116,38 @@ const createLateEntry = async () => {
   if (ok) lateEntry.value = { studentId: '', recordTime: localDateTime, reason: '' }
 }
 
-onMounted(loadRankings)
+// C6 违规登记：落库 D_Violation_Record 后自动扣信用分（违章电器 -10、其余 -5），扣分失败整体回滚
+const violation = ref({ studentId: '', type: '查寝未归', detail: '' })
+const violations = ref([])
+const loadViolations = async () => {
+  try {
+    const data = await adminApi.getViolations({ page: 1, pageSize: 20 })
+    violations.value = normalizeCollection(data).items
+  } catch {
+    // 违规列表失败不阻断登记
+  }
+}
+const registerViolation = async () => {
+  const ok = await run(
+    'violation',
+    () =>
+      adminApi.createViolation({
+        studentId: violation.value.studentId,
+        type: violation.value.type,
+        detail: violation.value.detail || null
+      }),
+    '违规已登记并扣分，学生端信用与申诉可见'
+  )
+  if (ok) {
+    violation.value = { studentId: '', type: '查寝未归', detail: '' }
+    await loadViolations()
+  }
+}
+
+onMounted(async () => {
+  await loadRankings()
+  await loadViolations()
+})
 </script>
 
 <template>
@@ -171,7 +212,7 @@ onMounted(loadRankings)
             <summary>修正已有记录</summary>
             <form @submit.prevent="updateHygiene">
               <label
-                >记录 ID<input v-model="correction.recordId" required min="1" type="number"
+                >宿舍号<input v-model="correction.roomId" required min="1" type="number"
               /></label>
               <label
                 >修正分数<input
@@ -215,26 +256,54 @@ onMounted(loadRankings)
             <button class="btn" :disabled="working === 'late'">登记晚归</button>
           </form>
         </section>
-      </aside>
-    </section>
 
-    <section class="deferred-note">
-      <span>04 / DEFERRED SCOPE</span>
-      <div>
-        <h2>违规业务暂缓</h2>
-        <p>
-          VIOL-01 / VIOL-02 的数据字段与楼栋筛选口径尚未锁定，当前不发起 501
-          接口请求；卫生评分和晚归登记可独立正常使用。
-        </p>
-      </div>
-      <b>NO BLOCKING CALLS</b>
+        <section class="late-card violation-card">
+          <header>
+            <span>04 / VIOLATION</span>
+            <h2>违规登记</h2>
+          </header>
+          <form @submit.prevent="registerViolation">
+            <label
+              >学生学号<input
+                v-model.trim="violation.studentId"
+                required
+                placeholder="输入学生学号"
+            /></label>
+            <label
+              >违规类型<select v-model="violation.type">
+                <option>查寝未归</option>
+                <option>违章电器</option>
+                <option>其他</option>
+              </select></label
+            >
+            <label
+              >情况说明<textarea
+                v-model.trim="violation.detail"
+                rows="3"
+                placeholder="可选；登记后自动扣分（违章电器 -10，其他 -5）"
+              ></textarea>
+            </label>
+            <button class="btn" :disabled="working === 'violation'">登记违规</button>
+          </form>
+          <div v-if="violations.length" class="violation-list">
+            <p class="violation-list__title">最近违规</p>
+            <article v-for="item in violations.slice(0, 5)" :key="item.violationId">
+              <b>{{ item.studentId }}</b>
+              <span>
+                {{ item.type }} · {{ item.detail || '—' }} · {{ item.status || '有效' }}
+              </span>
+              <time>{{ formatDate(item.recordTime) }}</time>
+            </article>
+          </div>
+        </section>
+      </aside>
     </section>
   </main>
 </template>
 
 <style scoped>
 .safety-page {
-  width: min(100% - 40px, var(--content-max));
+  width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: 72px;
 }
@@ -243,20 +312,24 @@ onMounted(loadRankings)
   align-items: center;
   gap: 10px;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .month-control input {
-  padding: 9px;
+  min-height: 40px;
+  padding: 9px 12px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
-  font-size: 11px;
+  font-size: 14px;
 }
 .feedback {
   margin: 16px 0 0;
-  padding: 11px 15px;
+  padding: 12px 16px;
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
-  font-size: 11px;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
 }
 .inspection-layout {
   display: grid;
@@ -265,77 +338,100 @@ onMounted(loadRankings)
   margin-top: 28px;
 }
 .ranking-board {
-  border: 1px solid var(--color-line-strong);
-  background: var(--color-ink);
-  color: #fff;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  color: var(--color-text);
+  box-shadow: var(--shadow-soft);
 }
 .ranking-board > header {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
-  padding: 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.17);
+  gap: 20px;
+  padding: 28px 30px 18px;
 }
 .ranking-board header span,
-.inspection-desk header span,
-.deferred-note > span {
-  color: var(--color-accent);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.14em;
+.inspection-desk header span {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .ranking-board h2,
-.inspection-desk h2,
-.deferred-note h2 {
+.inspection-desk h2 {
   margin: 8px 0 0;
-  font: 500 27px var(--font-display);
+  color: var(--color-ink);
+  font: 900 27px var(--font-display);
+  line-height: 1.2;
 }
 .ranking-board header small {
-  color: #aaa39a;
-  font-size: 9px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.ranking-list {
+  padding: 0 18px 18px;
 }
 .ranking-list article {
+  overflow: hidden;
   display: grid;
-  grid-template-columns: 45px 1fr 52px;
+  grid-template-columns: 48px minmax(0, 1fr) 56px;
   gap: 14px;
   align-items: center;
   position: relative;
-  padding: 19px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.11);
-  overflow: hidden;
+  margin-top: 12px;
+  padding: 18px 20px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
 }
 .ranking-list article > b {
-  color: var(--color-accent);
-  font: 10px var(--font-mono);
+  color: var(--color-brand-strong);
+  font: 800 12px var(--font-mono);
 }
 .ranking-list article div {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 .ranking-list strong {
-  font-size: 12px;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 800;
 }
 .ranking-list small {
-  color: #8f918c;
-  font-size: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 .ranking-list em {
-  font: 500 24px var(--font-display);
+  color: var(--color-brand-strong);
+  font: 900 26px var(--font-display);
   font-style: normal;
   text-align: right;
 }
 .ranking-list i {
   position: absolute;
-  bottom: 0;
-  left: 0;
+  left: 18px;
+  right: 18px;
+  bottom: 14px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(185, 216, 251, 0.6);
+}
+.ranking-list i::before {
+  display: block;
   width: var(--score);
-  height: 2px;
-  background: var(--color-accent);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand);
+  content: '';
 }
 .ranking-list > p {
-  padding: 28px;
-  color: #aaa39a;
-  font-size: 10px;
+  padding: 24px 8px 4px;
+  color: var(--color-text-muted);
+  font-size: 13px;
 }
 .inspection-desk {
   display: flex;
@@ -344,12 +440,14 @@ onMounted(loadRankings)
 }
 .inspection-desk section {
   padding: 24px;
-  border: 1px solid var(--color-line-strong);
-  background: rgba(255, 255, 255, 0.24);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .inspection-desk h2 {
   color: var(--color-ink);
-  font-size: 23px;
+  font-size: 24px;
 }
 .inspection-desk form {
   display: grid;
@@ -362,29 +460,44 @@ onMounted(loadRankings)
   flex-direction: column;
   gap: 6px;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .inspection-desk label.wide,
 .inspection-desk form > button {
   grid-column: 1/-1;
 }
 .inspection-desk input,
+.inspection-desk select,
 .inspection-desk textarea {
   width: 100%;
-  padding: 9px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
-  font-size: 11px;
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.inspection-desk input:focus-visible,
+.inspection-desk select:focus-visible,
+.inspection-desk textarea:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
 }
 .score-card details {
   margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-line);
+  padding: 16px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
 }
 .score-card summary {
   cursor: pointer;
-  color: var(--color-accent-strong);
-  font-size: 9px;
+  color: var(--color-brand-strong);
+  font-size: 12px;
+  font-weight: 800;
 }
 .late-card form {
   grid-template-columns: 1fr;
@@ -392,30 +505,44 @@ onMounted(loadRankings)
 .late-card form > button {
   grid-column: auto;
 }
-.deferred-note {
+.violation-list {
   display: grid;
-  grid-template-columns: 160px 1fr auto;
-  gap: 24px;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+.violation-list__title {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+.violation-list article {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
   align-items: center;
-  margin-top: 24px;
-  padding: 24px 28px;
-  border: 1px dashed #d3a79c;
-  background: var(--color-danger-soft);
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
 }
-.deferred-note h2 {
-  font-size: 20px;
+.violation-list b {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 850;
 }
-.deferred-note p {
-  max-width: 700px;
-  margin: 7px 0 0;
-  color: var(--color-danger);
-  font-size: 10px;
-  line-height: 1.7;
+.violation-list span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.deferred-note > b {
-  color: var(--color-danger);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.1em;
+.violation-list time {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 @media (max-width: 900px) {
   .inspection-layout {
@@ -424,12 +551,6 @@ onMounted(loadRankings)
   .inspection-desk {
     display: grid;
     grid-template-columns: 1fr 1fr;
-  }
-  .deferred-note {
-    grid-template-columns: 1fr;
-  }
-  .deferred-note > b {
-    justify-self: start;
   }
 }
 @media (max-width: 650px) {

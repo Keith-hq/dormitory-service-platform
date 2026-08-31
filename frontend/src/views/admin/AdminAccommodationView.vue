@@ -13,6 +13,10 @@ const occupants = ref([])
 const roomSummary = ref(null)
 const checkout = ref({ allocationId: '', checkoutId: '', reason: '', checkoutDate: today })
 const checkoutSummary = ref(null)
+// 生效清算单号：优先已填的清算单 ID，否则取面板已载入的清算单号（登记成功后自动带出）
+const effectiveCheckoutId = computed(
+  () => checkout.value.checkoutId || checkoutSummary.value?.checkoutId || ''
+)
 const working = ref('')
 const feedback = ref({ type: '', text: '' })
 
@@ -109,7 +113,7 @@ const registerCheckout = async () => {
 const loadCheckout = async (success = '清算单状态已刷新') => {
   const data = await run(
     'checkout',
-    () => accommodationApi.getCheckout(checkout.value.checkoutId),
+    () => accommodationApi.getCheckout(effectiveCheckoutId.value),
     success
   )
   if (data) checkoutSummary.value = data
@@ -117,12 +121,12 @@ const loadCheckout = async (success = '清算单状态已刷新') => {
 
 const transitionCheckout = async (action) => {
   const handlers = {
-    settle: () => accommodationApi.settleCheckout(checkout.value.checkoutId),
+    settle: () => accommodationApi.settleCheckout(effectiveCheckoutId.value),
     confirm: () =>
-      accommodationApi.confirmCheckout(checkout.value.checkoutId, {
+      accommodationApi.confirmCheckout(effectiveCheckoutId.value, {
         checkoutDate: checkout.value.checkoutDate || null
       }),
-    cancel: () => accommodationApi.cancelCheckout(checkout.value.checkoutId)
+    cancel: () => accommodationApi.cancelCheckout(effectiveCheckoutId.value)
   }
   const labels = {
     settle: '三步清算校验已执行',
@@ -130,7 +134,17 @@ const transitionCheckout = async (action) => {
     cancel: '退宿办理已取消'
   }
   const data = await run(action, handlers[action], labels[action])
-  if (data) checkoutSummary.value = data
+  if (data) {
+    checkoutSummary.value = data
+    return
+  }
+  // 失败（如清算被拒/状态不可操作）也重拉清算单，让已拒绝/已取消等状态机结果持久显示在面板，
+  // 同时保留 run() 已展示的错误/拒绝原因。
+  try {
+    checkoutSummary.value = await accommodationApi.getCheckout(checkout.value.checkoutId)
+  } catch {
+    // 状态重拉失败则保留面板原状
+  }
 }
 </script>
 
@@ -284,21 +298,21 @@ const transitionCheckout = async (action) => {
           <div class="checkout-actions">
             <button
               class="btn"
-              :disabled="!checkout.checkoutId || working"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('settle')"
             >
               执行清算
             </button>
             <button
               class="btn btn-primary"
-              :disabled="!checkout.checkoutId || working"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('confirm')"
             >
               确认退宿
             </button>
             <button
               class="btn btn-danger"
-              :disabled="!checkout.checkoutId || working"
+              :disabled="Boolean(!checkoutSummary?.checkoutId || working)"
               @click="transitionCheckout('cancel')"
             >
               取消办理
@@ -312,27 +326,34 @@ const transitionCheckout = async (action) => {
 
 <style scoped>
 .accommodation-page {
-  width: min(100% - 40px, var(--content-max));
+  width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: 72px;
 }
 .workflow-note {
-  color: var(--color-accent-strong);
-  font: 9px var(--font-mono);
-  letter-spacing: 0.12em;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font: 800 12px var(--font-mono);
+  letter-spacing: 0.08em;
 }
 .feedback {
   margin: 18px 0 0;
   padding: 12px 16px;
-  border: 1px solid var(--color-brand-border);
-  font-size: 11px;
-}
-.feedback--success {
+  border-radius: var(--radius-lg);
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
+  font-size: 13px;
+}
+.feedback--success {
+  background: #eef7ff;
 }
 .feedback--error {
-  background: var(--color-danger-soft);
+  background: #fff2f0;
   color: var(--color-danger);
 }
 .operation-grid {
@@ -342,72 +363,86 @@ const transitionCheckout = async (action) => {
   margin-top: 28px;
 }
 .operation-card {
+  display: flex;
+  flex-direction: column;
   min-height: 390px;
   padding: 26px;
-  border: 1px solid var(--color-line-strong);
-  background: rgba(255, 255, 255, 0.25);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  color: var(--color-text);
+  box-shadow: var(--shadow-soft);
 }
 .operation-card--dark {
-  background: var(--color-ink);
-  color: #fff;
+  background: #fff;
+  color: var(--color-text);
 }
 .operation-card header {
   min-height: 86px;
-  border-bottom: 1px solid var(--color-line);
   position: relative;
 }
 .operation-card--dark header {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: transparent;
 }
 .operation-card header span,
 .checkout-board header span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.14em;
+  color: var(--color-brand-strong);
+  font: 800 12px var(--font-mono);
+  letter-spacing: 0.12em;
 }
 .operation-card header h2,
 .checkout-board h2 {
-  margin: 8px 0 0;
-  font: 500 26px var(--font-display);
+  margin: 10px 0 4px;
+  color: var(--color-ink);
+  font: 900 26px var(--font-display);
+  line-height: 1.2;
 }
 .operation-card header b {
-  position: absolute;
-  right: 0;
-  top: 0;
+  display: block;
   color: var(--color-text-soft);
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .operation-card form {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-top: 22px;
+  gap: 12px;
+  margin-top: 18px;
 }
 .operation-card label,
 .checkout-register label {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  font-size: 9px;
   color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 .operation-card--dark label {
-  color: #bcb7af;
+  color: var(--color-text-muted);
 }
 .operation-card input,
 .checkout-board input,
 .checkout-board textarea {
   width: 100%;
-  padding: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   color: var(--color-ink);
-  font-size: 11px;
+  font-size: 14px;
+}
+.operation-card input:focus-visible,
+.checkout-board input:focus-visible,
+.checkout-board textarea:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
 }
 .operation-card--dark input {
-  border-color: #4c4944;
-  background: #252422;
-  color: #fff;
+  border-color: var(--color-line-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
 }
 .operation-card form button {
   grid-column: 1/-1;
@@ -415,6 +450,7 @@ const transitionCheckout = async (action) => {
 }
 .inline-form {
   grid-template-columns: 1fr auto !important;
+  align-items: end;
 }
 .inline-form button {
   grid-column: auto !important;
@@ -422,59 +458,77 @@ const transitionCheckout = async (action) => {
 }
 .occupant-list {
   margin-top: 18px;
-  border-top: 1px solid var(--color-line);
+  display: grid;
+  gap: 12px;
 }
 .occupant-list article {
   display: grid;
-  grid-template-columns: 48px 1fr;
+  grid-template-columns: 56px minmax(0, 1fr);
   gap: 12px;
-  padding: 13px 0;
-  border-bottom: 1px solid var(--color-line);
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
 }
 .occupant-list article > b {
-  color: var(--color-accent-strong);
-  font: 10px var(--font-mono);
+  color: var(--color-brand-strong);
+  font: 800 12px var(--font-mono);
 }
 .occupant-list div {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 .occupant-list strong {
-  font-size: 11px;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 800;
 }
 .occupant-list small,
 .occupant-list p {
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
 }
 .checkout-board {
   margin-top: 28px;
-  border: 1px solid var(--color-line-strong);
+  padding: 28px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .checkout-board > header {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
-  padding: 25px 28px;
-  border-bottom: 1px solid var(--color-line-strong);
+  gap: 20px;
+  margin-bottom: 22px;
+  padding: 0;
+  border-bottom: 0;
 }
 .checkout-board > header p {
-  max-width: 420px;
+  max-width: 460px;
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 14px;
+  line-height: 1.7;
 }
 .checkout-body {
   display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
 }
 .checkout-register {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  padding: 26px;
-  border-right: 1px solid var(--color-line);
+  gap: 12px;
+  padding: 24px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
 }
 .checkout-register .wide,
 .checkout-register button {
@@ -482,40 +536,50 @@ const transitionCheckout = async (action) => {
 }
 .checkout-sheet {
   padding: 26px;
-  background: rgba(255, 255, 255, 0.24);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
 }
 .checkout-search {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
+  align-items: end;
 }
 .checkout-sheet dl {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   margin: 22px 0;
-  border-block: 1px solid var(--color-line);
 }
 .checkout-sheet dl div {
-  padding: 15px 10px;
-  border-right: 1px solid var(--color-line);
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
 }
 .checkout-sheet dt {
   color: var(--color-text-soft);
-  font-size: 8px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .checkout-sheet dd {
   margin: 7px 0 0;
-  font-size: 12px;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 800;
 }
 .checkout-sheet > p {
   margin: 22px 0;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 14px;
+  line-height: 1.7;
 }
 .checkout-actions {
   display: flex;
   gap: 9px;
   flex-wrap: wrap;
+}
+.checkout-actions .btn {
+  min-width: 128px;
 }
 @media (max-width: 980px) {
   .operation-grid {
@@ -529,7 +593,6 @@ const transitionCheckout = async (action) => {
   }
   .checkout-register {
     border-right: 0;
-    border-bottom: 1px solid var(--color-line);
   }
 }
 @media (max-width: 680px) {
@@ -540,7 +603,7 @@ const transitionCheckout = async (action) => {
     grid-column: auto;
   }
   .checkout-board > header {
-    align-items: start;
+    align-items: flex-start;
     flex-direction: column;
     gap: 12px;
   }
@@ -554,7 +617,7 @@ const transitionCheckout = async (action) => {
     grid-column: auto;
   }
   .checkout-sheet dl {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 }
 </style>

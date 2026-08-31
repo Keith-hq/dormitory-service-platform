@@ -346,6 +346,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.AssignedTo).HasColumnName("ASSIGNED_TO").HasMaxLength(20);
             // 难点⑤ 迁移 021 新增列：SLA 首次升级标记（NULL=未升级）
             entity.Property(e => e.EscalationTime).HasColumnName("ESCALATION_TIME");
+            // 迁移 040 新增列：接单时间（NULL=未接单；NOT NULL=已由指派维修员接单）
+            entity.Property(e => e.ClaimTime).HasColumnName("CLAIM_TIME");
 
             entity.HasOne<Student>()
                   .WithMany()
@@ -502,6 +504,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.VioType).HasColumnName("VIO_TYPE").HasMaxLength(50).IsRequired();
             entity.Property(e => e.VioDate).HasColumnName("VIO_DATE").IsRequired();
             entity.Property(e => e.Penalty).HasColumnName("PENALTY").HasMaxLength(100);
+            entity.Property(e => e.Detail).HasColumnName("DETAIL").HasMaxLength(500);
+            entity.Property(e => e.RecordBy).HasColumnName("RECORD_BY").HasMaxLength(20);
 
             entity.HasOne<Student>()
                   .WithMany()

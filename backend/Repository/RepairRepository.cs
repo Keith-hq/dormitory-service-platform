@@ -82,24 +82,35 @@ public sealed class RepairRepository : FrameworkRepositoryBase
             .Where(item => item.StudentId == studentId);
 
         var total = await ticketQuery.CountAsync(cancellationToken);
-        var items = await ticketQuery
+        var tickets = await ticketQuery
             .OrderByDescending(item => item.SubmitTime)
             .ThenByDescending(item => item.TicketId)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(item => new RepairTicketDto
-            {
-                TicketId = item.TicketId,
-                StudentId = item.StudentId!,
-                RoomId = item.RoomId ?? 0,
-                Description = item.IssueDescription,
-                SubmitTime = item.SubmitTime,
-                Status = item.Status ?? string.Empty,
-                SlaLevel = item.SlaLevel,
-                Deadline = item.Deadline,
-                AssignedTo = item.AssignedTo
-            })
             .ToListAsync(cancellationToken);
+
+        // 四审 Oracle 实测教训：避开导航 Include（投影会拼影子列触发 ORA-00904），
+        // 用三段独立查询手动挂载日志与附件，学生端可回看维修记录。
+        var ticketIds = tickets.Select(item => item.TicketId).ToList();
+        var logs = await DbContext.RepairLogs
+            .AsNoTracking()
+            .Where(log => log.TicketId.HasValue && ticketIds.Contains(log.TicketId.Value))
+            .ToListAsync(cancellationToken);
+        var attachments = await DbContext.RepairAttachments
+            .AsNoTracking()
+            .Where(att => ticketIds.Contains(att.TicketId))
+            .ToListAsync(cancellationToken);
+
+        foreach (var ticket in tickets)
+        {
+            ticket.Log = logs.FirstOrDefault(log => log.TicketId == ticket.TicketId);
+            ticket.Attachments = attachments
+                .Where(att => att.TicketId == ticket.TicketId)
+                .OrderBy(att => att.CreateTime)
+                .ToList();
+        }
+
+        var items = tickets.Select(ToDto).ToList();
 
         return new PagedResult<RepairTicketDto>
         {
@@ -174,10 +185,12 @@ public sealed class RepairRepository : FrameworkRepositoryBase
         SlaLevel = item.SlaLevel,
         Deadline = item.Deadline,
         AssignedTo = item.AssignedTo,
+        ClaimTime = item.ClaimTime,
         Log = item.Log is null ? null : new RepairLogDto
         {
             AdminId = item.Log.AdminId,
             ProcessDescription = item.Log.ProcessDescription,
+            RepairResult = item.Log.RepairResult,
             ResolveTime = item.Log.ResolveTime
         },
         Attachments = item.Attachments.OrderBy(item => item.CreateTime).Select(ToDto).ToList()

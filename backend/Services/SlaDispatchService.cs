@@ -136,16 +136,25 @@ public class SlaDispatchService : ISlaDispatchService
     {
         // 列别名带引号与 DTO 属性名精确一致（Oracle 提供程序列匹配区分大小写）；
         // 分页直接下推 OFFSET/FETCH，不做 EF Skip/Take 二次组合（避免外层引用模型列名 → ORA-00904）。
-        var sql = @"SELECT Ticket_ID AS ""TicketId"", Student_ID AS ""StudentId"",
-                        Room_ID AS ""RoomId"", Issue_Desc AS ""IssueDesc"",
-                        Submit_Time AS ""SubmitTime"", Status AS ""Status"",
-                        SLA_Level AS ""SlaLevel"", Deadline AS ""Deadline"",
-                        Assigned_To AS ""AssignedTo"", Escalation_Time AS ""EscalationTime""
-                 FROM D_Repair_Ticket
-                 WHERE Assigned_To = {0} AND Status IN ('待处理', '已派单')
+        // Location = 楼栋名 + 房间号（LEFT JOIN D_Room/D_Building，修复"工单缺位置"）。
+        var sql = @"SELECT t.Ticket_ID AS ""TicketId"", t.Student_ID AS ""StudentId"",
+                        t.Room_ID AS ""RoomId"", t.Issue_Desc AS ""IssueDesc"",
+                        t.Submit_Time AS ""SubmitTime"", t.Status AS ""Status"",
+                        t.SLA_Level AS ""SlaLevel"", t.Deadline AS ""Deadline"",
+                        t.Assigned_To AS ""AssignedTo"", t.Escalation_Time AS ""EscalationTime"",
+                        t.Claim_Time AS ""ClaimTime"",
+                        TRIM(b.Building_Name) || ' ' || TO_CHAR(t.Room_ID) AS ""Location"",
+                        NVL((SELECT LISTAGG(a.Original_Name || '|' || a.Storage_Ref, ';')
+                                 WITHIN GROUP (ORDER BY a.Attachment_ID)
+                           FROM D_Repair_Attachment a
+                          WHERE a.Ticket_ID = t.Ticket_ID), '') AS ""AttachmentRefs""
+                 FROM D_Repair_Ticket t
+                 LEFT JOIN D_Room r ON r.Room_ID = t.Room_ID
+                 LEFT JOIN D_Building b ON b.Building_ID = r.Building_ID
+                 WHERE t.Assigned_To = {0} AND t.Status IN ('待处理', '已派单')
                  ORDER BY
-                     CASE SLA_Level WHEN '紧急' THEN 0 ELSE 1 END,
-                     Deadline ASC
+                     CASE t.SLA_Level WHEN '紧急' THEN 0 ELSE 1 END,
+                     t.Deadline ASC
                  OFFSET {1} ROWS FETCH NEXT {2} ROWS ONLY";
 
         // 标量查询的输出列必须别名为 "Value"（Oracle 提供程序要求）

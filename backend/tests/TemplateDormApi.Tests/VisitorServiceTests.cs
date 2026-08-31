@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
@@ -37,7 +39,7 @@ public class VisitorServiceTests
         });
         await context.SaveChangesAsync();
 
-        var service = new VisitorService(new VisitorRepository(context));
+        var service = CreateService(context);
         var auth = await service.ApplyAsync("S001", new VisitorApplyRequest
         {
             VisitorName = "张三",
@@ -60,7 +62,7 @@ public class VisitorServiceTests
         var (context, _) = CreateContexts();
         await using var __ = context;
 
-        var service = new VisitorService(new VisitorRepository(context));
+        var service = CreateService(context);
         await Assert.ThrowsAsync<BusinessException>(() =>
             service.ApplyAsync("S001", new VisitorApplyRequest
             {
@@ -86,7 +88,7 @@ public class VisitorServiceTests
         });
         await context.SaveChangesAsync();
 
-        var service = new VisitorService(new VisitorRepository(context));
+        var service = CreateService(context);
         await Assert.ThrowsAsync<BusinessException>(() =>
             service.ApplyAsync("S001", new VisitorApplyRequest
             {
@@ -111,7 +113,7 @@ public class VisitorServiceTests
         });
         await context.SaveChangesAsync();
 
-        var service = new VisitorService(new VisitorRepository(context));
+        var service = CreateService(context);
         var auth = await service.ApplyAsync("S001", new VisitorApplyRequest
         {
             VisitorName = "张三",
@@ -140,7 +142,7 @@ public class VisitorServiceTests
         });
         await context.SaveChangesAsync();
 
-        var service = new VisitorService(new VisitorRepository(context));
+        var service = CreateService(context);
         var auth = await service.ApplyAsync("S001", new VisitorApplyRequest
         {
             VisitorName = "张三",
@@ -181,7 +183,7 @@ public class VisitorServiceTests
             });
         await context.SaveChangesAsync();
 
-        var service = new VisitorService(new VisitorRepository(context));
+        var service = CreateService(context);
         var first = await service.ExpireAsync();
         var second = await service.ExpireAsync();
 
@@ -196,4 +198,50 @@ public class VisitorServiceTests
         Assert.Equal("有效", valid.Status);
     }
 
+    // ===== Helpers / Fakes =====
+
+    private static VisitorService CreateService(AppDbContext context)
+        => new VisitorService(
+            new VisitorRepository(context),
+            new FakeCreditService(),
+            new FakeNotificationService(),
+            NullLogger<VisitorService>.Instance);
+
+    private sealed class FakeCreditService : ICreditService
+    {
+        public Task<CreditResultDto> DeductAsync(CreditDeductDto dto, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<CreditResultDto> RestoreAsync(
+            string studentId, int restoreScore, string eventKey, string reason, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<CreditStatusDto> GetStatusAsync(string studentId, CancellationToken cancellationToken)
+            => Task.FromResult(new CreditStatusDto { CurrentScore = 100, IsFrozen = false });
+
+        public Task<CreditViewDto> GetViewAsync(string studentId, int accountId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<ResetResultDto> ResetMonthlyAsync(int year, int month, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class FakeNotificationService : INotificationService
+    {
+        public Task<PagedResult<NotificationItemDto>> GetPagedAsync(
+            int recipientAccountId, int page, int pageSize, string? isRead)
+            => throw new NotSupportedException();
+
+        public Task MarkReadAsync(int notificationId, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task MarkBatchReadAsync(IReadOnlyCollection<int> notificationIds, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<UnreadCountDto> GetUnreadCountAsync(int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<NotificationItemDto> CreateAsync(NotificationCreateDto dto)
+            => Task.FromResult(new NotificationItemDto());
+    }
 }

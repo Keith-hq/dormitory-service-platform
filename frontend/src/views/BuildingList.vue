@@ -6,6 +6,7 @@
       description="统一维护宿舍楼栋类型、楼层与启用信息，为房间、床位和报修模块提供可靠的空间底座。"
     >
       <StatusTag v-if="mockEnabled" label="Mock 数据" tone="warning" />
+      <StatusTag v-if="readonly" label="只读视图" tone="neutral" />
       <div class="page-stat" aria-label="当前楼栋记录数">
         <span>当前记录</span>
         <strong>{{ total }}</strong>
@@ -35,6 +36,8 @@
         :page="currentPage"
         row-key="buildingId"
         caption="楼栋列表"
+        :show-create="isSuperAdmin"
+        :show-actions="isSuperAdmin"
         @create="openCreateModal"
         @edit="openEditModal"
         @delete="handleDelete"
@@ -116,8 +119,9 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { buildingApi } from '@/api/building'
+import { useUserStore } from '@/store/user'
 import { CrudTable, PageHeader, SearchForm, StatusTag } from '@/components'
 
 // ===== 表格配置 =====
@@ -143,6 +147,13 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const filterType = ref('')
 const mockEnabled = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true'
+
+// ===== 权限与楼栋作用域 =====
+// 超管可增删改全部楼栋；宿管（楼长/维修员）仅可查看自己负责的楼栋档案
+const userStore = useUserStore()
+const isSuperAdmin = computed(() => userStore.userInfo?.role === 'super_admin')
+const myBuildingId = Number(userStore.userInfo?.buildingId) || null
+const readonly = computed(() => !isSuperAdmin.value)
 
 // ===== 弹窗状态 =====
 const showModal = ref(false)
@@ -182,6 +193,12 @@ const fetchData = async () => {
     // 统一返回格式 { items, total }
     list.value = data?.items || []
     total.value = data?.total || 0
+
+    // 宿管仅显示自己负责的楼栋档案（只读）
+    if (myBuildingId) {
+      list.value = list.value.filter((item) => Number(item.buildingId) === myBuildingId)
+      total.value = list.value.length
+    }
   } catch (e) {
     if (e.code === 401 || e.status === 401) return
     console.error('获取楼栋列表失败:', e)
@@ -349,7 +366,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .building-page {
-  width: min(calc(100% - 48px), var(--content-max));
+  width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: var(--space-9);
 }
@@ -360,8 +377,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--color-line);
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 
 .page-stat span {
@@ -382,6 +402,14 @@ onBeforeUnmount(() => {
   display: grid;
   gap: var(--space-5);
   padding-top: var(--space-6);
+}
+
+.building-page :deep(.search-form),
+.building-page :deep(.crud-table) {
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 
 .filter-field {
@@ -420,7 +448,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: var(--space-5);
-  background: rgba(12, 36, 38, 0.52);
+  background: rgba(15, 54, 108, 0.34);
   backdrop-filter: blur(6px);
   z-index: 100;
 }
@@ -428,7 +456,7 @@ onBeforeUnmount(() => {
 .modal {
   width: min(460px, 100%);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 0;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-lift);
@@ -440,7 +468,6 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: var(--space-5);
   padding: var(--space-6) var(--space-6) var(--space-5);
-  border-bottom: 1px solid var(--color-line);
 }
 
 .modal-kicker {
@@ -462,7 +489,7 @@ onBeforeUnmount(() => {
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  border: 1px solid var(--color-line);
+  border: 0;
   border-radius: 50%;
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
@@ -491,7 +518,7 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-6) var(--space-6);
-  background: var(--color-surface-muted);
+  background: #fff;
 }
 
 @media (max-width: 640px) {

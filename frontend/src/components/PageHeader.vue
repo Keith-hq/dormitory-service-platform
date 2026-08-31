@@ -1,7 +1,7 @@
 <template>
   <header class="page-header">
     <div class="page-header__copy">
-      <p class="page-header__eyebrow">{{ eyebrow }}</p>
+      <span class="page-header__eyebrow">{{ eyebrow }}</span>
       <h1>{{ title }}</h1>
       <p v-if="description" class="page-header__description">{{ description }}</p>
     </div>
@@ -26,48 +26,58 @@ defineProps({
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-8);
-  padding: var(--space-8) 0 var(--space-7);
+  overflow: hidden;
+  min-height: 210px;
+  padding: 52px 0 42px;
 }
 
-.page-header::after {
-  content: '';
+.page-header::before {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 1px;
-  background: linear-gradient(90deg, var(--color-brand) 0 72px, var(--color-line) 72px 100%);
+  inset: 0 calc(50% - 50vw);
+  z-index: -2;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(45, 139, 255, 0.17), transparent 30%),
+    linear-gradient(180deg, rgba(233, 246, 255, 0.96), rgba(247, 251, 255, 0.9));
+  content: '';
 }
 
 .page-header__copy {
   min-width: 0;
+  max-width: 920px;
   text-align: left;
 }
-
 .page-header__eyebrow {
-  margin: 0 0 var(--space-3);
-  color: var(--color-brand-strong);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
+  display: block;
+  margin: 0 0 15px;
+  color: var(--color-brand);
+  font-family: 'Segoe UI Black', 'Arial Black', 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 .page-header h1 {
   margin: 0;
   color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: clamp(32px, 4vw, 46px);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.08;
+  font-size: 60px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.12;
+  -webkit-text-stroke: 0.45px currentColor;
 }
 
 .page-header__description {
-  max-width: 680px;
-  margin: var(--space-3) 0 0;
+  max-width: 820px;
+  margin: 20px 0 0;
   color: var(--color-text-muted);
-  font-size: 14px;
-  line-height: 1.7;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.65;
+  letter-spacing: 0;
+  -webkit-text-stroke: 0.12px currentColor;
 }
 
 .page-header__aside {
@@ -83,7 +93,16 @@ defineProps({
     align-items: flex-start;
     flex-direction: column;
     gap: var(--space-5);
-    padding-top: var(--space-6);
+    min-height: 0;
+    padding: 36px 0 38px;
+  }
+
+  .page-header h1 {
+    font-size: 42px;
+  }
+
+  .page-header__eyebrow {
+    font-size: 12px;
   }
 
   .page-header__aside {

@@ -3,6 +3,20 @@ using System.ComponentModel.DataAnnotations;
 namespace TemplateDormApi.DTO;
 
 /// <summary>
+/// 公告列表项 DTO（对齐 GET /notices 响应，避免直接序列化 EF 双向导航）。
+/// </summary>
+public class NoticeItemDto
+{
+    public int NoticeId { get; set; }
+    public string? AdminId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime PublishTime { get; set; }
+    public string IsPinned { get; set; } = "否";
+    public DateTime? PinTime { get; set; }
+}
+
+/// <summary>
 /// 公告发布 DTO（对齐契约 POST /notices）
 /// </summary>
 public class NoticeCreateDto

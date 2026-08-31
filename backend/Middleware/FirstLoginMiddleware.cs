@@ -33,7 +33,7 @@ public class FirstLoginMiddleware
                 if (userAccount?.IsFirstLogin == "Y")
                 {
                     var path = context.Request.Path.Value ?? "";
-                    var allowedPaths = new[] { "/api/auth/password", "/api/auth/me", "/api/auth/logout", "/api/auth/captcha" };
+                    var allowedPaths = new[] { "/api/auth/password", "/api/auth/me", "/api/auth/logout" };
                     if (!allowedPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
                     {
                         context.Response.StatusCode = 403;

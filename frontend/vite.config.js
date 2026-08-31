@@ -26,6 +26,11 @@ export default defineConfig(({ mode }) => {
             [apiBaseUrl]: {
               target: apiProxyTarget,
               changeOrigin: true
+            },
+            // 报修图片附件由后端 /uploads 静态服务（生产 nginx 同款转发）
+            '/uploads': {
+              target: apiProxyTarget,
+              changeOrigin: true
             }
           }
         : undefined

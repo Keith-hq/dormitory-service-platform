@@ -295,7 +295,8 @@ public class InventoryTxnService : IInventoryTxnService
         var items = await _context.Set<ItemLoan>()
             .FromSqlRaw(@"SELECT Loan_ID AS ""LOAN_ID"", Item_ID AS ""ITEM_ID"",
                                 Student_ID AS ""STUDENT_ID"", Borrow_Time AS ""BORROW_TIME"",
-                                Due_Time AS ""DUE_TIME"", Return_Time AS ""RETURN_TIME""
+                                Due_Time AS ""DUE_TIME"", Return_Time AS ""RETURN_TIME"",
+                                Idempotency_Key AS ""IDEMPOTENCY_KEY""
                          FROM D_Item_Loan
                          WHERE Student_ID = {0}
                          ORDER BY Borrow_Time DESC

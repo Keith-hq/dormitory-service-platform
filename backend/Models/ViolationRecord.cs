@@ -26,4 +26,16 @@ public class ViolationRecord
     [Column("PENALTY")]
     [MaxLength(100)]
     public string? Penalty { get; set; }
+
+    [Column("DETAIL")]
+    [MaxLength(500)]
+    public string? Detail { get; set; }
+
+    [Column("RECORD_BY")]
+    [MaxLength(20)]
+    public string? RecordBy { get; set; }
+
+    [Column("STATUS")]
+    [MaxLength(20)]
+    public string Status { get; set; } = "有效";
 }

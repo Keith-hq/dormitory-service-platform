@@ -1,8 +1,13 @@
+using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Exceptions;
 using TemplateDormApi.Models;
 using TemplateDormApi.Repository;
 using TemplateDormApi.Services;
+using TemplateDormApi.Controllers;
 
 namespace TemplateDormApi.Tests;
 
@@ -11,6 +16,18 @@ namespace TemplateDormApi.Tests;
 /// </summary>
 public class FacilityNoticeTests
 {
+    /// <summary>NoticeService 构造依赖 IHttpContextAccessor（发布人取 JWT Name claim），测试提供默认上下文。</summary>
+    private static IHttpContextAccessor CreateHttpContextAccessor(string? name = "IT_ADMIN_001")
+    {
+        var httpContext = new DefaultHttpContext();
+        if (name is not null)
+        {
+            httpContext.User = new ClaimsPrincipal(
+                new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, name) }));
+        }
+        return new HttpContextAccessor { HttpContext = httpContext };
+    }
+
     [Fact]
     public async Task FacilityService_GetPagedAsync_FillsPageAndPageSize_AndDefaultsToNormal()
     {
@@ -95,7 +112,7 @@ public class FacilityNoticeTests
     public async Task NoticeService_CreateAsync_WithPinnedCreatesDisplay()
     {
         await using var context = TestDbContextFactory.Create();
-        var service = new NoticeService(new NoticeRepository(context));
+        var service = new NoticeService(new NoticeRepository(context), CreateHttpContextAccessor());
 
         var notice = await service.CreateAsync(new NoticeCreateDto
         {
@@ -117,11 +134,39 @@ public class FacilityNoticeTests
         context.Notices.Add(new Notice { Title = "t", Content = "c", PublishTime = DateTime.Now });
         await context.SaveChangesAsync();
 
-        var service = new NoticeService(new NoticeRepository(context));
+        var service = new NoticeService(new NoticeRepository(context), CreateHttpContextAccessor());
         var result = await service.GetPagedAsync(2, 5);
 
         Assert.Equal(2, result.Page);
         Assert.Equal(5, result.PageSize);
         Assert.Equal(1, result.Total);
+    }
+
+    [Fact]
+    public async Task NoticeController_GetPagedAsync_ReturnsSerializableDto_WhenNoticeIsPinned()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Notices.Add(new Notice
+        {
+            AdminId = "A2026001",
+            Title = "置顶公告",
+            Content = "请完成交接。",
+            PublishTime = new DateTime(2026, 8, 20, 9, 0, 0),
+            Display = new NoticeDisplay { IsPinned = "是", PinTime = new DateTime(2026, 8, 20, 10, 0, 0) }
+        });
+        await context.SaveChangesAsync();
+
+        var controller = new NoticeController(new NoticeService(new NoticeRepository(context), CreateHttpContextAccessor()));
+        var actionResult = await controller.GetPaged(1, 5);
+
+        var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
+        var response = Assert.IsType<ApiResponse<PagedResult<NoticeItemDto>>>(ok.Value);
+        var notice = Assert.Single(response.Data!.Items);
+        Assert.Equal("置顶公告", notice.Title);
+        Assert.Equal("是", notice.IsPinned);
+
+        var json = JsonSerializer.Serialize(response);
+        Assert.Contains(nameof(NoticeItemDto.IsPinned), json);
+        Assert.DoesNotContain("display", json, StringComparison.OrdinalIgnoreCase);
     }
 }

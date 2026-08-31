@@ -17,4 +17,11 @@ public class PendingRepairTicketDto
     public DateTime? Deadline { get; set; }
     public string? AssignedTo { get; set; }
     public DateTime? EscalationTime { get; set; }
+    public DateTime? ClaimTime { get; set; }
+
+    /// <summary>报修位置（楼栋名 + 房间号，如"男生宿舍楼 900101"），JOIN D_Room/D_Building 得出</summary>
+    public string? Location { get; set; }
+
+    /// <summary>附件引用列表：每条 "原文件名|存储ref"，用 ; 分隔（LISTAGG 聚合），供维修端展示</summary>
+    public string? AttachmentRefs { get; set; }
 }

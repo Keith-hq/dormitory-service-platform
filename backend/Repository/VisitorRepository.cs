@@ -34,6 +34,28 @@ public class VisitorRepository : BaseRepository<VisitorAuthorization>
             .Select(b => b.RoomId)
             .FirstOrDefaultAsync();
 
+    /// <summary>
+    /// 查询某房间所在楼栋的第一个宿管工号（用于访客申请后通知值守台）。
+    /// 房间不存在或该楼栋无宿管时返回 null。
+    /// </summary>
+    public async Task<string?> GetBuildingAdminIdAsync(int roomId, CancellationToken cancellationToken)
+    {
+        var buildingId = await _context.Rooms.AsNoTracking()
+            .Where(room => room.RoomId == roomId)
+            .Select(room => room.BuildingId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (buildingId is null)
+        {
+            return null;
+        }
+
+        return await _context.Admins.AsNoTracking()
+            .Where(admin => admin.BuildingId == buildingId.Value)
+            .OrderBy(admin => admin.AdminId)
+            .Select(admin => admin.AdminId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     /// <summary>将已到期的有效授权批量置为「已过期」，返回本次处理条数。重复调用不会重复处理。</summary>
     public async Task<int> ExpireAsync(DateTime now)
     {

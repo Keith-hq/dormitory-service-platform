@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { utilityApi } from '@/api/utility'
 import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
@@ -17,7 +17,7 @@ const page = ref(1)
 const PAGE_SIZE = 20
 const selected = ref(null)
 const details = ref([])
-const filters = ref({ buildingId: '', yearMonth: currentMonth, isPaid: '', publishStatus: '' })
+const filters = ref({ buildingId: '', yearMonth: '', isPaid: '', publishStatus: '' })
 const createForm = ref({ roomId: '', yearMonth: currentMonth, waterFee: '', elecFee: '' })
 const editForm = ref({ waterFee: '', elecFee: '' })
 const powerRoomId = ref('')
@@ -44,6 +44,7 @@ const metrics = computed(() => [
 const load = async () => {
   loading.value = true
   error.value = ''
+  working.value = '' // 兜底：清掉卡住的请求标记，避免操作按钮被意外禁用
   try {
     const data = await utilityApi.getBills({
       buildingId: filters.value.buildingId || undefined,
@@ -58,6 +59,8 @@ const load = async () => {
     total.value = normalized.total
     if (selected.value) {
       selected.value = bills.value.find((item) => item.feeId === selected.value.feeId) ?? null
+    } else if (bills.value.length) {
+      selectBill(bills.value[0])
     }
   } catch (e) {
     error.value = toUserMessage(e, '水电账单暂时无法同步')
@@ -110,14 +113,21 @@ const createBill = async () => {
 }
 
 const selectBill = (bill) => {
+  if (!bill) return
   selected.value = bill
   editForm.value = { waterFee: bill.waterFee ?? '', elecFee: bill.powerFee ?? bill.elecFee ?? '' }
   details.value = []
   feedback.value = ''
 }
 
-const updateBill = () =>
-  run(
+// 兜底自动选中：账单列表变化且当前未选中时，选中第一条，保证操作栏有可操作的账单
+watch(bills, (list) => {
+  if (!selected.value && list.length) selectBill(list[0])
+})
+
+const updateBill = () => {
+  if (!requireSelection()) return
+  return run(
     'update',
     () =>
       utilityApi.updateBill(selected.value.feeId, {
@@ -127,12 +137,33 @@ const updateBill = () =>
     '账单金额已更新',
     true
   )
+}
 
-const publishBill = () =>
-  run('publish', () => utilityApi.publishBill(selected.value.feeId), '账单已发布并触发分摊', true)
-const allocateBill = () =>
-  run('allocate', () => utilityApi.allocateBill(selected.value.feeId), '账单分摊已执行', true)
+const requireSelection = () => {
+  if (selected.value) return true
+  feedback.value = '请先在列表中选择一条账单'
+  return false
+}
+const publishBill = () => {
+  if (!requireSelection()) return
+  return run(
+    'publish',
+    () => utilityApi.publishBill(selected.value.feeId),
+    '账单已发布并触发分摊',
+    true
+  )
+}
+const allocateBill = () => {
+  if (!requireSelection()) return
+  return run(
+    'allocate',
+    () => utilityApi.allocateBill(selected.value.feeId),
+    '账单分摊已执行',
+    true
+  )
+}
 const loadDetails = async () => {
+  if (!requireSelection()) return
   const data = await run(
     'details',
     () => utilityApi.getBillDetails(selected.value.feeId),
@@ -187,10 +218,62 @@ onMounted(load)
     <InlineState :loading="loading" :error="error" />
     <p v-if="feedback" class="feedback">{{ feedback }}</p>
 
+    <section v-if="selected" class="bill-sheet">
+      <header>
+        <div>
+          <span>SELECTED BILL</span>
+          <h2>#{{ selected.feeId }} · 房间 {{ selected.roomId }}</h2>
+        </div>
+        <b>{{ statusOf(selected) }}</b>
+      </header>
+      <div class="bill-actions">
+        <form @submit.prevent="updateBill">
+          <label
+            >水费<input
+              v-model="editForm.waterFee"
+              required
+              min="0"
+              step="0.01"
+              type="number" /></label
+          ><label
+            >电费<input
+              v-model="editForm.elecFee"
+              required
+              min="0"
+              step="0.01"
+              type="number" /></label
+          ><button class="btn">保存金额</button>
+        </form>
+        <div>
+          <button class="btn btn-primary" @click="publishBill">发布并分摊</button>
+          <button class="btn" @click="allocateBill">重新分摊</button>
+          <button class="btn" @click="loadDetails">查看明细</button>
+        </div>
+      </div>
+      <div v-if="details.length" class="detail-table">
+        <div class="detail-row detail-row--head">
+          <span>学生</span><span>在住天数</span><span>水费分摊</span><span>电费分摊</span
+          ><span>应缴合计</span><span>状态</span>
+        </div>
+        <div v-for="item in details" :key="item.detailId" class="detail-row">
+          <span>{{ item.studentId }}</span
+          ><span>{{ item.stayDays }} / {{ item.totalDays }}</span
+          ><span>{{ formatMoney(item.waterShare) }}</span
+          ><span>{{ formatMoney(item.powerShare) }}</span
+          ><span>{{ formatMoney(item.total) }}</span
+          ><span>{{ item.isPaid }}</span>
+        </div>
+      </div>
+    </section>
+
     <section v-if="!loading" class="ledger-layout">
       <div class="ledger-main">
         <header>
-          <span>01 / MONTHLY LEDGER</span><b>{{ bills.length }} 笔当前页</b>
+          <div>
+            <span>01 / MONTHLY LEDGER</span>
+            <h2>账单列表</h2>
+          </div>
+          <b>{{ bills.length }} 笔当前页</b>
         </header>
         <div class="bill-table" role="table" aria-label="水电账单列表">
           <div class="bill-row bill-row--head" role="row">
@@ -216,7 +299,9 @@ onMounted(load)
               ><small>{{ String(bill.isPaid) === '是' ? '已缴' : '待缴' }}</small></span
             >
           </button>
-          <p v-if="!bills.length" class="empty">当前筛选条件下暂无账单。</p>
+          <p v-if="!bills.length" class="empty">
+            当前筛选条件下暂无账单，请调整账期/发布状态筛选，或在右侧「录入账单」新建。
+          </p>
         </div>
         <nav class="pager" aria-label="账单分页">
           <button class="btn btn-sm" :disabled="page <= 1" @click="goToPage(page - 1)">
@@ -270,62 +355,12 @@ onMounted(load)
         </section>
       </aside>
     </section>
-
-    <section v-if="selected" class="bill-sheet">
-      <header>
-        <div>
-          <span>SELECTED BILL</span>
-          <h2>#{{ selected.feeId }} · 房间 {{ selected.roomId }}</h2>
-        </div>
-        <b>{{ statusOf(selected) }}</b>
-      </header>
-      <div class="bill-actions">
-        <form @submit.prevent="updateBill">
-          <label
-            >水费<input
-              v-model="editForm.waterFee"
-              required
-              min="0"
-              step="0.01"
-              type="number" /></label
-          ><label
-            >电费<input
-              v-model="editForm.elecFee"
-              required
-              min="0"
-              step="0.01"
-              type="number" /></label
-          ><button class="btn" :disabled="working">保存金额</button>
-        </form>
-        <div>
-          <button class="btn" :disabled="working" @click="publishBill">发布并分摊</button
-          ><button class="btn" :disabled="working" @click="allocateBill">重新分摊</button
-          ><button class="btn btn-primary" :disabled="working" @click="loadDetails">
-            查看明细
-          </button>
-        </div>
-      </div>
-      <div v-if="details.length" class="detail-table">
-        <div class="detail-row detail-row--head">
-          <span>学生</span><span>在住天数</span><span>水费分摊</span><span>电费分摊</span
-          ><span>应缴合计</span><span>状态</span>
-        </div>
-        <div v-for="item in details" :key="item.detailId" class="detail-row">
-          <span>{{ item.studentId }}</span
-          ><span>{{ item.stayDays }} / {{ item.totalDays }}</span
-          ><span>{{ formatMoney(item.waterShare) }}</span
-          ><span>{{ formatMoney(item.powerShare) }}</span
-          ><span>{{ formatMoney(item.total) }}</span
-          ><span>{{ item.isPaid }}</span>
-        </div>
-      </div>
-    </section>
   </main>
 </template>
 
 <style scoped>
 .billing-page {
-  width: min(100% - 40px, var(--content-max));
+  width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: 72px;
 }
@@ -334,8 +369,12 @@ onMounted(load)
   grid-template-columns: repeat(4, 1fr) auto;
   gap: 12px;
   align-items: end;
-  padding: 20px;
-  border-bottom: 1px solid var(--color-line-strong);
+  margin-top: 22px;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .filter-bar label,
 .create-panel label,
@@ -343,35 +382,54 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .filter-bar input,
 .filter-bar select,
 .ledger-tools input,
 .bill-sheet input {
-  min-height: 36px;
-  padding: 8px 10px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
-  font-size: 11px;
+  color: var(--color-ink);
+  font-size: 14px;
+}
+.filter-bar input:focus-visible,
+.filter-bar select:focus-visible,
+.ledger-tools input:focus-visible,
+.bill-sheet input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
 }
 .feedback {
-  padding: 11px 15px;
+  padding: 12px 16px;
   margin: 16px 0 0;
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
-  font-size: 11px;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
 }
 .pager {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-top: auto;
   padding: 14px 18px;
-  border-top: 1px solid var(--color-line);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 .ledger-layout {
   display: grid;
@@ -382,63 +440,120 @@ onMounted(load)
 .ledger-main,
 .ledger-tools section,
 .bill-sheet {
-  border: 1px solid var(--color-line-strong);
-  background: rgba(255, 255, 255, 0.22);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.ledger-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .ledger-main > header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 17px 20px;
-  border-bottom: 1px solid var(--color-line);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.12em;
+  gap: 20px;
+  padding: 20px 22px 14px;
+}
+.ledger-main > header span {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+.ledger-main > header h2 {
+  margin: 7px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.ledger-main > header b {
+  flex: 0 0 auto;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+.bill-table {
+  display: grid;
+  align-content: start;
+  flex: 1;
+  gap: 10px;
+  padding: 0 12px 12px;
 }
 .bill-row {
   display: grid;
   width: 100%;
   grid-template-columns: 1.3fr 0.8fr 0.8fr 0.8fr 1fr;
   align-items: center;
-  min-height: 66px;
-  padding: 10px 18px;
+  min-height: 70px;
+  padding: 12px 16px;
   border: 0;
-  border-bottom: 1px solid var(--color-line);
-  background: transparent;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
   text-align: left;
   cursor: pointer;
 }
 .bill-row:not(.bill-row--head):hover,
 .bill-row.active {
-  background: var(--color-ink);
-  color: #fff;
+  background: #e8f3ff;
+  color: var(--color-ink);
+  box-shadow: 0 14px 28px rgba(11, 99, 199, 0.12);
 }
 .bill-row--head {
-  min-height: 34px;
-  color: var(--color-text-soft);
-  font: 8px var(--font-mono);
+  min-height: 36px;
+  padding: 0 16px 4px;
+  background: transparent;
+  color: var(--color-brand-strong);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
   cursor: default;
+  box-shadow: none;
+}
+.bill-row--head span {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.45;
+  letter-spacing: 0;
 }
 .bill-row span {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 10px;
+  font-size: 13px;
 }
 .bill-row b {
-  font: 11px var(--font-mono);
+  color: var(--color-ink);
+  font: 800 12px var(--font-mono);
 }
 .bill-row small {
-  color: var(--color-text-soft);
-  font-size: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 .bill-row em {
-  color: var(--color-accent-strong);
-  font-size: 9px;
+  color: var(--color-brand-strong);
+  font-size: 12px;
   font-style: normal;
 }
 .empty {
   padding: 24px;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.7;
 }
 .ledger-tools {
   display: flex;
@@ -450,23 +565,26 @@ onMounted(load)
 }
 .ledger-tools header span,
 .bill-sheet header span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.13em;
+  color: var(--color-brand-strong);
+  font: 800 12px var(--font-mono);
+  letter-spacing: 0.12em;
 }
 .ledger-tools h2,
 .bill-sheet h2 {
   margin: 7px 0 0;
-  font: 500 23px var(--font-display);
+  color: var(--color-ink);
+  font: 900 23px var(--font-display);
 }
 .create-panel form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
 .create-panel form button {
   grid-column: 1/-1;
+  width: 100%;
+  min-width: 0;
 }
 .power-panel form {
   display: grid;
@@ -479,33 +597,35 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   margin: 16px 0 0;
-  padding-top: 15px;
-  border-top: 1px solid var(--color-line);
-  font-size: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  font-size: 13px;
 }
 .power-panel > p span {
-  color: var(--color-accent-strong);
+  color: var(--color-brand-strong);
 }
 .bill-sheet {
   margin-top: 24px;
+  padding: 26px;
 }
 .bill-sheet > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 26px;
-  border-bottom: 1px solid var(--color-line);
+  gap: 20px;
+  padding: 0 0 18px;
 }
 .bill-sheet > header > b {
-  color: var(--color-accent-strong);
-  font-size: 10px;
+  color: var(--color-brand-strong);
+  font-size: 13px;
+  font-weight: 800;
 }
 .bill-actions {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 20px;
-  padding: 20px 26px;
-  border-bottom: 1px solid var(--color-line);
+  padding: 0 0 18px;
 }
 .bill-actions form {
   display: flex;
@@ -519,18 +639,23 @@ onMounted(load)
 }
 .detail-table {
   overflow-x: auto;
+  padding-top: 6px;
 }
 .detail-row {
   display: grid;
   grid-template-columns: 1.2fr repeat(5, 1fr);
   min-width: 720px;
-  padding: 13px 22px;
-  border-bottom: 1px solid var(--color-line);
-  font-size: 9px;
+  margin-top: 10px;
+  padding: 13px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  font-size: 12px;
 }
 .detail-row--head {
-  color: var(--color-text-soft);
-  font: 8px var(--font-mono);
+  margin-top: 0;
+  background: transparent;
+  color: var(--color-brand-strong);
+  font: 800 12px var(--font-mono);
 }
 @media (max-width: 980px) {
   .filter-bar {

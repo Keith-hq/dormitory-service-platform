@@ -1,9 +1,10 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { adminApi } from '@/api/admin'
 import { buildingApi } from '@/api/building'
 import { governanceApi } from '@/api/governance'
-import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
+import { InlineState, MetricStrip, StatusTag, WorkspaceHeader } from '@/components'
 import { normalizeCollection } from '@/utils/collection'
 import { toUserMessage } from '@/utils/errorMessage'
 import { formatLocalMonthInput } from '@/utils/localDate'
@@ -19,6 +20,8 @@ const students = ref([])
 const audits = ref([])
 const buildings = ref([])
 const report = ref(null)
+const violations = ref([])
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
 const directory = ref('admins')
 const keyword = ref('')
 const modalElement = ref(null)
@@ -47,6 +50,107 @@ const adminForm = reactive({
   password: ''
 })
 const disableReason = ref('')
+// —— C11：Excel 导入学生（IMPORT-01）——
+const importFile = ref(null)
+const importing = ref(false)
+const importResult = ref('')
+const handleImport = async () => {
+  const file = importFile.value?.files?.[0]
+  if (!file) return
+  importing.value = true
+  importResult.value = ''
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const data = await governanceApi.importStudents(form)
+    importResult.value =
+      data?.message ||
+      `导入成功，新增 ${data?.importedCount ?? 0} 条，跳过 ${data?.skippedRows?.length ?? 0} 行`
+    await load()
+  } catch (e) {
+    importResult.value = toUserMessage(e, '导入失败，请检查 CSV 文件')
+  } finally {
+    importing.value = false
+    if (importFile.value) importFile.value.value = ''
+  }
+}
+// —— C11：学院/专业管理（SUPER-01/02）——
+const colleges = ref([])
+const majors = ref([])
+const collegeForm = reactive({ collegeName: '', counselorName: '', contactPhone: '' })
+const majorForm = reactive({ majorName: '', collegeId: '' })
+const loadBaseData = async () => {
+  const results = await Promise.allSettled([governanceApi.getColleges(), governanceApi.getMajors()])
+  if (results[0].status === 'fulfilled')
+    colleges.value = normalizeCollection(results[0].value).items
+  if (results[1].status === 'fulfilled') majors.value = normalizeCollection(results[1].value).items
+}
+const createCollege = async () => {
+  if (!collegeForm.collegeName.trim()) return
+  try {
+    await governanceApi.createCollege({ ...collegeForm })
+    notice.value = '学院已创建'
+    Object.assign(collegeForm, { collegeName: '', counselorName: '', contactPhone: '' })
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '创建学院失败')
+  }
+}
+const deleteCollege = async (item) => {
+  if (!window.confirm(`确认删除学院"${item.collegeName}"吗？存在专业时后端会拒绝。`)) return
+  try {
+    await governanceApi.deleteCollege(item.collegeId)
+    notice.value = '学院已删除'
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '删除失败')
+  }
+}
+const createMajor = async () => {
+  if (!majorForm.majorName.trim() || !majorForm.collegeId) return
+  try {
+    await governanceApi.createMajor({
+      majorName: majorForm.majorName,
+      collegeId: Number(majorForm.collegeId)
+    })
+    notice.value = '专业已创建'
+    majorForm.majorName = ''
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '创建专业失败')
+  }
+}
+const deleteMajor = async (item) => {
+  if (!window.confirm(`确认删除专业"${item.majorName}"吗？存在学生时后端会拒绝。`)) return
+  try {
+    await governanceApi.deleteMajor(item.majorId)
+    notice.value = '专业已删除'
+    await loadBaseData()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '删除失败')
+  }
+}
+const removeViolation = async (item) => {
+  const reason = window.prompt(
+    `确认删除违规 #${item.violationId}（学生 ${item.studentId}，${item.type}）？请输入删除原因：`
+  )
+  if (reason === null) return
+  if (!reason.trim()) {
+    window.alert('删除原因不能为空')
+    return
+  }
+  working.value = true
+  actionError.value = ''
+  try {
+    await governanceApi.deleteViolation(item.violationId, reason.trim())
+    notice.value = '违规记录已删除'
+    await load()
+  } catch (e) {
+    actionError.value = toUserMessage(e, '删除失败')
+  } finally {
+    working.value = false
+  }
+}
 
 const section = computed(() => route.meta.section ?? 'overview')
 const title = computed(
@@ -104,7 +208,10 @@ const load = async () => {
     governanceApi.getStudents(),
     governanceApi.getAuditEvents({ page: 1, pageSize: 30 }),
     governanceApi.getReport('occupancy', { yearMonth: formatLocalMonthInput() }),
-    buildingApi.getList({ page: 1, pageSize: 100 })
+    buildingApi.getList({ page: 1, pageSize: 100 }),
+    governanceApi.getColleges(),
+    governanceApi.getMajors(),
+    adminApi.getViolations({ page: 1, pageSize: 20 })
   ])
   const targets = [admins, students, audits]
   results.slice(0, 3).forEach((result, index) => {
@@ -114,6 +221,11 @@ const load = async () => {
   if (results[3].status === 'fulfilled') report.value = results[3].value
   if (results[4].status === 'fulfilled')
     buildings.value = normalizeCollection(results[4].value).items
+  if (results[5].status === 'fulfilled')
+    colleges.value = normalizeCollection(results[5].value).items
+  if (results[6].status === 'fulfilled') majors.value = normalizeCollection(results[6].value).items
+  if (results[7].status === 'fulfilled')
+    violations.value = normalizeCollection(results[7].value).items
   if (results.every((result) => result.status === 'rejected'))
     error.value = toUserMessage(results[0].reason, '治理数据暂时无法同步')
   loading.value = false
@@ -193,6 +305,38 @@ const openEditAdmin = (item) => {
 const openDisable = (kind, item) => {
   disableReason.value = ''
   openModal('disable', { kind, item })
+}
+const restoreAdmin = async (item) => {
+  const personName = display(item, 'adminName', 'name')
+  if (!window.confirm(`确认恢复 ${personName} 的登录账号？恢复后该账号可正常登录。`)) return
+  working.value = true
+  notice.value = ''
+  actionError.value = ''
+  try {
+    await governanceApi.enableAdmin(item.adminId)
+    notice.value = `${personName} 的登录账号已恢复`
+    await load()
+  } catch (cause) {
+    actionError.value = toUserMessage(cause, '恢复操作未完成，请稍后重试')
+  } finally {
+    working.value = false
+  }
+}
+const restoreStudent = async (item) => {
+  const personName = display(item, 'name')
+  if (!window.confirm(`确认恢复 ${personName} 的登录账号？恢复后该账号可正常登录。`)) return
+  working.value = true
+  notice.value = ''
+  actionError.value = ''
+  try {
+    await governanceApi.enableStudent(item.studentId)
+    notice.value = `${personName} 的登录账号已恢复`
+    await load()
+  } catch (cause) {
+    actionError.value = toUserMessage(cause, '恢复操作未完成，请稍后重试')
+  } finally {
+    working.value = false
+  }
 }
 const numberOrNull = (value) => (value === '' || value === null ? null : Number(value))
 const showCredential = (titleText, loginName, password) => {
@@ -341,6 +485,39 @@ onMounted(load)
       </article>
     </section>
 
+    <section v-if="!loading && !error && section === 'overview'" class="violation-board">
+      <header>
+        <div>
+          <span>VIOLATION RECORDS</span>
+          <h2>违规记录</h2>
+        </div>
+        <small>{{ violations.length }} 条违规</small>
+      </header>
+      <article v-for="item in violations" :key="item.violationId">
+        <time>{{ formatDate(item.recordTime) }}</time>
+        <div>
+          <div class="violation-head">
+            <h3>{{ item.studentId }}</h3>
+            <StatusTag
+              :label="item.status || '有效'"
+              :tone="item.status === '已撤销' ? 'danger' : 'success'"
+              size="small"
+            />
+          </div>
+          <p>{{ item.type }} · {{ item.detail || '—' }} · 登记人 {{ item.recordBy || '—' }}</p>
+        </div>
+        <button
+          type="button"
+          class="danger"
+          :disabled="working || item.status === '已撤销'"
+          @click="removeViolation(item)"
+        >
+          {{ item.status === '已撤销' ? '已撤销' : '删除' }}
+        </button>
+      </article>
+      <p v-if="!violations.length" class="empty">暂无违规记录</p>
+    </section>
+
     <section v-else-if="!loading && !error && section === 'people'" class="people-workspace">
       <header class="people-toolbar">
         <div>
@@ -353,6 +530,10 @@ onMounted(load)
           <button class="btn btn-primary" type="button" @click="openCreateAdmin">
             新增管理人员
           </button>
+          <button class="btn" type="button" :disabled="importing" @click="importFile?.click()">
+            {{ importing ? '导入中…' : '导入学生' }}
+          </button>
+          <input ref="importFile" type="file" accept=".csv" hidden @change="handleImport" />
         </div>
       </header>
 
@@ -360,6 +541,7 @@ onMounted(load)
         <span>{{ notice }}</span
         ><button type="button" @click="notice = ''">关闭</button>
       </div>
+      <p v-if="importResult" class="import-result" role="status">{{ importResult }}</p>
 
       <div class="directory-controls">
         <div class="directory-tabs" aria-label="人员类型">
@@ -376,6 +558,13 @@ onMounted(load)
             @click="directory = 'students'"
           >
             学生名册 <b>{{ students.length }}</b>
+          </button>
+          <button
+            type="button"
+            :class="{ active: directory === 'college-major' }"
+            @click="directory = 'college-major'"
+          >
+            学院与专业 <b>{{ colleges.length + majors.length }}</b>
           </button>
         </div>
         <label class="directory-search">
@@ -424,12 +613,19 @@ onMounted(load)
             >
               停用
             </button>
+            <button
+              type="button"
+              :disabled="item.accountStatus !== '停用' || working"
+              @click="restoreAdmin(item)"
+            >
+              恢复
+            </button>
           </div>
         </article>
         <p v-if="!filteredAdmins.length" class="empty">没有符合条件的管理人员</p>
       </div>
 
-      <div v-else class="directory-list student-directory">
+      <div v-else-if="directory === 'students'" class="directory-list student-directory">
         <article v-for="item in filteredStudents" :key="item.studentId" class="person-row">
           <div class="person-index">{{ item.studentId }}</div>
           <div class="person-primary">
@@ -469,9 +665,70 @@ onMounted(load)
             >
               停用
             </button>
+            <button
+              type="button"
+              :disabled="item.accountStatus !== '停用' || working"
+              @click="restoreStudent(item)"
+            >
+              恢复
+            </button>
           </div>
         </article>
         <p v-if="!filteredStudents.length" class="empty">没有符合条件的学生</p>
+      </div>
+
+      <div v-else-if="directory === 'college-major'" class="base-data-grid">
+        <article class="panel">
+          <header>
+            <span>COLLEGES</span>
+            <h2>学院管理</h2>
+          </header>
+          <form class="base-form" @submit.prevent="createCollege">
+            <label
+              >学院名称<input v-model.trim="collegeForm.collegeName" required maxlength="50"
+            /></label>
+            <label>辅导员<input v-model.trim="collegeForm.counselorName" maxlength="20" /></label>
+            <label>联系电话<input v-model.trim="collegeForm.contactPhone" maxlength="20" /></label>
+            <button class="btn btn-primary" type="submit">新增学院</button>
+          </form>
+          <div class="base-list">
+            <article v-for="item in colleges" :key="item.collegeId">
+              <b>{{ item.collegeName }}</b>
+              <span>{{ item.counselorName || '—' }} · {{ item.contactPhone || '—' }}</span>
+              <button type="button" class="danger" @click="deleteCollege(item)">删除</button>
+            </article>
+            <p v-if="!colleges.length">暂无学院。</p>
+          </div>
+        </article>
+
+        <article class="panel">
+          <header>
+            <span>MAJORS</span>
+            <h2>专业管理</h2>
+          </header>
+          <form class="base-form" @submit.prevent="createMajor">
+            <label
+              >专业名称<input v-model.trim="majorForm.majorName" required maxlength="50"
+            /></label>
+            <label
+              >所属学院<select v-model="majorForm.collegeId" required>
+                <option value="" disabled>选择学院</option>
+                <option v-for="item in colleges" :key="item.collegeId" :value="item.collegeId">
+                  {{ item.collegeName }}
+                </option>
+              </select></label
+            >
+            <button class="btn btn-primary" type="submit">新增专业</button>
+          </form>
+          <div class="base-list">
+            <article v-for="item in majors" :key="item.majorId">
+              <b>{{ item.majorName }}</b>
+              <span>学院 {{ item.collegeName || item.collegeId || '—' }}</span>
+              <button type="button" class="danger" @click="deleteMajor(item)">删除</button>
+            </article>
+            <p v-if="!majors.length">暂无专业。</p>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -790,6 +1047,102 @@ onMounted(load)
   color: var(--color-text-muted);
   cursor: pointer;
   font: 9px var(--font-mono);
+}
+.import-result {
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--color-brand);
+  background: var(--color-brand-soft);
+  font-size: 13px;
+}
+.base-data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.base-data-grid .panel {
+  padding: 22px 24px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.base-data-grid header span {
+  color: var(--color-brand-strong);
+  font: 800 12px/1.4 var(--font-mono);
+  letter-spacing: 0.12em;
+}
+.base-data-grid header h2 {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font: 900 22px/1.2 var(--font-display);
+}
+.base-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+.base-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.base-form input,
+.base-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.base-form button {
+  grid-column: 1/-1;
+}
+.base-list {
+  display: grid;
+  gap: 8px;
+}
+.base-list article {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+.base-list b {
+  font-size: 14px;
+}
+.base-list span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.base-list button {
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.base-list p {
+  padding: 14px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+@media (max-width: 900px) {
+  .base-data-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .directory-controls {
   display: grid;
@@ -1156,6 +1509,905 @@ onMounted(load)
   .modal-fields {
     grid-template-columns: 1fr;
   }
+  .full-field {
+    grid-column: auto;
+  }
+}
+</style>
+
+<style scoped>
+/* Superadmin workspace redesign: align the page with the shared blue-white functional views. */
+.governance-page {
+  width: min(100% - 48px, var(--content-max));
+  margin: 0 auto;
+  padding-bottom: 76px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 22px;
+  margin-top: 28px;
+}
+
+.overview-grid article {
+  min-width: 0;
+  min-height: 280px;
+  padding: 28px 30px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.overview-grid span,
+.people-toolbar p {
+  display: block;
+  margin: 0;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+.overview-grid h2,
+.people-toolbar h2 {
+  margin: 8px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.overview-grid pre {
+  display: grid;
+  min-height: 146px;
+  margin: 28px 0 0;
+  place-items: center;
+  overflow: hidden;
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.overview-grid article div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 15px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+
+.overview-grid article div:first-of-type {
+  margin-top: 28px;
+}
+
+.overview-grid article div strong {
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.overview-grid article div b {
+  color: var(--color-brand);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.people-workspace {
+  margin-top: 28px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.people-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 30px 22px;
+}
+
+.people-toolbar h2 {
+  margin-bottom: 8px;
+}
+
+.people-toolbar > div:first-child > span {
+  display: block;
+  max-width: 680px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 30px 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.notice button {
+  border: 0;
+  background: transparent;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.directory-controls {
+  display: grid;
+  grid-template-columns: auto minmax(260px, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin: 0 30px;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+}
+
+.directory-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.directory-tabs button {
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.directory-tabs button.active {
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.directory-tabs b {
+  margin-left: 6px;
+  color: currentColor;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.directory-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: #fff;
+}
+
+.directory-search span {
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.directory-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.directory-search input::placeholder {
+  color: var(--color-text-soft);
+}
+
+.directory-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 0 30px 30px;
+}
+
+.person-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(220px, 1.25fr) minmax(260px, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  background: #f6f9fe;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.person-row:hover {
+  background: var(--color-brand-soft);
+  box-shadow: 0 12px 26px rgba(11, 99, 199, 0.1);
+  transform: translateY(-1px);
+}
+
+.person-index {
+  overflow-wrap: anywhere;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.person-primary {
+  min-width: 0;
+}
+
+.person-primary > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.person-primary h3 {
+  margin: 0 6px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.person-primary p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.role-chip,
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.role-chip.student {
+  border-color: #b8d7e8;
+  color: #276582;
+}
+
+.status-chip {
+  border-color: #b4e6e1;
+  background: #e4f8f6;
+  color: #007c73;
+}
+
+.status-chip.muted {
+  border-color: var(--color-line-strong);
+  background: #fff;
+  color: var(--color-text-muted);
+}
+
+.person-row dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+}
+
+.person-row dt {
+  margin-bottom: 5px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.person-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.row-actions button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.row-actions button:hover:not(:disabled) {
+  border-color: var(--color-brand-border);
+  color: var(--color-brand);
+  box-shadow: 0 8px 18px rgba(11, 99, 199, 0.08);
+}
+
+.row-actions button.danger {
+  color: var(--color-danger);
+}
+
+.row-actions button.danger:hover:not(:disabled) {
+  border-color: #efc4bc;
+  background: var(--color-danger-soft);
+  color: #a34239;
+}
+
+.row-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.audit-stream {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 22px 30px 30px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.audit-stream header,
+.audit-stream article {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(140px, 0.7fr) minmax(220px, 1.5fr) minmax(
+      150px,
+      0.8fr
+    );
+  gap: 18px;
+  align-items: center;
+  min-width: 0;
+}
+
+.audit-stream header {
+  padding: 0 16px 8px;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.audit-stream article {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: #f6f9fe;
+}
+
+.audit-stream time,
+.audit-stream small {
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.audit-stream strong,
+.audit-stream p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.empty {
+  margin: 0;
+  padding: 30px 16px;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-size: 14px;
+}
+
+.modal-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(7, 27, 58, 0.58);
+  backdrop-filter: blur(5px);
+}
+
+.person-modal {
+  width: min(720px, 100%);
+  max-height: min(800px, calc(100vh - 48px));
+  overflow: auto;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: 0 28px 72px rgba(7, 27, 58, 0.22);
+}
+
+.person-modal > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 28px 18px;
+}
+
+.person-modal header p {
+  margin: 0 0 8px;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.person-modal h2 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.modal-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 18px 28px 26px;
+}
+
+.modal-fields label,
+.confirm-panel label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.modal-fields label > span,
+.confirm-panel label > span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.modal-fields input,
+.modal-fields select,
+.confirm-panel textarea {
+  width: 100%;
+  min-height: 44px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.modal-fields input:focus-visible,
+.modal-fields select:focus-visible,
+.confirm-panel textarea:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.modal-fields input:disabled {
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+}
+
+.full-field {
+  grid-column: 1 / -1;
+}
+
+.confirm-panel,
+.credential-panel {
+  padding: 18px 28px 26px;
+}
+
+.confirm-panel > p,
+.credential-panel > p {
+  margin: 0 0 18px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.confirm-panel textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.credential-panel dl {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.credential-panel dl div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+}
+
+.credential-panel dt {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.credential-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.credential-panel small {
+  display: block;
+  margin-top: 12px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.modal-error {
+  margin: 0 28px 18px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.person-modal > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 28px;
+  background: var(--color-surface-muted);
+}
+
+.violation-board {
+  margin-top: 22px;
+  overflow: hidden;
+  padding: 22px 30px 30px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.violation-board > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 0 18px;
+}
+
+.violation-board header span {
+  display: block;
+  color: var(--color-brand);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.violation-board header h2 {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.violation-board header small {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.violation-board article {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  min-height: 84px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: #f6f9fe;
+}
+
+.violation-board article + article {
+  margin-top: 10px;
+}
+
+.violation-board article time {
+  color: var(--color-brand);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.violation-board article h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 900;
+}
+.violation-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.violation-board article p {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.violation-board article button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  color: var(--color-danger);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.violation-board article button:hover:not(:disabled) {
+  border-color: #efc4bc;
+  background: var(--color-danger-soft);
+}
+
+.violation-board article button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.violation-board .empty {
+  margin: 0;
+  padding: 26px 16px;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-size: 14px;
+}
+
+@media (max-width: 1120px) {
+  .person-row {
+    grid-template-columns: minmax(120px, 0.7fr) minmax(220px, 1fr) auto;
+  }
+
+  .person-row dl {
+    grid-column: 2 / 3;
+  }
+
+  .row-actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 900px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .people-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+  }
+
+  .toolbar-actions .btn {
+    flex: 1;
+  }
+
+  .directory-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .directory-search {
+    min-height: 48px;
+  }
+
+  .person-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .person-row dl,
+  .row-actions {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .row-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  .audit-stream header {
+    display: none;
+  }
+
+  .audit-stream article {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .governance-page {
+    width: min(100% - 32px, var(--content-max));
+  }
+
+  .overview-grid article,
+  .people-toolbar,
+  .audit-stream {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .notice,
+  .directory-controls {
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+
+  .directory-list {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .directory-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .directory-tabs button {
+    width: 100%;
+  }
+
+  .person-row dl,
+  .audit-stream article {
+    grid-template-columns: 1fr;
+  }
+
+  .row-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .row-actions button {
+    width: 100%;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .person-modal > header,
+  .modal-fields,
+  .confirm-panel,
+  .credential-panel,
+  .person-modal > footer {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .modal-fields {
+    grid-template-columns: 1fr;
+  }
+
   .full-field {
     grid-column: auto;
   }

@@ -76,8 +76,8 @@ onMounted(loadProfile)
       description="个人联系方式由你维护，住宿与床位信息由宿管业务统一同步。"
     >
       <StatusTag
-        :label="accommodation ? '当前在住' : '等待同步'"
-        :tone="accommodation ? 'success' : 'warning'"
+        :label="accommodation?.checkOutDate ? '已退宿' : accommodation ? '当前在住' : '等待同步'"
+        :tone="accommodation?.checkOutDate ? 'default' : accommodation ? 'success' : 'warning'"
       />
     </WorkspaceHeader>
 
@@ -188,15 +188,16 @@ onMounted(loadProfile)
 }
 .profile-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 0.58fr) minmax(0, 1fr);
-  margin-top: 27px;
-  gap: 18px;
+  grid-template-columns: minmax(300px, 0.52fr) minmax(0, 1fr);
+  margin-top: 36px;
+  gap: 28px;
 }
 .identity-sheet {
   grid-row: 1/3;
-  padding: 25px;
-  background: var(--color-ink);
-  color: var(--color-paper);
+  padding: 36px 38px;
+  background: #fff;
+  color: var(--color-text);
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .identity-sheet > header {
   display: flex;
@@ -207,158 +208,193 @@ onMounted(loadProfile)
 .contact-editor header span,
 .residence-sheet header span,
 .history-sheet header span {
-  color: #d98768;
-  font: 8px var(--font-mono);
-  letter-spacing: 0.15em;
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .identity-sheet > header b {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 50px;
+  height: 50px;
   place-items: center;
-  border: 1px solid #697b70;
   border-radius: 50%;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 950;
 }
 .identity-sheet__name {
-  padding: 52px 0 38px;
+  padding: 58px 0 44px;
 }
 .identity-sheet__name p {
   margin: 0;
-  color: #82958a;
-  font-size: 9px;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1.7;
 }
 .identity-sheet__name h2 {
-  margin: 8px 0 3px;
+  margin: 10px 0 8px;
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 500;
+  font-size: 34px;
+  font-weight: 950;
+  line-height: 1.18;
 }
 .identity-sheet__name small {
-  color: #9caf9f;
-  font: 9px var(--font-mono);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
 }
 .identity-sheet dl {
+  display: grid;
+  gap: 14px;
   margin: 0;
-  border-top: 1px solid #42564a;
 }
 .identity-sheet dl div {
   display: grid;
-  grid-template-columns: 80px 1fr;
-  padding: 16px 0;
-  border-bottom: 1px solid #364a3f;
+  grid-template-columns: 118px 1fr;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  gap: 18px;
 }
 .identity-sheet dt {
-  color: #83958a;
-  font-size: 9px;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1.6;
 }
 .identity-sheet dd {
   margin: 0;
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.6;
 }
 .contact-editor,
 .residence-sheet,
 .history-sheet {
-  border: 1px solid var(--color-line-strong);
-  background: rgba(250, 246, 237, 0.5);
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .contact-editor > header,
 .residence-sheet > header,
 .history-sheet > header {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
-  padding: 17px 20px;
-  border-bottom: 1px solid var(--color-line);
+  padding: 30px 34px 12px;
+  gap: 20px;
 }
 .contact-editor h2,
 .residence-sheet h2,
 .history-sheet h2 {
-  margin: 5px 0 0;
+  margin: 8px 0 0;
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 500;
+  font-size: 30px;
+  font-weight: 950;
+  line-height: 1.2;
 }
 .contact-editor header small {
-  color: var(--color-text-soft);
-  font-size: 8px;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 700;
 }
 .contact-editor form {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   align-items: end;
-  padding: 22px;
-  gap: 15px;
+  padding: 24px 34px 34px;
+  gap: 20px;
 }
 .contact-editor label {
   display: grid;
-  gap: 7px;
+  gap: 10px;
 }
 .contact-editor label span {
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 16px;
+  font-weight: 750;
 }
 .contact-editor form p {
   grid-column: 1/-1;
   margin: 0;
   color: var(--color-brand);
-  font-size: 10px;
+  font-size: 15px;
+  line-height: 1.7;
 }
 .residence-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 24px 34px 32px;
 }
 .residence-grid article {
   display: grid;
-  min-height: 92px;
+  min-height: 118px;
   align-content: space-between;
-  padding: 17px;
-  border-right: 1px solid var(--color-line);
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
 }
 .residence-grid span {
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 16px;
+  line-height: 1.6;
 }
 .residence-grid strong {
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 22px;
+  font-weight: 950;
+  line-height: 1.35;
 }
 .residence-sheet footer {
-  padding: 12px 17px;
-  border-top: 1px solid var(--color-line);
-  color: var(--color-text-soft);
-  font-size: 8px;
+  padding: 0 34px 34px;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.8;
 }
 .history-sheet {
   grid-column: 1/-1;
+  padding-bottom: 20px;
 }
 .history-sheet > article {
   display: grid;
   grid-template-columns: 120px 1fr;
-  min-height: 68px;
+  min-height: 84px;
   align-items: center;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--color-line);
+  margin: 14px 34px;
+  padding: 18px 22px;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
   gap: 20px;
 }
 .history-sheet time {
-  color: var(--color-accent-strong);
-  font: 9px var(--font-mono);
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
 }
 .history-sheet article div {
   display: grid;
-  gap: 5px;
+  gap: 8px;
 }
 .history-sheet article b {
+  color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 18px;
+  font-weight: 900;
 }
 .history-sheet article span {
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 15px;
+  line-height: 1.7;
 }
 @media (max-width: 850px) {
   .workspace-page {

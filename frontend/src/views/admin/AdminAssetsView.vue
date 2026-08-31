@@ -544,67 +544,87 @@ onMounted(loadOperations)
 
 <style scoped>
 .assets-page {
+  width: min(100% - 48px, var(--content-max));
+  margin: 0 auto;
   padding-bottom: 72px;
 }
 .feedback {
-  margin: 0;
-  padding: 12px 24px;
-  color: var(--color-accent);
-  border-bottom: 1px solid var(--color-line);
+  margin: 18px 0 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+  font-size: 13px;
 }
 .pager {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--color-line);
+  margin-top: 16px;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .desk-tabs {
   display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--color-line);
+  gap: 8px;
+  margin-top: 28px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .desk-tabs button {
   min-width: 150px;
-  padding: 17px 24px;
+  min-height: 44px;
+  padding: 0 18px;
   color: var(--color-text-muted);
   background: transparent;
   border: 0;
-  border-right: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  font-weight: 800;
   cursor: pointer;
 }
 .desk-tabs button.active {
-  color: var(--color-ink);
-  box-shadow: inset 0 -3px var(--color-accent);
+  background: var(--color-brand);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(11, 99, 199, 0.18);
 }
 .work-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
   gap: 24px;
-  padding: 32px 24px;
+  padding: 28px 0 0;
 }
 .panel {
-  border: 1px solid var(--color-line);
-  background: rgba(255, 255, 255, 0.28);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .panel > header {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
-  padding: 20px 22px;
-  border-bottom: 1px solid var(--color-line);
+  gap: 20px;
+  padding: 22px 24px 12px;
 }
 .panel header span {
-  color: var(--color-accent);
-  font: 700 10px/1.4 var(--font-mono);
-  letter-spacing: 0.14em;
+  color: var(--color-brand-strong);
+  font: 800 12px/1.4 var(--font-mono);
+  letter-spacing: 0.12em;
 }
 .panel header h2 {
-  margin: 3px 0 0;
-  font: 500 24px/1.2 var(--font-display);
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font: 900 24px/1.2 var(--font-display);
 }
 .query,
 .form-grid,
@@ -612,16 +632,17 @@ onMounted(loadOperations)
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
-  padding: 20px 22px;
-  border-bottom: 1px solid var(--color-line);
+  padding: 20px 24px;
+  border: 0;
 }
 .delete-action {
   margin: 0 22px 20px;
   padding: 0;
-  color: var(--color-accent);
+  color: var(--color-danger);
   background: transparent;
   border: 0;
-  border-bottom: 1px solid currentColor;
+  font-size: 13px;
+  font-weight: 800;
   cursor: pointer;
 }
 .query {
@@ -634,53 +655,68 @@ onMounted(loadOperations)
   gap: 7px;
   color: var(--color-text-muted);
   font-size: 12px;
+  font-weight: 700;
 }
 .form-grid input,
 .form-grid select,
 .query input,
 .repair-row input {
   width: 100%;
-  min-height: 42px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   color: var(--color-ink);
-  background: transparent;
+  background: #fff;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+}
+.form-grid input:focus-visible,
+.form-grid select:focus-visible,
+.query input:focus-visible,
+.repair-row input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
 }
 .form-grid .wide {
   grid-column: 1 / -1;
 }
 .record-list {
   display: grid;
+  gap: 10px;
+  padding: 12px;
 }
 .record-list > button {
   display: grid;
   grid-template-columns: 55px 1fr auto 72px;
   align-items: center;
   gap: 12px;
-  padding: 17px 20px;
+  padding: 16px 18px;
   color: var(--color-ink);
   text-align: left;
-  background: transparent;
+  background: var(--color-brand-soft);
   border: 0;
-  border-bottom: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
   cursor: pointer;
 }
 .record-list > button:hover,
 .record-list > button.selected {
-  background: rgba(185, 77, 50, 0.08);
+  background: #e8f3ff;
+  box-shadow: 0 12px 24px rgba(11, 99, 199, 0.1);
 }
 .record-list b,
 .record-list small {
   font-family: var(--font-mono);
 }
 .record-list em {
+  color: var(--color-brand-strong);
   font-style: normal;
+  font-weight: 800;
 }
 .record-list p,
 .table-list > p,
 .cleaning-board > p {
   padding: 24px;
   color: var(--color-text-muted);
+  font-size: 13px;
 }
 .actions-stack {
   display: grid;
@@ -690,7 +726,8 @@ onMounted(loadOperations)
 .status-actions {
   display: flex;
   gap: 8px;
-  padding: 18px 22px 0;
+  padding: 18px 24px 0;
+  flex-wrap: wrap;
 }
 .repair-row {
   grid-template-columns: 1fr auto;
@@ -704,8 +741,10 @@ onMounted(loadOperations)
   grid-template-columns: 1fr 1.5fr 100px auto auto;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--color-line);
+  margin: 0 12px 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
 }
 .table-list span,
 .table-list em {
@@ -714,25 +753,30 @@ onMounted(loadOperations)
   font-style: normal;
 }
 .single-desk {
-  margin: 32px 24px;
+  margin: 28px 0 0;
 }
 .cleaning-board {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  padding: 12px;
 }
 .cleaning-board article {
   min-height: 190px;
   padding: 24px;
-  border-right: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
 }
 .cleaning-board article > span {
-  color: var(--color-accent);
+  color: var(--color-brand-strong);
   font-family: var(--font-mono);
+  font-weight: 800;
 }
 .cleaning-board h3 {
   margin: 24px 0 6px;
-  font: 500 22px/1.2 var(--font-display);
+  color: var(--color-ink);
+  font: 900 22px/1.2 var(--font-display);
 }
 .cleaning-board p,
 .cleaning-board small {
@@ -749,6 +793,9 @@ onMounted(loadOperations)
   }
   .table-list > div {
     grid-template-columns: 1fr 1fr;
+  }
+  .desk-tabs {
+    overflow-x: auto;
   }
 }
 </style>

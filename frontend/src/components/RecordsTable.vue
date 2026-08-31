@@ -69,20 +69,18 @@ const getRowKey = (item, index) => {
 <style scoped>
 .records-panel {
   overflow: hidden;
-  border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 
 .records-panel__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 76px;
+  min-height: 96px;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-line);
+  padding: 28px 36px 18px;
 }
 
 .records-panel__header > div {
@@ -91,52 +89,67 @@ const getRowKey = (item, index) => {
 }
 
 .records-panel__header span {
-  color: var(--color-text-soft);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  color: var(--color-brand);
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 
 .records-panel__header h2 {
   margin: 0;
   color: var(--color-ink);
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 30px;
+  font-weight: 950;
 }
 
 .records-panel__body {
   position: relative;
   overflow-x: auto;
+  padding: 0 36px 34px;
 }
 
 .records-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+  border-collapse: separate;
+  border-spacing: 0 14px;
+  font-size: 16px;
 }
 
 .records-table th,
 .records-table td {
-  padding: 14px var(--space-4);
-  border-bottom: 1px solid var(--color-line);
+  padding: 20px 24px;
   text-align: left;
   white-space: nowrap;
 }
 
 .records-table th {
-  background: var(--color-surface-muted);
-  color: var(--color-text-muted);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  background: transparent;
+  color: var(--color-brand);
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 
-.records-table tbody tr:last-child td {
-  border-bottom: 0;
+.records-table tbody td {
+  background: #f4f7fc;
+  color: var(--color-text-muted);
+}
+
+.records-table tbody td:first-child {
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.records-table tbody td:last-child {
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
 .records-table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-brand-soft) 34%, transparent);
+  background: transparent;
+}
+
+.records-table tbody tr:hover td {
+  background: #eef4ff;
 }
 
 .records-table__actions-heading,
@@ -157,14 +170,15 @@ const getRowKey = (item, index) => {
   place-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
+  font-size: 19px;
 }
 
 .records-empty > span {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: var(--radius-lg);
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
   font-weight: 800;
@@ -172,6 +186,7 @@ const getRowKey = (item, index) => {
 
 .records-empty small {
   color: var(--color-text-soft);
+  font-size: 14px;
 }
 
 .records-loading > span {

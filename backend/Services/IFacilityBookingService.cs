@@ -7,4 +7,5 @@ public interface IFacilityBookingService
     Task<int> FinishUse(int bookingId, string studentId);
     Task ExpireBookings();
     Task AutoComplete();
+    Task<List<TemplateDormApi.Models.FacilityBooking>> GetMyBookingsAsync(string studentId, CancellationToken cancellationToken);
 }

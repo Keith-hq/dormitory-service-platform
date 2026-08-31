@@ -27,9 +27,16 @@ export const studentApi = {
     request.get(`/students/${encodeURIComponent(studentId)}/repair-tickets`, { params }),
   createRepairTicket: (data) => request.post('/repair-tickets', data),
   cancelRepairTicket: (ticketId) => request.post(`/repair-tickets/${ticketId}/cancel`),
+  addRepairAttachments: (ticketId, formData) =>
+    request.post(`/repair-tickets/${ticketId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
   getFacilities: (params) => request.get('/facilities', { params }),
   // STU-20 契约无 Idempotency-Key 要求：预约按 facilityId 即可（幂等由后端活跃预约唯一兜底）
   createFacilityBooking: (facilityId) => request.post('/facility-bookings', { facilityId }),
+  getMyBookings: () => request.get('/facility-bookings/my'),
+  startFacilityUse: (bookingId) => request.post(`/facility-bookings/${bookingId}/start`),
+  finishFacilityUse: (bookingId) => request.post(`/facility-bookings/${bookingId}/finish`),
   getSharedItems: (params) => request.get('/shared-items', { params }),
   getItemLoans: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/item-loans`, { params }),
@@ -46,9 +53,11 @@ export const studentApi = {
   getRoomVotes: (roomId, params) => request.get(`/rooms/${roomId}/votes`, { params }),
   createRoomVote: (data) => request.post('/room-votes', data),
   submitVoteResponse: (voteId, data) => request.post(`/room-votes/${voteId}/responses`, data),
+  getRoomVoteStats: (voteId) => request.get(`/room-votes/${voteId}`),
   getVisitorAuthorizations: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/visitor-authorizations`, { params }),
   createVisitorAuthorization: (data) => request.post('/visitor-authorizations', data),
+  revokeVisitorAuthorization: (authId) => request.post(`/visitor-authorizations/${authId}/revoke`),
   getCredit: (studentId) => request.get(`/students/${encodeURIComponent(studentId)}/credit`),
   getCreditAppeals: (studentId) =>
     request.get(`/students/${encodeURIComponent(studentId)}/credit-appeals`),
@@ -56,5 +65,7 @@ export const studentApi = {
   getMonthlyFeeReport: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/reports/monthly-fee`, { params }),
   getFacilityUsageReport: (studentId, params) =>
-    request.get(`/students/${encodeURIComponent(studentId)}/reports/facility-usage`, { params })
+    request.get(`/students/${encodeURIComponent(studentId)}/reports/facility-usage`, { params }),
+  getHygieneRankings: (params) => request.get('/hygiene-rankings', { params }),
+  getRoomHygieneRecords: (roomId) => request.get(`/rooms/${roomId}/hygiene`)
 }

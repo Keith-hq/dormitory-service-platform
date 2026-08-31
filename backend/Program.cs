@@ -29,6 +29,10 @@ static TimeZoneInfo GetBusinessTimeZone()
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
 // 测试环境默认配置（必须在 builder.Configuration 读取之前设置）
 if (builder.Environment.IsEnvironment("Test"))
 {
@@ -51,6 +55,8 @@ builder.Services.AddControllers(options =>
 {
     // 首字母小写驼峰（与前端对齐）
     options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    // 1:1 导航属性（如 Notice <-> NoticeDisplay）序列化时忽略循环引用，避免对象环 500
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>

@@ -8,7 +8,7 @@ namespace TemplateDormApi.Services;
 /// </summary>
 public interface INoticeService
 {
-    Task<PagedResult<Notice>> GetPagedAsync(int page, int pageSize);
+    Task<PagedResult<NoticeItemDto>> GetPagedAsync(int page, int pageSize);
     Task<Notice?> GetByIdAsync(int id);
     Task<Notice> CreateAsync(NoticeCreateDto dto);
     Task<Notice?> UpdateAsync(int id, NoticeUpdateDto dto);

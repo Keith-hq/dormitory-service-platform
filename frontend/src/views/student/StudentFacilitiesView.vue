@@ -14,6 +14,7 @@ const error = ref('')
 const facilities = ref([])
 const sharedItems = ref([])
 const loans = ref([])
+const bookings = ref([])
 const selectedResource = ref(null)
 const selectedDate = ref('明天')
 const selectedTime = ref('')
@@ -31,13 +32,16 @@ const loadResources = async () => {
   const results = await Promise.allSettled([
     studentApi.getFacilities({ page: 1, pageSize: 50 }),
     studentApi.getSharedItems({ page: 1, pageSize: 50 }),
-    studentApi.getItemLoans(studentId.value, { page: 1, pageSize: 50 })
+    studentApi.getItemLoans(studentId.value, { page: 1, pageSize: 50 }),
+    studentApi.getMyBookings()
   ])
   if (results[0].status === 'fulfilled')
     facilities.value = normalizeCollection(results[0].value).items
   if (results[1].status === 'fulfilled')
     sharedItems.value = normalizeCollection(results[1].value).items
   if (results[2].status === 'fulfilled') loans.value = normalizeCollection(results[2].value).items
+  if (results[3].status === 'fulfilled')
+    bookings.value = normalizeCollection(results[3].value).items
   if (selectedId) {
     selectedResource.value =
       (activeMode.value === 'booking' ? facilities.value : sharedItems.value).find(
@@ -58,7 +62,13 @@ const resourceName = (item) =>
   `资源 #${item.facilityId || item.itemId || item.id}`
 const availableQuantity = (item) => Number(item.availableQty ?? item.quantity ?? item.stock ?? 0)
 const resourceStatus = (item) => item.status || (availableQuantity(item) > 0 ? '可用' : '暂无库存')
-const activeLoans = computed(() => loans.value.filter((loan) => !loan.returnTime))
+const formatLoanDate = (value) => (value ? new Date(value).toLocaleDateString() : '—')
+const isLoanOverdue = (loan) =>
+  !loan.returnTime && loan.dueTime && new Date(loan.dueTime).getTime() < Date.now()
+const loanStatus = (loan) =>
+  loan.returnTime ? '已归还' : isLoanOverdue(loan) ? '已超期' : '待归还'
+const loanTone = (loan) =>
+  loan.returnTime ? 'success' : isLoanOverdue(loan) ? 'danger' : 'warning'
 const switchMode = (mode) => {
   activeMode.value = mode
   selectedResource.value = null
@@ -105,6 +115,40 @@ const returnLoan = async (loan) => {
     actionLoading.value = ''
   }
 }
+const activeBookingFor = (item) =>
+  bookings.value.find(
+    (booking) =>
+      booking.facilityId === item.facilityId && ['已预约', '使用中'].includes(booking.status)
+  )
+const startUse = async (booking) => {
+  actionLoading.value = `start-${booking.bookingId}`
+  feedback.value = ''
+  try {
+    await studentApi.startFacilityUse(booking.bookingId)
+    feedback.value = '已开始使用，请在结束后点击"结束使用"释放设施'
+    await loadResources()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '开始使用失败，请稍后重试')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+const finishUse = async (booking) => {
+  actionLoading.value = `finish-${booking.bookingId}`
+  feedback.value = ''
+  try {
+    await studentApi.finishFacilityUse(booking.bookingId)
+    feedback.value = '已结束使用，设施已释放'
+    await loadResources()
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '结束使用失败，请稍后重试')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+const bookingTone = (status) =>
+  status === '已完成' ? 'success' : status === '已失效' ? 'neutral' : 'warning'
+const formatTime = (value) => (value ? new Date(value).toLocaleString() : '—')
 onMounted(loadResources)
 </script>
 
@@ -160,7 +204,19 @@ onMounted(loadResources)
                   ? '查看时段'
                   : `可借 ${availableQuantity(item)} / 共 ${item.totalQty ?? '—'}`
               }}</small
-              ><StatusTag :label="resourceStatus(item)" tone="success" size="small" />
+              ><StatusTag
+                :label="
+                  activeMode === 'booking' && activeBookingFor(item)
+                    ? activeBookingFor(item).status
+                    : resourceStatus(item)
+                "
+                :tone="
+                  activeMode === 'booking' && activeBookingFor(item)
+                    ? bookingTone(activeBookingFor(item).status)
+                    : 'success'
+                "
+                size="small"
+              />
             </footer>
           </button>
         </div>
@@ -174,86 +230,136 @@ onMounted(loadResources)
           <span>{{ activeMode === 'booking' ? 'TIME SLOTS' : 'BORROW FLOW' }}</span>
           <h2>{{ selectedResource ? resourceName(selectedResource) : '选择一项资源' }}</h2>
         </header>
-        <template v-if="selectedResource && activeMode === 'booking'"
-          ><p class="schedule-note">
-            示例交互：当前预约按设施即时占位，日期/时段仅供展示，不随请求提交
-          </p>
-          <div class="date-line">
+        <template v-if="activeMode === 'booking'"
+          ><template v-if="selectedResource"
+            ><p class="schedule-note">
+              示例交互：当前预约按设施即时占位，日期/时段仅供展示，不随请求提交
+            </p>
+            <div class="date-line">
+              <button
+                v-for="day in DATE_OPTIONS"
+                :key="day"
+                :class="{ active: selectedDate === day }"
+                @click="selectedDate = day"
+              >
+                {{ day }}
+              </button>
+            </div>
+            <div class="time-slots">
+              <button
+                v-for="time in TIME_SLOTS"
+                :key="time"
+                :disabled="isOccupiedSlot(time)"
+                :class="{ active: selectedTime === time }"
+                @click="selectedTime = time"
+              >
+                {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
+              </button>
+            </div>
             <button
-              v-for="day in DATE_OPTIONS"
-              :key="day"
-              :class="{ active: selectedDate === day }"
-              @click="selectedDate = day"
+              class="btn btn-primary schedule-action"
+              :disabled="actionLoading === 'booking' || Boolean(activeBookingFor(selectedResource))"
+              @click="submitBooking"
             >
-              {{ day }}
-            </button>
-          </div>
-          <div class="time-slots">
-            <button
-              v-for="time in TIME_SLOTS"
-              :key="time"
-              :disabled="isOccupiedSlot(time)"
-              :class="{ active: selectedTime === time }"
-              @click="selectedTime = time"
-            >
-              {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
-            </button>
-          </div>
-          <button
-            class="btn btn-primary schedule-action"
-            :disabled="actionLoading === 'booking'"
-            @click="submitBooking"
-          >
-            {{ actionLoading === 'booking' ? '预约中…' : '确认预约' }}
-          </button></template
+              {{
+                actionLoading === 'booking'
+                  ? '预约中…'
+                  : activeBookingFor(selectedResource)
+                    ? '已有活跃预约'
+                    : '确认预约'
+              }}
+            </button></template
+          ><InlineState v-else empty empty-text="从左侧选择设施或物品" />
+          <section class="loan-ledger booking-ledger">
+            <header>
+              <span>MY BOOKINGS</span><strong>我的预约 {{ bookings.length }}</strong>
+            </header>
+            <article v-for="booking in bookings" :key="booking.bookingId">
+              <div>
+                <b>设施 #{{ booking.facilityId }}</b
+                ><small
+                  >预约单 #{{ booking.bookingId }} · {{ formatTime(booking.createTime) }}</small
+                >
+              </div>
+              <StatusTag
+                :label="booking.status || '已预约'"
+                :tone="bookingTone(booking.status)"
+                size="small"
+              />
+              <button
+                v-if="booking.status === '已预约'"
+                class="btn btn-sm"
+                :disabled="actionLoading === `start-${booking.bookingId}`"
+                @click="startUse(booking)"
+              >
+                {{ actionLoading === `start-${booking.bookingId}` ? '开始中…' : '开始使用' }}
+              </button>
+              <button
+                v-else-if="booking.status === '使用中'"
+                class="btn btn-sm"
+                :disabled="actionLoading === `finish-${booking.bookingId}`"
+                @click="finishUse(booking)"
+              >
+                {{ actionLoading === `finish-${booking.bookingId}` ? '结束中…' : '结束使用' }}
+              </button>
+            </article>
+            <p v-if="!bookings.length">暂无预约记录。</p>
+          </section></template
         >
-        <template v-else-if="selectedResource"
-          ><dl>
-            <div>
-              <dt>当前库存</dt>
-              <dd>
-                {{ availableQuantity(selectedResource) }} / {{ selectedResource.totalQty ?? '—' }}
-              </dd>
-            </div>
-            <div>
-              <dt>信用要求</dt>
-              <dd>信用状态正常</dd>
-            </div>
-            <div>
-              <dt>借用期限</dt>
-              <dd>以物品规则为准</dd>
-            </div>
-          </dl>
-          <button
-            class="btn btn-primary schedule-action"
-            :disabled="actionLoading === 'borrow' || availableQuantity(selectedResource) < 1"
-            @click="borrowSelected"
-          >
-            {{
-              actionLoading === 'borrow'
-                ? '借用中…'
-                : availableQuantity(selectedResource) < 1
-                  ? '暂无库存'
-                  : '申请借用'
-            }}
-          </button>
+        <template v-else
+          ><template v-if="selectedResource"
+            ><dl>
+              <div>
+                <dt>当前库存</dt>
+                <dd>
+                  {{ availableQuantity(selectedResource) }} / {{ selectedResource.totalQty ?? '—' }}
+                </dd>
+              </div>
+              <div>
+                <dt>信用要求</dt>
+                <dd>信用状态正常</dd>
+              </div>
+              <div>
+                <dt>借用期限</dt>
+                <dd>以物品规则为准</dd>
+              </div>
+            </dl>
+            <button
+              class="btn btn-primary schedule-action"
+              :disabled="actionLoading === 'borrow' || availableQuantity(selectedResource) < 1"
+              @click="borrowSelected"
+            >
+              {{
+                actionLoading === 'borrow'
+                  ? '借用中…'
+                  : availableQuantity(selectedResource) < 1
+                    ? '暂无库存'
+                    : '申请借用'
+              }}
+            </button></template
+          ><InlineState v-else empty empty-text="从左侧选择设施或物品" />
           <section class="loan-ledger">
             <header>
-              <span>ACTIVE LOANS</span><strong>我的待归还 {{ activeLoans.length }}</strong>
+              <span>LOAN HISTORY</span><strong>我的借用 {{ loans.length }} 笔</strong>
             </header>
-            <article v-for="loan in activeLoans" :key="loan.loanId">
+            <article
+              v-for="loan in loans"
+              :key="loan.loanId"
+              :class="{ overdue: isLoanOverdue(loan) }"
+            >
               <div>
                 <b>物品 #{{ loan.itemId }}</b
                 ><small
-                  >借用单 #{{ loan.loanId }} ·
-                  {{
-                    loan.dueTime
-                      ? `应还 ${new Date(loan.dueTime).toLocaleDateString()}`
-                      : '归还期限待同步'
-                  }}</small
+                  >借用单 #{{ loan.loanId }} · 借 {{ formatLoanDate(loan.borrowTime) }} · 应还
+                  {{ formatLoanDate(loan.dueTime)
+                  }}{{ loan.returnTime ? ` · 已还 ${formatLoanDate(loan.returnTime)}` : '' }}</small
+                ><small v-if="isLoanOverdue(loan)" class="overdue-hint"
+                  >已超期，归还将扣 2 信用分</small
                 >
               </div>
+              <StatusTag :label="loanStatus(loan)" :tone="loanTone(loan)" size="small" />
               <button
+                v-if="!loan.returnTime"
                 class="btn btn-sm"
                 :disabled="actionLoading === `return-${loan.loanId}`"
                 @click="returnLoan(loan)"
@@ -261,10 +367,9 @@ onMounted(loadResources)
                 {{ actionLoading === `return-${loan.loanId}` ? '归还中…' : '确认归还' }}
               </button>
             </article>
-            <p v-if="!activeLoans.length">当前没有待归还物品。</p>
+            <p v-if="!loans.length">暂无借用记录。</p>
           </section></template
         >
-        <InlineState v-else empty empty-text="从左侧选择设施或物品" />
       </aside>
     </div>
   </div>
@@ -303,9 +408,10 @@ onMounted(loadResources)
   font: 8px var(--font-mono);
 }
 .mode-switch button.active {
-  border-color: var(--color-accent);
-  color: var(--color-ink);
-  font-weight: 600;
+  border-color: transparent;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-weight: 850;
 }
 .resource-layout {
   display: grid;
@@ -314,43 +420,46 @@ onMounted(loadResources)
 }
 .resource-browser,
 .schedule-panel {
-  border: 1px solid var(--color-line-strong);
-  background: rgba(250, 246, 237, 0.52);
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .resource-browser > header,
 .schedule-panel > header {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  min-height: 72px;
-  padding: 16px 19px;
-  border-bottom: 1px solid var(--color-line);
+  min-height: 92px;
+  padding: 30px 34px 12px;
+  border-bottom: 0;
 }
 .resource-browser header span,
 .schedule-panel header span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
-  letter-spacing: 0.15em;
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 .resource-browser h2,
 .schedule-panel h2 {
   margin: 6px 0 0;
   font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 500;
+  font-size: 30px;
+  font-weight: 950;
 }
 .resource-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 0 24px 24px;
 }
 .resource-grid > button {
   display: grid;
   min-height: 160px;
-  padding: 18px;
+  padding: 22px;
   border: 0;
-  border-right: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
-  background: transparent;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
   text-align: left;
   cursor: pointer;
 }
@@ -359,11 +468,13 @@ onMounted(loadResources)
   background: var(--color-brand-soft);
 }
 .resource-grid > button.active {
-  box-shadow: inset 3px 0 var(--color-accent);
+  box-shadow: 0 12px 24px rgba(11, 99, 199, 0.12);
 }
 .resource-grid > button > span {
-  color: var(--color-accent-strong);
-  font: 8px var(--font-mono);
+  color: var(--color-brand);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
 }
 .resource-grid h3 {
   align-self: end;
@@ -374,7 +485,8 @@ onMounted(loadResources)
 .resource-grid p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 9px;
+  font-size: 15px;
+  line-height: 1.7;
 }
 .resource-grid footer {
   display: flex;
@@ -383,21 +495,22 @@ onMounted(loadResources)
   margin-top: 14px;
 }
 .resource-grid footer small {
-  color: var(--color-text-soft);
-  font-size: 8px;
+  color: var(--color-text-muted);
+  font-size: 14px;
 }
 .schedule-panel {
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: #fff;
+  color: var(--color-text);
+  box-shadow: 0 16px 42px rgba(23, 65, 120, 0.1);
 }
 .schedule-panel > header {
-  border-color: #405249;
+  border-color: transparent;
 }
 .schedule-note {
   margin: 14px 18px 0;
-  color: #83968a;
-  font-size: 9px;
-  line-height: 1.6;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.7;
 }
 .date-line {
   display: grid;
@@ -406,15 +519,17 @@ onMounted(loadResources)
   gap: 7px;
 }
 .date-line button {
-  padding: 8px;
-  border: 1px solid #4e6257;
-  background: transparent;
-  color: #8fa096;
-  font-size: 9px;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 800;
 }
 .date-line button.active {
-  border-color: #d48769;
-  color: #f4edde;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 .time-slots {
   display: grid;
@@ -424,33 +539,39 @@ onMounted(loadResources)
 }
 .time-slots button {
   display: grid;
-  padding: 12px;
-  border: 1px solid #4d6156;
-  background: #203329;
-  color: #f3ebdd;
-  font: 10px var(--font-mono);
+  padding: 16px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #f5f8fd;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
   text-align: left;
-  gap: 5px;
+  gap: 8px;
   cursor: pointer;
 }
 .time-slots button small {
-  color: #799084;
-  font: 8px var(--font-body);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
 }
 .time-slots button:disabled {
   opacity: 0.4;
 }
 .time-slots button.active {
-  border-color: var(--color-accent);
-  background: #2c4438;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 .schedule-feedback {
   margin: 13px 18px 0;
-  padding: 10px 12px;
-  border-left: 3px solid #d48769;
-  background: #2a3a31;
-  color: #f4edde;
-  font-size: 10px;
+  padding: 14px 16px;
+  border-left: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 15px;
+  font-weight: 800;
 }
 .global-feedback {
   margin: 14px 0;
@@ -504,6 +625,16 @@ onMounted(loadResources)
 .loan-ledger p {
   color: #83968a;
   font-size: 9px;
+}
+.loan-ledger article.overdue {
+  background: #fff1f0;
+  border-radius: var(--radius-lg);
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.loan-ledger .overdue-hint {
+  color: var(--color-danger);
+  font-weight: 800;
 }
 @media (max-width: 850px) {
   .workspace-page {
