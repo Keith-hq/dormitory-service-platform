@@ -35,6 +35,8 @@ public class CreditAppealServiceTests
             NullLogger<CreditAppealService>.Instance);
     }
 
+    // 041：D_Credit_Appeal 不再冗余 Student_ID；学生归属由 CreditLogId 关联的
+    // D_Credit_Log.Student_ID 决定。各 appeal 初始化块随之去掉 StudentId 赋值。
     private static async Task<AppDbContext> SeedStudentContextAsync()
     {
         var context = TestDbContextFactory.Create();
@@ -122,7 +124,6 @@ public class CreditAppealServiceTests
         context.CreditAppeals.Add(new CreditAppeal
         {
             CreditLogId = 1,
-            StudentId = StudentId,
             Reason = "已申诉过",
             Status = "待复核",
             CreateTime = DateTime.Now
@@ -169,7 +170,6 @@ public class CreditAppealServiceTests
         context.CreditAppeals.Add(new CreditAppeal
         {
             CreditLogId = 1,
-            StudentId = StudentId,
             Reason = "误扣",
             Status = "待复核",
             CreateTime = DateTime.Now
@@ -237,7 +237,6 @@ public class CreditAppealServiceTests
         {
             AppealId = 1,
             CreditLogId = 1,
-            StudentId = StudentId,
             Reason = "误扣",
             Status = "待复核",
             CreateTime = DateTime.Now
@@ -273,7 +272,6 @@ public class CreditAppealServiceTests
         {
             AppealId = 1,
             CreditLogId = 1,
-            StudentId = StudentId,
             Reason = "误扣",
             Status = "待复核",
             CreateTime = DateTime.Now
@@ -305,7 +303,6 @@ public class CreditAppealServiceTests
         {
             AppealId = 1,
             CreditLogId = 1,
-            StudentId = StudentId,
             Reason = "误扣",
             Status = "待复核",
             CreateTime = DateTime.Now
@@ -343,7 +340,6 @@ public class CreditAppealServiceTests
         {
             AppealId = 1,
             CreditLogId = 1,
-            StudentId = StudentId,
             Reason = "误扣",
             Status = "待复核",
             CreateTime = DateTime.Now
@@ -377,7 +373,6 @@ public class CreditAppealServiceTests
         {
             AppealId = 1,
             CreditLogId = 1,
-            StudentId = StudentId,
             Reason = "误扣",
             Status = "已通过",
             ReviewedBy = AdminId,

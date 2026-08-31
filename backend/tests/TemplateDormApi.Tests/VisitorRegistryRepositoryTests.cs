@@ -88,8 +88,8 @@ public class VisitorRegistryRepositoryTests
             Phone = "13800000000",
             StudentId = StudentId,
             EnterTime = DateTime.Now,
-            Status = "待核验",
-            CreateTime = DateTime.Now
+            Status = "待核验"
+            // 041：登记不再携带 CreateTime（与 EnterTime 同为 SYSDATE 的冗余列已删）
         };
         context.VisitorRegistries.Add(registry);
         await context.SaveChangesAsync();

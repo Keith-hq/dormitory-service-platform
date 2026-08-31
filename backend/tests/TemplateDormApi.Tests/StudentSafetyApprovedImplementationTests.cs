@@ -369,11 +369,10 @@ public sealed class StudentSafetyApprovedImplementationTests
             DetailId = detailId,
             FeeId = feeId,
             StudentId = studentId,
-            RoomId = 201,
+            // 041：明细不再有 RoomId/TotalDays（房间归属取账单头）
             WaterShare = water,
             PowerShare = power,
             StayDays = 31,
-            TotalDays = 31,
             BillType = billType,
             IsPaid = isPaid,
             CreateTime = DateTime.Now

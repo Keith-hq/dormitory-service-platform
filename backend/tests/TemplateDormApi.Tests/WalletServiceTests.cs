@@ -112,7 +112,6 @@ public class WalletServiceTests
         Assert.Equal(2L, item.FeeId);
         Assert.Equal(50m, item.Total);   // 40 + 10
         Assert.Equal(31, item.StayDays);
-        Assert.Equal(31, item.TotalDays);
         Assert.Equal("是", item.IsPaid);
     }
 
@@ -134,10 +133,11 @@ public class WalletServiceTests
         context.UtilityFees.AddRange(
             new UtilityFee { FeeId = 1, RoomId = 101, YearMonth = "2026-06", WaterFee = 100m, PowerFee = 50m, PublishStatus = "已发布" },
             new UtilityFee { FeeId = 2, RoomId = 101, YearMonth = "2026-07", WaterFee = 80m, PowerFee = 20m, PublishStatus = "已发布" });
+        // 041：明细不再携带 RoomId/TotalDays，房间归属唯一载体为账单头 RoomId=101
         context.FeeDetails.AddRange(
-            new FeeDetail { DetailId = 1, FeeId = 1, StudentId = "S-F-001", RoomId = 101, WaterShare = 60m, PowerShare = 30m, StayDays = 30, TotalDays = 30, BillType = "月度分摊", IsPaid = "否" },
-            new FeeDetail { DetailId = 2, FeeId = 2, StudentId = "S-F-001", RoomId = 101, WaterShare = 40m, PowerShare = 10m, StayDays = 31, TotalDays = 31, BillType = "月度分摊", IsPaid = "是" },
-            new FeeDetail { DetailId = 3, FeeId = 1, StudentId = "S-F-999", RoomId = 101, WaterShare = 40m, PowerShare = 20m, StayDays = 30, TotalDays = 30, BillType = "月度分摊", IsPaid = "否" });
+            new FeeDetail { DetailId = 1, FeeId = 1, StudentId = "S-F-001", WaterShare = 60m, PowerShare = 30m, StayDays = 30, BillType = "月度分摊", IsPaid = "否" },
+            new FeeDetail { DetailId = 2, FeeId = 2, StudentId = "S-F-001", WaterShare = 40m, PowerShare = 10m, StayDays = 31, BillType = "月度分摊", IsPaid = "是" },
+            new FeeDetail { DetailId = 3, FeeId = 1, StudentId = "S-F-999", WaterShare = 40m, PowerShare = 20m, StayDays = 30, BillType = "月度分摊", IsPaid = "否" });
         await context.SaveChangesAsync();
     }
 

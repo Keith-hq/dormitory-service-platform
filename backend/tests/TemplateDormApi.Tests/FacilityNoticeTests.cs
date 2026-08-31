@@ -94,7 +94,8 @@ public class FacilityNoticeTests
                 Title = "置顶新",
                 Content = "c",
                 PublishTime = new DateTime(2026, 8, 1),
-                Display = new NoticeDisplay { IsPinned = "是", PinTime = new DateTime(2026, 8, 1) }
+                IsPinned = "是",
+                PinTime = new DateTime(2026, 8, 1)
             },
             new Notice { Title = "中间", Content = "c", PublishTime = new DateTime(2026, 6, 1) });
         await context.SaveChangesAsync();
@@ -109,7 +110,7 @@ public class FacilityNoticeTests
     }
 
     [Fact]
-    public async Task NoticeService_CreateAsync_WithPinnedCreatesDisplay()
+    public async Task NoticeService_CreateAsync_WithPinnedWritesPinColumns()
     {
         await using var context = TestDbContextFactory.Create();
         var service = new NoticeService(new NoticeRepository(context), CreateHttpContextAccessor());
@@ -121,10 +122,10 @@ public class FacilityNoticeTests
             IsPinned = "是"
         });
 
+        // 041 起置顶两列并入公告本体（不再创建 D_Notice_Display 卫星行）
         Assert.True(notice.NoticeId > 0);
-        Assert.NotNull(notice.Display);
-        Assert.Equal("是", notice.Display!.IsPinned);
-        Assert.Equal(notice.NoticeId, notice.Display.NoticeId);
+        Assert.Equal("是", notice.IsPinned);
+        Assert.NotNull(notice.PinTime);
     }
 
     [Fact]
@@ -152,7 +153,8 @@ public class FacilityNoticeTests
             Title = "置顶公告",
             Content = "请完成交接。",
             PublishTime = new DateTime(2026, 8, 20, 9, 0, 0),
-            Display = new NoticeDisplay { IsPinned = "是", PinTime = new DateTime(2026, 8, 20, 10, 0, 0) }
+            IsPinned = "是",
+            PinTime = new DateTime(2026, 8, 20, 10, 0, 0)
         });
         await context.SaveChangesAsync();
 

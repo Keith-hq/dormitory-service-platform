@@ -168,7 +168,7 @@ public class CheckoutServiceTests
         var f = new Fixture();
         await using var _ = f.Context;
 
-        // 三步校验数据源：欠费（月度）+ 未取快递 + 未归还共享物品
+        // 两步校验数据源：欠费（月度）+ 未归还共享物品（快递项随 C-048 放弃下线）
         f.Context.FeeDetails.Add(new FeeDetail
         {
             DetailId = 1,
@@ -176,12 +176,6 @@ public class CheckoutServiceTests
             StudentId = "S001",
             BillType = "月度",
             IsPaid = "否"
-        });
-        f.Context.ParcelRecords.Add(new ParcelRecord
-        {
-            ParcelId = 1,
-            StudentId = "S001",
-            ArriveTime = new DateTime(2026, 8, 1)
         });
         f.Context.ItemLoans.Add(new ItemLoan
         {
@@ -198,8 +192,8 @@ public class CheckoutServiceTests
 
         // 未通过项逐项列出（IT-C2-004 ①）
         Assert.Contains("水电费未缴清", ex.Message);
-        Assert.Contains("未取快递", ex.Message);
         Assert.Contains("未归还共享物品", ex.Message);
+        Assert.DoesNotContain("快递", ex.Message);
 
         // 落库：已拒绝 + 逐项校验结果（IT-C2-003 ③）
         var log = await f.Context.CheckoutLogs.FindAsync(1);

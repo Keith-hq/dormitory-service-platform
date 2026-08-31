@@ -168,11 +168,8 @@ public sealed class StudentSafetyImplementationTests
                 CheckDate = now.AddHours(-2),
                 Score = 89.5m,
                 InspectorId = "A001",
-                Comment = new HygieneComment
-                {
-                    RecordId = 1,
-                    CommentText = "桌面需整理"
-                }
+                // 041：评语并入本表，不再经卫星导航对象
+                CommentText = "桌面需整理"
             },
             new HygieneRecord
             {

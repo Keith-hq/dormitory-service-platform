@@ -38,17 +38,19 @@ public sealed class OracleModelMappingTests
     }
 
     [Fact]
-    public void HygieneComment_UsesOracleCommentColumnNameWithoutEmbeddedQuotes()
+    public void HygieneRecord_UsesOracleCommentColumnNameWithoutEmbeddedQuotes()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseOracle("User Id=test;Password=test;Data Source=localhost:1521/test")
             .Options;
 
         using var context = new AppDbContext(options);
-        var entity = context.Model.FindEntityType(typeof(HygieneComment));
-        var table = StoreObjectIdentifier.Table("D_HYGIENE_COMMENT", null);
+        // 041 起评语列并入 D_HYGIENE_RECORD（卫星表 D_Hygiene_Comment 已删除）；
+        // 映射列名仍为不带内嵌引号的 COMMENT（EF 生成 SQL 时统一加引号处理关键字）
+        var entity = context.Model.FindEntityType(typeof(HygieneRecord));
+        var table = StoreObjectIdentifier.Table("D_HYGIENE_RECORD", null);
 
-        Assert.Equal("COMMENT", entity!.FindProperty(nameof(HygieneComment.CommentText))!.GetColumnName(table));
+        Assert.Equal("COMMENT", entity!.FindProperty(nameof(HygieneRecord.CommentText))!.GetColumnName(table));
     }
 
     [Fact]

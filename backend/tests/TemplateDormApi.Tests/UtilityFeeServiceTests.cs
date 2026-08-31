@@ -88,7 +88,7 @@ public class UtilityFeeServiceTests
         Assert.True(feeId > 0);   // InMemory 下 ValueGeneratedOnAdd 回填
         var bill = Assert.Single(context.UtilityFees.ToList());
         Assert.Equal("未发布", bill.PublishStatus);
-        Assert.Equal("否", bill.IsPaid);
+        // 041：账单头 Is_Paid 已删除（缴费状态唯一事实来源为明细级）
         Assert.Equal(70m, bill.PowerFee);   // 契约 elecFee ↔ 表列 Power_Fee
     }
 
@@ -119,8 +119,8 @@ public class UtilityFeeServiceTests
         });
         context.FeeDetails.Add(new FeeDetail
         {
-            DetailId = 11, FeeId = 1, StudentId = "S001", RoomId = 900101,
-            WaterShare = 10, PowerShare = 10, StayDays = 20, TotalDays = 30,
+            DetailId = 11, FeeId = 1, StudentId = "S001",
+            WaterShare = 10, PowerShare = 10, StayDays = 20,
             BillType = "月度", IsPaid = "否"
         });
         await context.SaveChangesAsync();
@@ -209,8 +209,8 @@ public class UtilityFeeServiceTests
         });
         context.FeeDetails.Add(new FeeDetail
         {
-            DetailId = 11, FeeId = 1, StudentId = "S001", RoomId = 900101,
-            WaterShare = 12.5m, PowerShare = 7.5m, StayDays = 20, TotalDays = 30,
+            DetailId = 11, FeeId = 1, StudentId = "S001",
+            WaterShare = 12.5m, PowerShare = 7.5m, StayDays = 20,
             BillType = "月度", IsPaid = "否"
         });
         await context.SaveChangesAsync();
@@ -222,7 +222,7 @@ public class UtilityFeeServiceTests
         Assert.Equal(20m, item.Total);      // 12.5 + 7.5
         Assert.Equal("月度", item.BillType);
         Assert.Equal(20, item.StayDays);
-        Assert.Equal(30, item.TotalDays);
+        Assert.Equal(900101, item.RoomId);  // 041：明细 roomId 取账单头归属
     }
 
     [Fact]
@@ -305,10 +305,10 @@ public class UtilityFeeServiceTests
             new UtilityFee { FeeId = 2, RoomId = 900102, YearMonth = "2026-07", PublishStatus = "已发布" },
             new UtilityFee { FeeId = 3, RoomId = 900103, YearMonth = "2026-07", PublishStatus = "已发布" });
         context.FeeDetails.AddRange(
-            new FeeDetail { DetailId = 11, FeeId = 1, StudentId = "S001", RoomId = 900101, IsPaid = "是" },
-            new FeeDetail { DetailId = 12, FeeId = 2, StudentId = "S002", RoomId = 900102, IsPaid = "否" },
-            new FeeDetail { DetailId = 13, FeeId = 3, StudentId = "S001", RoomId = 900103, IsPaid = "是" },
-            new FeeDetail { DetailId = 14, FeeId = 3, StudentId = "S002", RoomId = 900103, IsPaid = "否" });
+            new FeeDetail { DetailId = 11, FeeId = 1, StudentId = "S001", IsPaid = "是" },
+            new FeeDetail { DetailId = 12, FeeId = 2, StudentId = "S002", IsPaid = "否" },
+            new FeeDetail { DetailId = 13, FeeId = 3, StudentId = "S001", IsPaid = "是" },
+            new FeeDetail { DetailId = 14, FeeId = 3, StudentId = "S002", IsPaid = "否" });
         await context.SaveChangesAsync();
         var service = CreateService(context);
 
