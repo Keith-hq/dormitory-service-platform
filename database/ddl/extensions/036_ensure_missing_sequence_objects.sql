@@ -566,10 +566,20 @@ END;
 /
 
 -- ===== D_Notice_Display（主键列同为 NOTICE_ID，序列独立命名避免混淆） =====
+--   041 起该表并入 D_Notice 并删除；表不存在时整段跳过（重跑安全）。
 DECLARE
     v_exists NUMBER;
     v_start_with NUMBER;
 BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_TABLES
+     WHERE TABLE_NAME = 'D_NOTICE_DISPLAY';
+
+    IF v_exists = 0 THEN
+        RETURN;
+    END IF;
+
     SELECT COUNT(*)
       INTO v_exists
       FROM USER_SEQUENCES
@@ -590,6 +600,15 @@ END;
 DECLARE
     v_exists NUMBER;
 BEGIN
+    SELECT COUNT(*)
+      INTO v_exists
+      FROM USER_TABLES
+     WHERE TABLE_NAME = 'D_NOTICE_DISPLAY';
+
+    IF v_exists = 0 THEN
+        RETURN;
+    END IF;
+
     SELECT COUNT(*)
       INTO v_exists
       FROM USER_TRIGGERS
