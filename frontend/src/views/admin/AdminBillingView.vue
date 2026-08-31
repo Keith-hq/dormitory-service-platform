@@ -257,7 +257,7 @@ onMounted(load)
         </div>
         <div v-for="item in details" :key="item.detailId" class="detail-row">
           <span>{{ item.studentId }}</span
-          ><span>{{ item.stayDays }} / {{ item.totalDays }}</span
+          ><span>{{ item.stayDays }} 天</span
           ><span>{{ formatMoney(item.waterShare) }}</span
           ><span>{{ formatMoney(item.powerShare) }}</span
           ><span>{{ formatMoney(item.total) }}</span

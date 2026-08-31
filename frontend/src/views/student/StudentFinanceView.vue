@@ -138,7 +138,7 @@ onMounted(loadFinance)
               >
             </div>
             <div class="bill-total">
-              <span>{{ item.stayDays }}/{{ item.totalDays }} 天</span
+              <span>在住 {{ item.stayDays }} 天</span
               ><strong>¥{{ Number(item.total || 0).toFixed(2) }}</strong>
             </div>
             <StatusTag
