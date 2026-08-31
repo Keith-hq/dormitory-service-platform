@@ -61,7 +61,7 @@ BEGIN
     v_KeyPrefix := 'AUTO-' || p_YearMonth || '-';
 
     FOR fee_rec IN (
-        SELECT fd.Detail_ID, fd.Student_ID, fd.Room_ID,
+        SELECT fd.Detail_ID, fd.Student_ID,
                fd.Water_Share, fd.Power_Share,
                (fd.Water_Share + fd.Power_Share) AS Total_Share
         FROM D_Fee_Detail fd
@@ -178,7 +178,7 @@ CREATE OR REPLACE PROCEDURE SP_Check_Power_Cut(
 ) AS
 BEGIN
     FOR room_rec IN (
-        SELECT DISTINCT fd.Room_ID
+        SELECT DISTINCT uf.Room_ID
         FROM D_Fee_Detail fd
         JOIN D_Utility_Fee uf ON fd.Fee_ID = uf.Fee_ID
         WHERE uf.Year_Month = p_YearMonth
@@ -218,7 +218,7 @@ BEGIN
               SELECT 1
               FROM D_Fee_Detail fd
               JOIN D_Utility_Fee uf ON fd.Fee_ID = uf.Fee_ID
-              WHERE fd.Room_ID = r.Room_ID
+              WHERE uf.Room_ID = r.Room_ID
                 AND uf.Year_Month = v_Month
                 AND uf.Publish_Status = '已发布'
                 AND fd.Is_Paid = '否'
