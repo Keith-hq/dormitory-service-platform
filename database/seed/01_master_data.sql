@@ -148,10 +148,13 @@ FROM D_Room r,
 WHERE r.Room_ID BETWEEN 900101 AND 900124
    OR r.Room_ID BETWEEN 900201 AND 900224;
 
--- 特殊资产：损坏 / 缺失样本（供 DORM-16/17/18 损耗预警演示）
+-- 特殊资产：演示三态（供 DORM-16/17/18 损耗预警演示 + verify 35d 双写对账断言零违规）
+--   9300001 损坏 + 预警 Handled='否' → 待报修
+--   9300002 正常 + 预警 Handled='是' → 已修好回到正常
+--   9300003 正常 + 预警 Handled='是' → 已标记重点回到正常
 INSERT INTO D_Asset (Asset_ID, Room_ID, Asset_Name, Quantity, Status) VALUES (9300001, 900101, '空调',   1, '损坏');
-INSERT INTO D_Asset (Asset_ID, Room_ID, Asset_Name, Quantity, Status) VALUES (9300002, 900105, '热水器', 1, '损坏');
-INSERT INTO D_Asset (Asset_ID, Room_ID, Asset_Name, Quantity, Status) VALUES (9300003, 900102, '台灯',   1, '缺失');
+INSERT INTO D_Asset (Asset_ID, Room_ID, Asset_Name, Quantity, Status) VALUES (9300002, 900105, '热水器', 1, '正常');
+INSERT INTO D_Asset (Asset_ID, Room_ID, Asset_Name, Quantity, Status) VALUES (9300003, 900102, '台灯',   1, '正常');
 
 -- ===== 10. 资产损耗预警（D_Asset_Warning） =====
 -- 9300001 未处理（待报修）；9300002 已处理；9300003 标记重点。

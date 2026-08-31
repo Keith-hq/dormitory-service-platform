@@ -626,13 +626,13 @@ WHERE SEQUENCE_NAME IN ('SEQ_D_NOTICE_DISPLAY_PK', 'SEQ_D_PARCEL_RECORD_ID');
 --      损坏/缺失资产必须存在未处理预警，未处理预警指向的资产必须处于损坏/缺失。
 --      本查询应无返回行；有行 = 应用层双写出现了不一致，需人工核对。
 SELECT '损坏/缺失但无未处理预警' AS ITEM, a.Asset_ID, a.Status
-FROM D_Asset a
+FROM D_ASSET a
 WHERE a.Status IN ('损坏', '缺失')
-  AND NOT EXISTS (SELECT 1 FROM D_Asset_Warning w
+  AND NOT EXISTS (SELECT 1 FROM D_ASSET_WARNING w
                    WHERE w.Asset_ID = a.Asset_ID AND w.Handled = '否')
 UNION ALL
 SELECT '有未处理预警但资产状态正常', w.Asset_ID, a.Status
-FROM D_Asset_Warning w
-JOIN D_Asset a ON a.Asset_ID = w.Asset_ID
+FROM D_ASSET_WARNING w
+JOIN D_ASSET a ON a.Asset_ID = w.Asset_ID
 WHERE w.Handled = '否'
   AND a.Status NOT IN ('损坏', '缺失');
