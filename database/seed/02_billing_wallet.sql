@@ -7,11 +7,15 @@ SET AUTOCOMMIT ON;
 -- ===== 1. 水电账单 D_Utility_Fee（3 个月 × 48 房） =====
 -- 房序 seq：9001 楼 1..24，9002 楼 25..48。Fee_ID = 920000 + 月偏移×100 + 房序。
 -- （用内联子查询 rs 代替 WITH，兼容 sqlplus 管道执行。）
+-- 041 起账单头不再有 Is_Paid（缴费状态唯一事实来源为 D_Fee_Detail.Is_Paid）；
+-- "已缴/欠费"的演示分布改在第 2 节明细侧表达，与原口径一致：
+--   5 月全缴；6 月 seq∈{11,22,33,44}（房 900111/900122/900209/900220）欠费；
+--   7 月演示房 900101/900102 未缴（手写明细），其余已发布房间已缴。
 -- 2026-05：全部已发布、全部已缴（历史）。
-INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
+INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
 SELECT 920000 + rs.seq, rs.Room_ID, '2026-05',
        20 + MOD(rs.seq * 3, 16), 50 + MOD(rs.seq * 7, 41),
-       '是', '已发布'
+       '已发布'
 FROM (SELECT Room_ID,
              CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
                   ELSE 24 + MOD(Room_ID, 100) END AS seq
@@ -19,11 +23,11 @@ FROM (SELECT Room_ID,
       WHERE Room_ID BETWEEN 900101 AND 900124
          OR Room_ID BETWEEN 900201 AND 900224) rs;
 
--- 2026-06：全部已发布，少数历史欠费。
-INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
+-- 2026-06：全部已发布，少数历史欠费（欠费分布见第 2 节明细 CASE）。
+INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
 SELECT 920000 + 100 + rs.seq, rs.Room_ID, '2026-06',
        20 + MOD(rs.seq * 6, 16), 50 + MOD(rs.seq * 7 + 5, 41),
-       CASE WHEN MOD(rs.seq, 11) = 0 THEN '否' ELSE '是' END, '已发布'
+       '已发布'
 FROM (SELECT Room_ID,
              CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
                   ELSE 24 + MOD(Room_ID, 100) END AS seq
@@ -35,10 +39,9 @@ FROM (SELECT Room_ID,
 --   - 900101 / 900102 已发布但未缴（001 现场缴费、003 欠费阻断）；
 --   - MOD(房序,7)=0 的房间未发布（供 S3-4 现场录入发布 + 智能分摊，如 900107）；
 --   - 其余已发布已缴。
-INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
+INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
 SELECT 920000 + 200 + rs.seq, rs.Room_ID, '2026-07',
        20 + MOD(rs.seq * 9, 16), 50 + MOD(rs.seq * 7 + 10, 41),
-       CASE WHEN rs.Room_ID IN (900101, 900102) OR MOD(rs.seq, 7) = 0 THEN '否' ELSE '是' END,
        CASE WHEN MOD(rs.seq, 7) = 0 THEN '未发布' ELSE '已发布' END
 FROM (SELECT Room_ID,
              CASE WHEN Building_ID = 9001 THEN MOD(Room_ID, 100)
@@ -54,20 +57,24 @@ UPDATE D_Utility_Fee SET Water_Fee = 40, Power_Fee = 90 WHERE Room_ID = 900102 A
 -- ===== 2. 分摊明细 D_Fee_Detail =====
 -- 2a. 手写 7 月演示明细（940001..940003，P0 缴费链需可引用 Detail_ID）：
 --     940001 = 001/900101 未缴（现场缴费）；940002/940003 = 003/004/900102 未缴（欠费阻断）。
-INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID, Water_Share, Power_Share, Stay_Days, Total_Days, Bill_Type, Is_Paid, Create_Time)
-VALUES (940001, 920201, 'IT_STU_001', 900101, 30.00, 70.00, 30, 30, '月度', '否', DATE '2026-08-01');
-INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID, Water_Share, Power_Share, Stay_Days, Total_Days, Bill_Type, Is_Paid, Create_Time)
-VALUES (940002, 920202, 'IT_STU_003', 900102, 20.00, 45.00, 30, 30, '月度', '否', DATE '2026-08-01');
-INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID, Water_Share, Power_Share, Stay_Days, Total_Days, Bill_Type, Is_Paid, Create_Time)
-VALUES (940003, 920202, 'IT_STU_004', 900102, 20.00, 45.00, 30, 30, '月度', '否', DATE '2026-08-01');
+INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Water_Share, Power_Share, Stay_Days, Bill_Type, Is_Paid, Create_Time)
+VALUES (940001, 920201, 'IT_STU_001', 30.00, 70.00, 30, '月度', '否', DATE '2026-08-01');
+INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Water_Share, Power_Share, Stay_Days, Bill_Type, Is_Paid, Create_Time)
+VALUES (940002, 920202, 'IT_STU_003', 20.00, 45.00, 30, '月度', '否', DATE '2026-08-01');
+INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Water_Share, Power_Share, Stay_Days, Bill_Type, Is_Paid, Create_Time)
+VALUES (940003, 920202, 'IT_STU_004', 20.00, 45.00, 30, '月度', '否', DATE '2026-08-01');
 
 -- 2b. 生成 5/6 月明细 + 7 月非演示房间明细（940100+）：
 --     按"该月全月在住"的活动分配拆分（Share = 房间账单 / 同房同月在住人数）。
-INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID, Water_Share, Power_Share, Stay_Days, Total_Days, Bill_Type, Is_Paid, Create_Time)
-SELECT 940100 + ROWNUM, uf.Fee_ID, ba.Student_ID, uf.Room_ID,
+INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Water_Share, Power_Share, Stay_Days, Bill_Type, Is_Paid, Create_Time)
+SELECT 940100 + ROWNUM, uf.Fee_ID, ba.Student_ID,
        ROUND(uf.Water_Fee / occ.cnt, 2),
        ROUND(uf.Power_Fee / occ.cnt, 2),
-       30, 30, '月度', uf.Is_Paid, SYSDATE
+       30, '月度',
+       CASE WHEN uf.Year_Month = '2026-06'
+                 AND uf.Room_ID IN (900111, 900122, 900209, 900220)
+            THEN '否' ELSE '是' END,
+       SYSDATE
 FROM D_Utility_Fee uf
 JOIN D_Bed_Allocation ba
   ON ba.Room_ID = uf.Room_ID

@@ -9,12 +9,12 @@ SET AUTOCOMMIT ON;
 -- =====================================================================
 
 -- 1. 孤儿检查：分摊明细引用失效
-SELECT '孤儿-Fee_Detail' AS ITEM, fd.Detail_ID, fd.Fee_ID, fd.Student_ID, fd.Room_ID
+--（041 起明细不再携带 Room_ID，房间归属完整性由第 2 节账单头检查覆盖）
+SELECT '孤儿-Fee_Detail' AS ITEM, fd.Detail_ID, fd.Fee_ID, fd.Student_ID
 FROM D_Fee_Detail fd
 LEFT JOIN D_Utility_Fee uf ON uf.Fee_ID = fd.Fee_ID
 LEFT JOIN D_Student s ON s.Student_ID = fd.Student_ID
-LEFT JOIN D_Room r ON r.Room_ID = fd.Room_ID
-WHERE uf.Fee_ID IS NULL OR s.Student_ID IS NULL OR r.Room_ID IS NULL;
+WHERE uf.Fee_ID IS NULL OR s.Student_ID IS NULL;
 
 -- 2. 孤儿检查：账单引用房间
 SELECT '孤儿-Utility_Fee' AS ITEM, uf.Fee_ID, uf.Room_ID
@@ -86,7 +86,8 @@ LEFT JOIN D_Admin a ON a.Admin_ID = ua.Admin_ID
 WHERE (ua.Student_ID IS NOT NULL AND s.Student_ID IS NULL)
    OR (ua.Admin_ID IS NOT NULL AND a.Admin_ID IS NULL);
 
--- 8. 孤儿检查：通知 / 审计 / 访客授权 / 访客登记 / 门禁 / 晚归 / 快递 / 违规 / 离校 / 订水 / 退宿
+-- 8. 孤儿检查：通知 / 审计 / 访客授权 / 门禁 / 晚归 / 违规 / 离校 / 退宿
+--（041 起 D_Visitor_Log / D_Parcel_Record / D_Water_Order 已删除）
 SELECT '孤儿-Notification' AS ITEM, n.Notification_ID
 FROM D_Notification n
 LEFT JOIN D_User_Account ua ON ua.Account_ID = n.Recipient_Account_ID
@@ -100,10 +101,6 @@ FROM D_Visitor_Authorization va
 LEFT JOIN D_Student s ON s.Student_ID = va.Student_ID
 LEFT JOIN D_Room r ON r.Room_ID = va.Room_ID
 WHERE s.Student_ID IS NULL OR r.Room_ID IS NULL;
-SELECT '孤儿-Visitor_Log' AS ITEM, vl.Visitor_ID
-FROM D_Visitor_Log vl
-LEFT JOIN D_Building b ON b.Building_ID = vl.Building_ID
-WHERE b.Building_ID IS NULL;
 SELECT '孤儿-Access_Log' AS ITEM, al.Log_ID
 FROM D_Access_Log al
 LEFT JOIN D_Student s ON s.Student_ID = al.Student_ID
@@ -112,10 +109,6 @@ WHERE s.Student_ID IS NULL OR b.Building_ID IS NULL;
 SELECT '孤儿-Late_Entry' AS ITEM, le.Record_ID
 FROM D_Late_Entry le
 LEFT JOIN D_Student s ON s.Student_ID = le.Student_ID
-WHERE s.Student_ID IS NULL;
-SELECT '孤儿-Parcel_Record' AS ITEM, pr.Parcel_ID
-FROM D_Parcel_Record pr
-LEFT JOIN D_Student s ON s.Student_ID = pr.Student_ID
 WHERE s.Student_ID IS NULL;
 SELECT '孤儿-Violation_Record' AS ITEM, vr.Record_ID
 FROM D_Violation_Record vr
@@ -126,10 +119,6 @@ SELECT '孤儿-Leave_Application' AS ITEM, la.Apply_ID
 FROM D_Leave_Application la
 LEFT JOIN D_Student s ON s.Student_ID = la.Student_ID
 WHERE s.Student_ID IS NULL;
-SELECT '孤儿-Water_Order' AS ITEM, wo.Order_ID
-FROM D_Water_Order wo
-LEFT JOIN D_Room r ON r.Room_ID = wo.Room_ID
-WHERE r.Room_ID IS NULL;
 SELECT '孤儿-Checkout_Log' AS ITEM, cl.Log_ID
 FROM D_Checkout_Log cl
 LEFT JOIN D_Bed_Allocation ba ON ba.Allocation_ID = cl.Allocation_ID
