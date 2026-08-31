@@ -22,6 +22,9 @@ public class Notice
     /// <summary>发布时间</summary>
     public DateTime PublishTime { get; set; } = DateTime.Now;
 
-    /// <summary>置顶信息（1:1，对应 D_Notice_Display）</summary>
-    public NoticeDisplay? Display { get; set; }
+    /// <summary>是否置顶（是 / 否）。041 起自 D_Notice_Display 并入公告本体</summary>
+    public string IsPinned { get; set; } = "否";
+
+    /// <summary>置顶时间（可空）</summary>
+    public DateTime? PinTime { get; set; }
 }

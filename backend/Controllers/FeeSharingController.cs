@@ -93,7 +93,6 @@ public class FeeSharingController : ControllerBase
                 powerShare = f.PowerShare,
                 total = f.WaterShare + f.PowerShare,
                 f.StayDays,
-                f.TotalDays,
                 f.BillType,
                 f.IsPaid
             })

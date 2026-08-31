@@ -8,10 +8,9 @@ public class CreditAppeal
 {
     public int AppealId { get; set; }
 
-    /// <summary>被申诉的扣分明细 ID（D_Credit_Log.Log_ID）</summary>
+    /// <summary>被申诉的扣分明细 ID（D_Credit_Log.Log_ID）。
+    /// 学生归属经 Credit_Log.Student_ID 联查（041 删除冗余 Student_ID 列）。</summary>
     public int CreditLogId { get; set; }
-
-    public string StudentId { get; set; } = string.Empty;
 
     /// <summary>申诉原因</summary>
     public string Reason { get; set; } = string.Empty;

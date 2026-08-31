@@ -73,8 +73,9 @@ public class CreditAppealService : ICreditAppealService
 
         var appeal = new CreditAppeal
         {
+            // 041：申诉表不再冗余 StudentId，学生归属唯一载体为被申诉流水
+            // D_Credit_Log.Student_ID（提交侧已校验 log.StudentId == 本人）
             CreditLogId = dto.CreditRecordId,
-            StudentId = studentId,
             Reason = dto.Reason,
             Status = StatusPending,
             CreateTime = DateTime.Now
@@ -113,7 +114,11 @@ public class CreditAppealService : ICreditAppealService
         page = Math.Max(page, 1);
         pageSize = pageSize is < 1 or > 100 ? 10 : pageSize;
 
-        var query = _context.CreditAppeals.Where(a => a.StudentId == studentId);
+        // 041 起经 Credit_Log 联查过滤学生（学生列表侧有 IDX_D_CREDIT_LOG_STUDENT_TIME 背书）
+        var query = _context.CreditAppeals
+            .Join(_context.CreditLogs, a => a.CreditLogId, l => l.LogId, (a, l) => new { Appeal = a, Log = l })
+            .Where(x => x.Log.StudentId == studentId)
+            .Select(x => x.Appeal);
         var total = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderByDescending(a => a.CreateTime)
@@ -234,7 +239,7 @@ public class CreditAppealService : ICreditAppealService
             }
 
             await _creditService.RestoreAsync(
-                appeal.StudentId,
+                log.StudentId,
                 restoreScore,
                 $"APPEAL-{appeal.AppealId}",
                 $"申诉通过恢复（{appeal.Reason}）",
@@ -253,9 +258,11 @@ public class CreditAppealService : ICreditAppealService
         appeal.ReviewTime = DateTime.Now;
         await _context.SaveChangesAsync(cancellationToken);
 
+        // 041：申诉行不再携带学生号，收件人经 Credit_Log 反查（与通知/DTO 同源）
+        var appealStudentId = await GetAppealStudentIdAsync(appeal, cancellationToken);
         await _notificationService.CreateAsync(new NotificationCreateDto
         {
-            StudentId = appeal.StudentId,
+            StudentId = appealStudentId,
             Title = pass ? "信用申诉已通过" : "信用申诉已驳回",
             Content = pass
                 ? $"您对扣分明细 {appeal.CreditLogId} 的申诉已通过，信用分已恢复。"
@@ -273,7 +280,7 @@ public class CreditAppealService : ICreditAppealService
         if (pass)
         {
             await RevokeLinkedViolationAsync(appeal, cancellationToken);
-            await NotifySuperAdminsAsync(appeal, cancellationToken);
+            await NotifySuperAdminsAsync(appeal, appealStudentId, cancellationToken);
         }
 
         return await ToDtoAsync(appeal, cancellationToken);
@@ -315,8 +322,18 @@ public class CreditAppealService : ICreditAppealService
             details: $"申诉 #{appeal.AppealId} 通过，违规记录 {violationId} 已标记已撤销");
     }
 
+    /// <summary>041：申诉行不再存学生号，经 Credit_Log 反查归属学生。</summary>
+    private async Task<string> GetAppealStudentIdAsync(CreditAppeal appeal, CancellationToken cancellationToken)
+    {
+        return await _context.CreditLogs.AsNoTracking()
+            .Where(l => l.LogId == appeal.CreditLogId)
+            .Select(l => l.StudentId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new BusinessException(400, "被申诉的扣分明细不存在");
+    }
+
     /// <summary>申诉通过后通知所有超管（fail-soft，不阻断复核主流程）。</summary>
-    private async Task NotifySuperAdminsAsync(CreditAppeal appeal, CancellationToken cancellationToken)
+    private async Task NotifySuperAdminsAsync(CreditAppeal appeal, string studentId, CancellationToken cancellationToken)
     {
         try
         {
@@ -331,7 +348,7 @@ public class CreditAppealService : ICreditAppealService
                 {
                     AdminId = adminId,
                     Title = "违规申诉已通过，待撤销违规",
-                    Content = $"学生 {appeal.StudentId} 的违规申诉已通过（扣分明细 #{appeal.CreditLogId}）。如确属误登记，请前往治理页删除对应违规。",
+                    Content = $"学生 {studentId} 的违规申诉已通过（扣分明细 #{appeal.CreditLogId}）。如确属误登记，请前往治理页删除对应违规。",
                     NotificationType = "信用"
                 });
             }
@@ -363,7 +380,8 @@ public class CreditAppealService : ICreditAppealService
         {
             AppealId = appeal.AppealId,
             CreditRecordId = appeal.CreditLogId,
-            StudentId = appeal.StudentId,
+            // 041：学生号经被申诉流水联查回填，API 响应 shape 不变
+            StudentId = log?.StudentId ?? string.Empty,
             Reason = appeal.Reason,
             Status = appeal.Status,
             ResultDesc = appeal.ResultDesc,

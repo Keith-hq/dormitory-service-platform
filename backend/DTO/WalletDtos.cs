@@ -49,9 +49,9 @@ public class StudentFeeItemDto
     public long FeeId { get; set; }
     /// <summary>账单账期（D_Utility_Fee.Year_Month，与 items 外层 yearMonth 同维度）</summary>
     public string YearMonth { get; set; } = string.Empty;
+    /// <summary>房间（经账单头 D_Utility_Fee.Room_ID 联查；041 起明细不再携带房间列）</summary>
     public int RoomId { get; set; }
     public int StayDays { get; set; }
-    public int TotalDays { get; set; }
     public decimal WaterShare { get; set; }
     public decimal PowerShare { get; set; }
     /// <summary>应缴合计 = WaterShare + PowerShare（沿用遗留 feesharing/detail 口径）</summary>

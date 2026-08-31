@@ -24,6 +24,4 @@ public class VisitorRegistry
 
     /// <summary>待核验 / 已核验 / 已离开</summary>
     public string Status { get; set; } = "待核验";
-
-    public DateTime CreateTime { get; set; }
 }

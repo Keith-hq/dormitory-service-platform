@@ -83,7 +83,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
                 CheckDate = item.CheckDate,
                 Score = item.Score,
                 InspectorId = item.InspectorId,
-                Comment = item.Comment == null ? null : item.Comment.CommentText
+                Comment = item.CommentText
             })
             .ToListAsync(cancellationToken);
     }
@@ -107,9 +107,10 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
             Score = request.Score,
             InspectorId = adminId
         };
+        // 041 起评语列并入 D_Hygiene_Record 本体，直接赋值 CommentText
         if (!string.IsNullOrWhiteSpace(request.Comment))
         {
-            record.Comment = new HygieneComment { CommentText = request.Comment.Trim() };
+            record.CommentText = request.Comment.Trim();
         }
 
         DbContext.HygieneRecords.Add(record);
@@ -121,13 +122,12 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
             CheckDate = record.CheckDate,
             Score = record.Score,
             InspectorId = adminId,
-            Comment = record.Comment?.CommentText
+            Comment = record.CommentText
         };
     }
 
     public Task<HygieneRecord?> FindByIdAsync(long recordId, CancellationToken cancellationToken)
         => DbContext.HygieneRecords
-            .Include(item => item.Comment)
             .SingleOrDefaultAsync(item => item.RecordId == recordId, cancellationToken);
 
     public async Task<HygieneRecordDto> UpdateAsync(
@@ -138,18 +138,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
         record.Score = request.Score;
         if (request.Comment is not null)
         {
-            if (record.Comment is null)
-            {
-                record.Comment = new HygieneComment
-                {
-                    RecordId = record.RecordId,
-                    CommentText = request.Comment
-                };
-            }
-            else
-            {
-                record.Comment.CommentText = request.Comment;
-            }
+            record.CommentText = request.Comment;
         }
 
         await DbContext.SaveChangesAsync(cancellationToken);
@@ -160,7 +149,7 @@ public sealed class HygieneRepository : FrameworkRepositoryBase
             CheckDate = record.CheckDate,
             Score = record.Score,
             InspectorId = record.InspectorId,
-            Comment = record.Comment?.CommentText
+            Comment = record.CommentText
         };
     }
 

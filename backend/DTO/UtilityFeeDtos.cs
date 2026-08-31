@@ -53,7 +53,8 @@ public class UtilityFeeListItemDto
 
 /// <summary>
 /// DORM-23 分摊明细条目。字段对齐 IT-C3-002 通过判定①：
-/// stayDays / totalDays / waterShare / powerShare / total / billType。
+/// stayDays / waterShare / powerShare / total / billType。
+///（041 起明细不再携带 totalDays/room 列：roomId 取账单头归属，分摊分母不再外泄。）
 /// </summary>
 public class UtilityFeeDetailItemDto
 {
@@ -61,7 +62,6 @@ public class UtilityFeeDetailItemDto
     public string StudentId { get; set; } = string.Empty;
     public int RoomId { get; set; }
     public int StayDays { get; set; }
-    public int TotalDays { get; set; }
     public decimal WaterShare { get; set; }
     public decimal PowerShare { get; set; }
     /// <summary>个人应缴合计 = WaterShare + PowerShare</summary>
