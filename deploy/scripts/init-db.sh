@@ -213,6 +213,7 @@ SCRIPTS=(
     "ddl/extensions/038_building_room_asset_id_triggers.sql"
     "ddl/extensions/039_violation_status.sql"
     "ddl/extensions/040_repair_claim_time.sql"
+    "ddl/extensions/041_database_consolidation.sql"
     # 存储过程
     "sp/sp_fee_sharing.sql"
     "sp/sp_billing.sql"

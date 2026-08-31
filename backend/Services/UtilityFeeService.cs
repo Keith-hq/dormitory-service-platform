@@ -56,7 +56,7 @@ public class UtilityFeeService : IUtilityFeeService
             YearMonth = request.YearMonth,
             WaterFee = request.WaterFee,
             PowerFee = request.ElecFee,   // 契约字段 elecFee ↔ 表列 Power_Fee
-            IsPaid = "否",
+            // 041：账单头 Is_Paid 列已删除；新账单天然"未缴"，缴费状态由明细表达
             PublishStatus = "未发布"
         };
 
@@ -164,9 +164,8 @@ public class UtilityFeeService : IUtilityFeeService
             {
                 DetailId = f.DetailId,
                 StudentId = f.StudentId,
-                RoomId = f.RoomId,
+                RoomId = bill.RoomId,   // 041：明细不再携带房间列，统一取账单头归属
                 StayDays = f.StayDays,
-                TotalDays = f.TotalDays,
                 WaterShare = f.WaterShare,
                 PowerShare = f.PowerShare,
                 Total = f.WaterShare + f.PowerShare,
@@ -213,7 +212,7 @@ public class UtilityFeeService : IUtilityFeeService
 
         // 缴费状态过滤（P1-3 契约字段）：以 D_Fee_Detail 为权威——
         // true=无未缴明细（全部缴清，无明细视为缴清）；false=存在未缴明细。
-        // 不用账单行 Is_Paid 列（建单时的快照，SP 只更新明细不回收账单行）。
+        //（041 起账单头 Is_Paid 列删除，明细即唯一事实来源。）
         if (isPaid.HasValue)
         {
             if (isPaid.Value)

@@ -47,10 +47,11 @@ public class NoticeService : INoticeService
                       ?? throw new UnauthorizedAccessException("无法识别当前登录用户")
         };
 
-        // 置顶：发布时同步写入 D_Notice_Display（1:1，共享主键由 EF 传播）
+        // 置顶：041 起两列并入公告本体，发布时直写
         if (dto.IsPinned == "是")
         {
-            notice.Display = new NoticeDisplay { IsPinned = "是", PinTime = DateTime.Now };
+            notice.IsPinned = "是";
+            notice.PinTime = DateTime.Now;
         }
 
         return await _repository.AddAsync(notice);
@@ -70,12 +71,17 @@ public class NoticeService : INoticeService
         {
             if (dto.IsPinned == "是")
             {
-                notice.Display ??= new NoticeDisplay { NoticeId = id, IsPinned = "是", PinTime = DateTime.Now };
-                notice.Display.IsPinned = "是";
+                // 取消后重新置顶时刷新置顶时间；保持置顶则不重置
+                if (notice.IsPinned != "是")
+                {
+                    notice.PinTime = DateTime.Now;
+                }
+                notice.IsPinned = "是";
             }
-            else if (notice.Display != null)
+            else
             {
-                notice.Display.IsPinned = "否";
+                // 取消置顶：保留 PinTime 作为"曾置顶"痕迹（与迁移前卫星表语义一致）
+                notice.IsPinned = "否";
             }
         }
 
@@ -93,7 +99,7 @@ public class NoticeService : INoticeService
             Title = notice.Title,
             Content = notice.Content,
             PublishTime = notice.PublishTime,
-            IsPinned = notice.Display?.IsPinned ?? "否",
-            PinTime = notice.Display?.PinTime
+            IsPinned = notice.IsPinned,
+            PinTime = notice.PinTime
         };
 }

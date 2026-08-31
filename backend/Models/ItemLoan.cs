@@ -4,7 +4,7 @@ namespace TemplateDormApi.Models;
 /// 共享物品借还记录实体，对应 D_Item_Loan。
 /// 写入必须走存储过程（SP_Borrow_Item / SP_Return_Item）：Loan_ID 由序列生成、
 /// Idempotency_Key 由 SP 落库并受唯一索引 UK_D_ITEM_LOAN_IDEM 兜底（迁移 019）。
-/// 退宿三步校验（DORM-36）仅只读查询本表（Return_Time IS NULL = 未归还，校验不通过项）。
+/// 退宿两步校验（DORM-36）仅只读查询本表（Return_Time IS NULL = 未归还，校验不通过项）。
 /// </summary>
 public class ItemLoan
 {

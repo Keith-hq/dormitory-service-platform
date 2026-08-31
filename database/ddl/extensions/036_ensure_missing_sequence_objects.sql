@@ -565,50 +565,12 @@ BEGIN
 END;
 /
 
--- ===== D_Notice_Display（主键列同为 NOTICE_ID，序列独立命名避免混淆） =====
-DECLARE
-    v_exists NUMBER;
-    v_start_with NUMBER;
-BEGIN
-    SELECT COUNT(*)
-      INTO v_exists
-      FROM USER_SEQUENCES
-     WHERE SEQUENCE_NAME = 'SEQ_D_NOTICE_DISPLAY_PK';
-
-    IF v_exists = 0 THEN
-        SELECT NVL(MAX(Notice_ID), 0) + 1
-          INTO v_start_with
-          FROM D_Notice_Display;
-
-        EXECUTE IMMEDIATE
-            'CREATE SEQUENCE SEQ_D_NOTICE_DISPLAY_PK START WITH ' || v_start_with ||
-            ' INCREMENT BY 1 NOCACHE';
-    END IF;
-END;
-/
-
-DECLARE
-    v_exists NUMBER;
-BEGIN
-    SELECT COUNT(*)
-      INTO v_exists
-      FROM USER_TRIGGERS
-     WHERE TRIGGER_NAME = 'TRG_D_NOTICE_DISPLAY_PK_BI';
-
-    IF v_exists = 0 THEN
-        EXECUTE IMMEDIATE
-            'CREATE TRIGGER TRG_D_NOTICE_DISPLAY_PK_BI ' ||
-            'BEFORE INSERT ON D_Notice_Display ' ||
-            'FOR EACH ROW ' ||
-            'WHEN (NEW.Notice_ID IS NULL) ' ||
-            'BEGIN ' ||
-            '    SELECT SEQ_D_NOTICE_DISPLAY_PK.NEXTVAL ' ||
-            '      INTO :NEW.Notice_ID ' ||
-            '      FROM dual; ' ||
-            'END;';
-    END IF;
-END;
-/
+-- ===== D_Notice_Display 段已随 041 表整理整体移除 =====
+--   041 将置顶列并入 D_Notice 并 DROP 该卫星表及其 SEQ_D_NOTICE_DISPLAY_PK /
+--   TRG_D_NOTICE_DISPLAY_PK_BI。此处不能再保留任何对 D_Notice_Display 的
+--   静态 SQL 引用：PL/SQL 静态语句在块编译期解析，表删除后即便运行时分支
+--   不可达（如加了存在性 RETURN 守卫），整块仍会 ORA-00942 编译失败
+--   （2026-08-31 本地容器演练实测暴露）。故原两段直接删除而非加守卫。
 
 -- =====================================================================
 -- Part E：离校/学生列补齐（017 / 018 守卫式 ADD COLUMN）

@@ -44,12 +44,12 @@ BEGIN
     INSERT INTO D_Bed_Allocation (Allocation_ID, Student_ID, Room_ID, Bed_No, CheckIn_Date)
         VALUES (990001, 'S-CHK-001', 9901, 1, TO_DATE('2026-06-01', 'YYYY-MM-DD'));
     -- 2026-06 已发布（T2/T3/T5/T6/T9 用）、2026-05 未发布（T1 用）、当月已发布（T4/T7 用）
-    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-        VALUES (990001, 9901, '2026-06', 300, 100, '否', '已发布');
-    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-        VALUES (990002, 9901, '2026-05', 50, 50, '否', '未发布');
-    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-        VALUES (990003, 9901, TO_CHAR(SYSDATE, 'YYYY-MM'), 310, 90, '否', '已发布');
+    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
+        VALUES (990001, 9901, '2026-06', 300, 100, '已发布');
+    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
+        VALUES (990002, 9901, '2026-05', 50, 50, '未发布');
+    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
+        VALUES (990003, 9901, TO_CHAR(SYSDATE, 'YYYY-MM'), 310, 90, '已发布');
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('SETUP OK');
 EXCEPTION
@@ -98,7 +98,6 @@ DECLARE
     v_water      NUMBER;
     v_power      NUMBER;
     v_stay       NUMBER;
-    v_total      NUMBER;
     v_ok         NUMBER := 1;
     PROCEDURE Assert(cond IN BOOLEAN, msg IN VARCHAR2) IS
     BEGIN
@@ -110,12 +109,12 @@ BEGIN
     SELECT COUNT(*) INTO v_cnt FROM D_Fee_Detail
         WHERE Student_ID = 'S-CHK-001' AND Bill_Type = '退宿';
     Assert(v_cnt = 1, 'T2 生成一条退宿明细 (got ' || v_cnt || ')');
-    SELECT Water_Share, Power_Share, Stay_Days, Total_Days
-        INTO v_water, v_power, v_stay, v_total
+    SELECT Water_Share, Power_Share, Stay_Days
+        INTO v_water, v_power, v_stay
         FROM D_Fee_Detail WHERE Student_ID = 'S-CHK-001' AND Bill_Type = '退宿';
     Assert(v_water = 300, 'T2 水费分摊=300 (got ' || v_water || ')');
     Assert(v_power = 100, 'T2 电费分摊=100 (got ' || v_power || ')');
-    Assert(v_stay = 15 AND v_total = 15, 'T2 入住天数 15/15 (got ' || v_stay || '/' || v_total || ')');
+    Assert(v_stay = 15, 'T2 入住天数 15 (got ' || v_stay || ')');
     IF v_ok = 0 THEN :g_fail := 1; END IF;
 END;
 /
@@ -235,9 +234,7 @@ END;
 DECLARE
     v_cnt    NUMBER;
     v_stay   NUMBER;
-    v_total  NUMBER;
     v_exp    NUMBER;
-    v_exp_total NUMBER;
     v_ok     NUMBER := 1;
     PROCEDURE Assert(cond IN BOOLEAN, msg IN VARCHAR2) IS
     BEGIN
@@ -250,11 +247,9 @@ BEGIN
         WHERE Student_ID = 'S-CHK-001' AND Fee_ID = 990003 AND Bill_Type = '退宿';
     Assert(v_cnt = 1, 'T7 SYSDATE 兜底生成当月退宿明细 (got ' || v_cnt || ')');
     v_exp := TRUNC(SYSDATE) - TRUNC(SYSDATE, 'MM') + 1;
-    v_exp_total := EXTRACT(DAY FROM LAST_DAY(SYSDATE));
-    SELECT Stay_Days, Total_Days INTO v_stay, v_total FROM D_Fee_Detail
+    SELECT Stay_Days INTO v_stay FROM D_Fee_Detail
         WHERE Student_ID = 'S-CHK-001' AND Fee_ID = 990003 AND Bill_Type = '退宿';
     Assert(v_stay = v_exp, 'T7 兜底按 SYSDATE 计算入住天数 (期望 ' || v_exp || ', got ' || v_stay || ')');
-    Assert(v_total = v_exp_total, 'T7 房间当月总人天数=' || v_exp_total || ' (got ' || v_total || ')');
     IF v_ok = 0 THEN :g_fail := 1; END IF;
 END;
 /
@@ -298,12 +293,12 @@ DECLARE
 BEGIN
     BEGIN
         INSERT INTO D_Fee_Detail (
-            Detail_ID, Fee_ID, Student_ID, Room_ID,
-            Water_Share, Power_Share, Stay_Days, Total_Days,
+            Detail_ID, Fee_ID, Student_ID,
+            Water_Share, Power_Share, Stay_Days,
             Bill_Type, Is_Paid, Create_Time
         ) VALUES (
-            SEQ_FEE_DETAIL.NEXTVAL, 990001, 'S-CHK-001', 9901,
-            1, 1, 1, 1, '退宿', '否', SYSDATE
+            SEQ_FEE_DETAIL.NEXTVAL, 990001, 'S-CHK-001',
+            1, 1, 1, '退宿', '否', SYSDATE
         );
     EXCEPTION
         WHEN DUP_VAL_ON_INDEX THEN v_caught := 1;

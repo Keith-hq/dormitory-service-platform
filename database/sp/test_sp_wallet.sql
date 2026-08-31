@@ -70,30 +70,30 @@ BEGIN
     INSERT INTO D_Student (Student_ID, Name) VALUES ('S-PAY-001', '测试缴费生1');
     INSERT INTO D_Student (Student_ID, Name) VALUES ('S-PAY-002', '测试缴费生2');
     INSERT INTO D_Wallet_Account (Student_ID, Balance) VALUES ('S-PAY-001', 1000);
-    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-        VALUES (991001, 9910, '2026-06', 100, 50, '否', '已发布');
-    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-        VALUES (991002, 9910, '2026-07', 0, 0, '否', '已发布');
-    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Is_Paid, Publish_Status)
-        VALUES (991003, 9910, '2026-08', 40, 0, '否', '已发布');
+    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
+        VALUES (991001, 9910, '2026-06', 100, 50, '已发布');
+    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
+        VALUES (991002, 9910, '2026-07', 0, 0, '已发布');
+    INSERT INTO D_Utility_Fee (Fee_ID, Room_ID, Year_Month, Water_Fee, Power_Fee, Publish_Status)
+        VALUES (991003, 9910, '2026-08', 40, 0, '已发布');
     -- 明细：d1=(991001,S-PAY-001,应缴150) d2=(991001,S-PAY-002,应缴150)
     --       d3=(991002,S-PAY-001,0/0) d4=(991003,S-PAY-001,应缴40)
-    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID,
-                              Water_Share, Power_Share, Stay_Days, Total_Days,
+    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID,
+                              Water_Share, Power_Share, Stay_Days,
                               Bill_Type, Is_Paid, Create_Time)
-        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991001, 'S-PAY-001', 9910, 100, 50, 30, 30, '月度', '否', SYSDATE);
-    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID,
-                              Water_Share, Power_Share, Stay_Days, Total_Days,
+        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991001, 'S-PAY-001', 100, 50, 30, '月度', '否', SYSDATE);
+    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID,
+                              Water_Share, Power_Share, Stay_Days,
                               Bill_Type, Is_Paid, Create_Time)
-        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991001, 'S-PAY-002', 9910, 100, 50, 30, 30, '月度', '否', SYSDATE);
-    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID,
-                              Water_Share, Power_Share, Stay_Days, Total_Days,
+        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991001, 'S-PAY-002', 100, 50, 30, '月度', '否', SYSDATE);
+    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID,
+                              Water_Share, Power_Share, Stay_Days,
                               Bill_Type, Is_Paid, Create_Time)
-        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991002, 'S-PAY-001', 9910, 0, 0, 30, 30, '月度', '否', SYSDATE);
-    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID, Room_ID,
-                              Water_Share, Power_Share, Stay_Days, Total_Days,
+        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991002, 'S-PAY-001', 0, 0, 30, '月度', '否', SYSDATE);
+    INSERT INTO D_Fee_Detail (Detail_ID, Fee_ID, Student_ID,
+                              Water_Share, Power_Share, Stay_Days,
                               Bill_Type, Is_Paid, Create_Time)
-        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991003, 'S-PAY-001', 9910, 40, 0, 30, 30, '月度', '否', SYSDATE);
+        VALUES (SEQ_FEE_DETAIL.NEXTVAL, 991003, 'S-PAY-001', 40, 0, 30, '月度', '否', SYSDATE);
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('SETUP OK');
 EXCEPTION

@@ -2,7 +2,7 @@
 
 ## 当前基线
 
-当前 foundation 包含原有 20 张表，以及以下 5 个已经确认的字段：
+foundation 原有 20 张表；迁移 041（表整理，ADR-002）删除 `D_Visitor_Log`（被 034 `D_Visitor_Registry` + `D_Visitor_Authorization` 完整替代）、`D_Water_Order` 与 `D_Parcel_Record`（桶装水/快递业务已放弃，C-048"表保留作技术基线"口径作废），现存 17 张，以及以下 5 个已经确认的字段：
 
 - `D_Room.Power_Status`
 - `D_Repair_Ticket.SLA_Level`
@@ -10,7 +10,7 @@
 - `D_Repair_Ticket.Assigned_To`
 - `D_Admin.Building_ID`
 
-`D_Water_Order` 之所以保留在 foundation 中，仅因为它属于原有 20 张表的技术验证基线。桶装水业务已经暂缓，当前主线业务不得依赖此表。
+历史上 `D_Water_Order` 曾因"属于原有 20 张表的技术验证基线"而保留；041 起随业务放弃一并删除，全量重建时 001 仍会创建、由 041 负责拆除，历史基线脚本不回写。
 
 ## 执行顺序
 
@@ -26,19 +26,21 @@ foundation 脚本是可复现的正式来源。DBeaver 只用于执行和检查�
 
 ## 当前扩展基线
 
-已裁决的扩展表共 27 张：`010_extension_tables.sql` 定义 23 张，迁移 029 新增 `D_Asset_Repair` / `D_Asset_Warning`（资产管理扩展），迁移 033 新增 `D_Credit_Appeal`（信用分申诉，APPEAL-01/02/03），迁移 034 新增 `D_Visitor_Registry`（门岗登记，VST-01/02/03）：
+扩展表现存 25 张（迁移 041 前为 27 张，`D_Notice_Display` / `D_Hygiene_Comment` 两张 1:1 卫星表已合并回主表并删除）：`010_extension_tables.sql` 定义 23 张，迁移 029 新增 `D_Asset_Repair` / `D_Asset_Warning`（资产管理扩展），迁移 033 新增 `D_Credit_Appeal`（信用分申诉，APPEAL-01/02/03），迁移 034 新增 `D_Visitor_Registry`（门岗登记，VST-01/02/03）：
 
 - 费用与钱包：`D_Fee_Detail`、`D_Wallet_Account`、`D_Wallet_Log`、`D_Fee_Deduction_Attempt`
 - 信用与共享物品：`D_Credit_Account`、`D_Credit_Log`、`D_Shared_Item`、`D_Item_Loan`
 - 设施与清洁：`D_Facility`、`D_Facility_Booking`、`D_Cleaning_Task`
 - 维修扩展：`D_Repair_Material`、`D_Repair_Material_Usage`、`D_Repair_Attachment`
 - 账号与治理：`D_User_Account`、`D_Notification`、`D_Visitor_Authorization`、`D_Audit_Event`
-- 宿舍治理与退宿：`D_Room_Vote`、`D_Room_Vote_Response`、`D_Checkout_Log`、`D_Notice_Display`、`D_Hygiene_Comment`
+- 宿舍治理与退宿：`D_Room_Vote`、`D_Room_Vote_Response`、`D_Checkout_Log`
 - 申诉与门岗：`D_Credit_Appeal`（033，信用分申诉）、`D_Visitor_Registry`（034，门岗访客登记）
 
-扩展脚本不修改 foundation，也不创建 `D_Facility_Usage`、`D_Repair_SLA_Event`、`D_Role`、`D_Notification_Recipient` 或 `D_Fee_Adjustment`。设施使用次数直接由预约记录统计，SLA 升级事件写入审计事件，公告置顶和卫生评语分别放在扩展表中。退宿检查只保留水电和共享物品，快递业务暂缓。
+扩展脚本不回写基线文件，也不创建 `D_Facility_Usage`、`D_Repair_SLA_Event`、`D_Role`、`D_Notification_Recipient` 或 `D_Fee_Adjustment`。设施使用次数直接由预约记录统计，SLA 升级事件写入审计事件。公告置顶列（`Is_Pinned`/`Pin_Time`，枚举 CHECK 更名 `CK_D_NOTICE_PIN`）与卫生评语列经 041 分别并入 `D_Notice`、`D_Hygiene_Record`。退宿检查只保留水电和共享物品两项（快递业务已放弃，表与后端残留随 041 一并清理）。
 
-Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保留的评语列使用带引号的标识符 `"COMMENT"`。后端查询该列时也必须使用 `"COMMENT"`；其余表字段均使用普通未加引号标识符。
+Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Record` 的评语列（041 自 `D_Hygiene_Comment` 并入）使用带引号的标识符 `"COMMENT"`。后端查询该列时也必须使用 `"COMMENT"`；其余表字段均使用普通未加引号标识符。
+
+范式口径（ADR-002）：终态 42 张表除受控反规范化注记清单（`D_Room.Occupancy`、`D_Shared_Item.Available_Qty`、钱包余额三件套、`D_Credit_Account.Current_Score`、`D_Room_Vote.Eligible_Count`、报修单学生+房间双快照、`D_Visitor_Authorization.Room_ID` 发起时快照、`D_Room.Power_Status`、政策物化列 `D_Repair_Ticket.Deadline` 与 `D_Item_Loan.Due_Time`）外全部满足 3NF；缴费状态唯一事实来源为 `D_Fee_Detail.Is_Paid`。
 
 ## 完整执行顺序
 
@@ -71,12 +73,20 @@ Oracle 的 `COMMENT` 是关键字，因此 `D_Hygiene_Comment` 中按裁决保�
 25. `ddl/extensions/033_credit_appeal.sql`（D_Credit_Appeal 信用分申诉表，APPEAL-01/02/03）
 26. `ddl/extensions/034_visitor_registry.sql`（D_Visitor_Registry 门岗登记表，VST-01/02/03）
 27. `ddl/extensions/035_fix_byte_columns_fee_attempt_audit.sql`（D_Fee_Deduction_Attempt.RESULT / D_Audit_Event.EVENT_TYPE / TARGET_ID 改 CHAR 语义并加长）
-28. `verify/foundation_schema_checks.sql`
-29. `verify/extension_schema_checks.sql`
+28. `ddl/extensions/036_ensure_missing_sequence_objects.sql`（PR #90 缺失对象兜底重建；041 后公告卫星段自动跳过）
+29. `ddl/extensions/037_violation_detail_recordby.sql`（D_Violation_Record.DETAIL / RECORD_BY）
+30. `ddl/extensions/038_building_room_asset_id_triggers.sql`（楼栋/房间/资产主键触发器补齐）
+31. `ddl/extensions/039_violation_status.sql`（D_Violation_Record.STATUS）
+32. `ddl/extensions/040_repair_claim_time.sql`（D_Repair_Ticket 认领时间）
+33. `ddl/extensions/041_database_consolidation.sql`（表整理：废表删除、范式列删除、卫星表合并、终态硬断言）
+34. 存储过程按下方"存储过程执行顺序"执行（必须在 041 之后）
+35. 种子数据按 `seed/README.md` 顺序执行（00→01…05→99_validate）
+36. `verify/foundation_schema_checks.sql`
+37. `verify/extension_schema_checks.sql`
 
 `010_extension_tables.sql` 是一次性建表脚本。若表已存在，请使用全新的 schema 或容器进行复现，不要通过删表来绕过依赖问题。
-`011` 至 `035` 是按编号顺序执行的增量迁移；
-已有环境只执行尚未应用的迁移，不要重复执行已完成的 `ALTER TABLE` 脚本。
+`011` 至 `041` 是按编号顺序执行的增量迁移；
+已有环境只执行尚未应用的迁移。041 全段幂等（查数据字典守卫），半途失败可整文件重跑；011~040 中非幂等脚本按记账跳过，勿盲目重放。
 
 ## 存储过程执行顺序
 

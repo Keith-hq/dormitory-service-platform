@@ -90,18 +90,16 @@ BEGIN
                 -- COUNT 与 INSERT 之间被退宿 SP 抢先结算的并发窗口
                 BEGIN
                     INSERT INTO D_Fee_Detail (
-                        Detail_ID, Fee_ID, Student_ID, Room_ID,
-                        Water_Share, Power_Share, Stay_Days, Total_Days,
+                        Detail_ID, Fee_ID, Student_ID,
+                        Water_Share, Power_Share, Stay_Days,
                         Bill_Type, Is_Paid, Create_Time
                     ) VALUES (
                         SEQ_FEE_DETAIL.NEXTVAL,
                         fee_rec.Fee_ID,
                         student_rec.Student_ID,
-                        fee_rec.Room_ID,
                         ROUND(fee_rec.Water_Fee * student_rec.Stay_Days / v_TotalDays, 2),
                         ROUND(fee_rec.Power_Fee * student_rec.Stay_Days / v_TotalDays, 2),
                         student_rec.Stay_Days,
-                        v_TotalDays,
                         '月度',
                         '否',
                         SYSDATE
@@ -196,18 +194,16 @@ BEGIN
             -- COUNT 与 INSERT 之间被月度 SP 抢先结算的并发窗口
             BEGIN
                 INSERT INTO D_Fee_Detail (
-                    Detail_ID, Fee_ID, Student_ID, Room_ID,
-                    Water_Share, Power_Share, Stay_Days, Total_Days,
+                    Detail_ID, Fee_ID, Student_ID,
+                    Water_Share, Power_Share, Stay_Days,
                     Bill_Type, Is_Paid, Create_Time
                 ) VALUES (
                     SEQ_FEE_DETAIL.NEXTVAL,
                     fee_rec.Fee_ID,
                     p_Student_ID,
-                    v_RoomID,
                     ROUND(fee_rec.Water_Fee * v_MyDays / v_TotalDays, 2),
                     ROUND(fee_rec.Power_Fee * v_MyDays / v_TotalDays, 2),
                     v_MyDays,
-                    v_TotalDays,
                     '退宿',
                     '否',
                     SYSDATE

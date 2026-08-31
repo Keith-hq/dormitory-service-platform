@@ -38,8 +38,7 @@ public sealed class VisitorRegistryRepository : FrameworkRepositoryBase
             Phone = request.Phone,
             StudentId = studentId,
             EnterTime = DateTime.Now,
-            Status = "待核验",
-            CreateTime = DateTime.Now
+            Status = "待核验"
         };
         DbContext.Set<VisitorRegistry>().Add(registry);
         await DbContext.SaveChangesAsync(cancellationToken);

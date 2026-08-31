@@ -7,7 +7,9 @@ SET AUTOCOMMIT ON;
 --     其余表用 6 位 900101..（阈值 >=900000）。应用序列 1 起，不撞号。
 --   - 字符串主键表（学生/管理员/钱包/信用分/账号）：删除 IT_ 前缀。
 -- 执行顺序：子表在前、父表在后，避免外键冲突。
--- 本脚本不触碰 DDL 基线（foundation 20 表冻结），仅做 DML 清理。
+-- 本脚本不触碰 DDL 基线，仅做 DML 清理。
+-- 041 后 D_Visitor_Log / D_Parcel_Record / D_Water_Order / D_Notice_Display /
+-- D_Hygiene_Comment 已删除，对应清理行同步移除。
 
 -- ===== 1) 子表（引用他人，先删） =====
 DELETE FROM D_Room_Vote_Response WHERE Student_ID LIKE 'IT\_%' ESCAPE '\';
@@ -38,16 +40,11 @@ DELETE FROM D_Visitor_Authorization  WHERE Authorization_ID >= 900000;
 DELETE FROM D_Notification           WHERE Notification_ID >= 900000;
 DELETE FROM D_Audit_Event            WHERE Audit_ID >= 900000;
 DELETE FROM D_User_Account           WHERE Login_Name LIKE 'IT\_%' ESCAPE '\';
-DELETE FROM D_Visitor_Log            WHERE Visitor_ID >= 900000;
 DELETE FROM D_Access_Log             WHERE Log_ID >= 900000;
 DELETE FROM D_Late_Entry             WHERE Record_ID >= 900000;
-DELETE FROM D_Parcel_Record          WHERE Parcel_ID >= 900000;
 DELETE FROM D_Violation_Record       WHERE Record_ID >= 900000;
 DELETE FROM D_Leave_Application      WHERE Apply_ID >= 900000;
-DELETE FROM D_Water_Order            WHERE Order_ID >= 900000;
-DELETE FROM D_Hygiene_Comment        WHERE Record_ID >= 900000;
 DELETE FROM D_Hygiene_Record         WHERE Record_ID >= 900000;
-DELETE FROM D_Notice_Display         WHERE Notice_ID >= 900000;
 DELETE FROM D_Notice                 WHERE Notice_ID >= 900000;
 
 -- ===== 2) 父表（被引用，最后删） =====

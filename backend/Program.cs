@@ -55,7 +55,7 @@ builder.Services.AddControllers(options =>
 {
     // 首字母小写驼峰（与前端对齐）
     options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-    // 1:1 导航属性（如 Notice <-> NoticeDisplay）序列化时忽略循环引用，避免对象环 500
+    // 实体导航属性序列化时忽略循环引用，避免对象环 500（如 Room <-> UtilityFee）
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
@@ -120,7 +120,6 @@ builder.Services.AddScoped<VisitorRegistryRepository>();
 builder.Services.AddScoped<ViolationRepository>();
 builder.Services.AddScoped<VoteRepository>();
 builder.Services.AddScoped<VisitorRepository>();
-builder.Services.AddScoped<ParcelRepository>();
 builder.Services.AddScoped<LeaveRepository>();
 builder.Services.AddScoped<BedAllocationRepository>();
 builder.Services.AddScoped<CheckoutRepository>();
@@ -151,7 +150,6 @@ builder.Services.AddScoped<IVisitorRegistryService, VisitorRegistryService>();
 builder.Services.AddScoped<IViolationService, ViolationService>();
 builder.Services.AddScoped<IVoteService, VoteService>();
 builder.Services.AddScoped<IVisitorService, VisitorService>();
-builder.Services.AddScoped<IParcelService, ParcelService>();
 builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IAllocationService, AllocationService>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();

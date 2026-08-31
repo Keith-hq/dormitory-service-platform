@@ -129,7 +129,7 @@ const transitionCheckout = async (action) => {
     cancel: () => accommodationApi.cancelCheckout(effectiveCheckoutId.value)
   }
   const labels = {
-    settle: '三步清算校验已执行',
+    settle: '两步清算校验已执行',
     confirm: '退宿已确认，床位已释放',
     cancel: '退宿办理已取消'
   }
@@ -248,7 +248,7 @@ const transitionCheckout = async (action) => {
           <span>04 / CHECKOUT STATE MACHINE</span>
           <h2>退宿清算</h2>
         </div>
-        <p>登记 → 三步校验 → 确认退宿；未确认前可取消。</p>
+        <p>登记 → 两步校验 → 确认退宿；未确认前可取消。</p>
       </header>
       <div class="checkout-body">
         <form class="checkout-register" @submit.prevent="registerCheckout">

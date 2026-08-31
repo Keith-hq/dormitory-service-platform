@@ -18,7 +18,6 @@ public class AppDbContext : DbContext
     public DbSet<College> Colleges => Set<College>();
     public DbSet<Major> Majors => Set<Major>();
     public DbSet<Notice> Notices => Set<Notice>();
-    public DbSet<NoticeDisplay> NoticeDisplays => Set<NoticeDisplay>();
     public DbSet<RoomVote> RoomVotes => Set<RoomVote>();
     public DbSet<RoomVoteResponse> RoomVoteResponses => Set<RoomVoteResponse>();
     public DbSet<VisitorAuthorization> VisitorAuthorizations => Set<VisitorAuthorization>();
@@ -26,11 +25,8 @@ public class AppDbContext : DbContext
     public DbSet<BedAllocation> BedAllocations => Set<BedAllocation>();
     public DbSet<RepairTicket> RepairTickets => Set<RepairTicket>();
     public DbSet<LateEntry> LateEntries => Set<LateEntry>();
-    public DbSet<VisitorLog> VisitorLogs => Set<VisitorLog>();
     public DbSet<UtilityFee> UtilityFees => Set<UtilityFee>();
     public DbSet<HygieneRecord> HygieneRecords => Set<HygieneRecord>();
-    public DbSet<HygieneComment> HygieneComments => Set<HygieneComment>();
-    public DbSet<WaterOrder> WaterOrders => Set<WaterOrder>();
     public DbSet<RepairLog> RepairLogs => Set<RepairLog>();
     public DbSet<RepairAttachment> RepairAttachments => Set<RepairAttachment>();
     public DbSet<AccessLog> AccessLogs => Set<AccessLog>();
@@ -61,11 +57,10 @@ public class AppDbContext : DbContext
 
     // ===== 住宿全生命周期（刘润东）：离校报备 / 退宿清算 =====
     // 注：BedAllocation、ItemLoan 的 DbSet 由住宿/共享物品模块声明，此处不重复声明。
+    // 退宿两步校验只读数据源（D_Fee_Detail / D_Item_Loan）由对应模块声明；
+    // 快递只读源 ParcelRecords 已随 C-048 快递放弃与迁移 041 删除。
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
     public DbSet<CheckoutLog> CheckoutLogs => Set<CheckoutLog>();
-
-    // ===== 退宿三步校验只读数据源（写入方分别为快递/共享物品模块）=====
-    public DbSet<ParcelRecord> ParcelRecords => Set<ParcelRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -181,44 +176,14 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Title).HasColumnName("TITLE").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Content).HasColumnName("CONTENT").HasMaxLength(1000).IsRequired();
             entity.Property(e => e.PublishTime).HasColumnName("PUBLISH_TIME").IsRequired();
+            // 041：置顶两列自 D_Notice_Display 并入公告本体（卫星表已删除）
+            entity.Property(e => e.IsPinned).HasColumnName("IS_PINNED").HasMaxLength(10).IsRequired().HasDefaultValue("否");
+            entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
 
             entity.HasOne<Admin>()
                   .WithMany()
                   .HasForeignKey(e => e.AdminId)
                   .HasConstraintName("FK_D_NOTICE_ADMIN");
-
-            entity.HasOne(n => n.Display)
-                  .WithOne(d => d.Notice)
-                  .HasForeignKey<NoticeDisplay>(d => d.NoticeId)
-                  .HasConstraintName("FK_D_NOTICE_DISPLAY");
-        });
-
-        // ---- NoticeDisplay 公告置顶 ----
-        modelBuilder.Entity<NoticeDisplay>(entity =>
-        {
-            entity.ToTable("D_NOTICE_DISPLAY");
-            entity.HasKey(e => e.NoticeId);
-            entity.Property(e => e.NoticeId).HasColumnName("NOTICE_ID");
-            entity.Property(e => e.IsPinned).HasColumnName("IS_PINNED").HasMaxLength(10).IsRequired();
-            entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
-        });
-
-        // ---- VisitorLog 访客日志 ----
-        modelBuilder.Entity<VisitorLog>(entity =>
-        {
-            entity.ToTable("D_VISITOR_LOG");
-            entity.HasKey(e => e.VisitorId);
-            entity.Property(e => e.VisitorId).HasColumnName("VISITOR_ID");
-            entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
-            entity.Property(e => e.VisitorName).HasColumnName("VISITOR_NAME").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.VisitReason).HasColumnName("VISIT_REASON").HasMaxLength(200).IsRequired();
-            entity.Property(e => e.EntryTime).HasColumnName("ENTRY_TIME").IsRequired();
-            entity.Property(e => e.LeaveTime).HasColumnName("LEAVE_TIME");
-
-            entity.HasOne<Building>()
-                  .WithMany()
-                  .HasForeignKey(e => e.BuildingId)
-                  .HasConstraintName("FK_D_VISITOR_LOG_BUILDING");
         });
 
         // ---- UtilityFee 水电费 ----
@@ -231,7 +196,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.YearMonth).HasColumnName("YEAR_MONTH").HasMaxLength(10).IsRequired();
             entity.Property(e => e.WaterFee).HasColumnName("WATER_FEE").HasPrecision(8, 2);
             entity.Property(e => e.PowerFee).HasColumnName("POWER_FEE").HasPrecision(8, 2);
-            entity.Property(e => e.IsPaid).HasColumnName("IS_PAID").HasMaxLength(10).HasDefaultValue("否");
+            // 041：账单头 IS_PAID 已删除（建单写"否"后无人维护的烂值列），
+            // 缴费状态唯一事实来源为 D_Fee_Detail.Is_Paid
             entity.Property(e => e.PublishStatus).HasColumnName("PUBLISH_STATUS").HasMaxLength(10).IsRequired().HasDefaultValue("未发布");
 
             entity.HasOne(e => e.Room)
@@ -254,6 +220,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CheckDate).HasColumnName("CHECK_DATE").IsRequired();
             entity.Property(e => e.Score).HasColumnName("SCORE").HasPrecision(4, 1).IsRequired();
             entity.Property(e => e.InspectorId).HasColumnName("INSPECTOR_ID").HasMaxLength(20);
+            // 041：评语列自 D_Hygiene_Comment 并入本表；COMMENT 是 Oracle 关键字，
+            // 建表用带引号标识符；EF 按映射名原样加引号生成 SQL（同原卫星表映射口径）
+            entity.Property(e => e.CommentText).HasColumnName("COMMENT").HasMaxLength(500);
 
             entity.HasOne<Room>()
                   .WithMany()
@@ -264,39 +233,6 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.InspectorId)
                   .HasConstraintName("FK_D_HYGIENE_RECORD_ADMIN");
-
-            // 与 HygieneComment 一对一关系配置在 HygieneComment 中
-        });
-
-        // ---- HygieneComment 卫生检查评语 ----
-        modelBuilder.Entity<HygieneComment>(entity =>
-        {
-            entity.ToTable("D_HYGIENE_COMMENT");
-            entity.HasKey(e => e.RecordId);
-            entity.Property(e => e.RecordId).HasColumnName("RECORD_ID");
-            entity.Property(e => e.CommentText).HasColumnName("COMMENT").HasMaxLength(500);
-
-            entity.HasOne(e => e.Record)
-                  .WithOne(e => e.Comment)
-                  .HasForeignKey<HygieneComment>(e => e.RecordId)
-                  .HasConstraintName("FK_D_HYGIENE_COMMENT_RECORD");
-        });
-
-        // ---- WaterOrder 桶装水订单 ----
-        modelBuilder.Entity<WaterOrder>(entity =>
-        {
-            entity.ToTable("D_WATER_ORDER");
-            entity.HasKey(e => e.OrderId);
-            entity.Property(e => e.OrderId).HasColumnName("ORDER_ID");
-            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
-            entity.Property(e => e.OrderTime).HasColumnName("ORDER_TIME").IsRequired();
-            entity.Property(e => e.Quantity).HasColumnName("QUANTITY").HasDefaultValue(1);
-            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).HasDefaultValue("未送达");
-
-            entity.HasOne<Room>()
-                  .WithMany()
-                  .HasForeignKey(e => e.RoomId)
-                  .HasConstraintName("FK_D_WATER_ORDER_ROOM");
         });
 
         // ---- BedAllocation 床位分配 ----
@@ -476,23 +412,6 @@ public class AppDbContext : DbContext
                   .HasConstraintName("FK_D_LEAVE_APPLICATION_STUDENT");
         });
 
-        // ---- ParcelRecord 快递记录 ----
-        modelBuilder.Entity<ParcelRecord>(entity =>
-        {
-            entity.ToTable("D_PARCEL_RECORD");
-            entity.HasKey(e => e.ParcelId);
-            entity.Property(e => e.ParcelId).HasColumnName("PARCEL_ID");
-            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
-            entity.Property(e => e.ArriveTime).HasColumnName("ARRIVE_TIME").IsRequired();
-            entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
-            entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
-
-            entity.HasOne(e => e.Student)
-                  .WithMany()
-                  .HasForeignKey(e => e.StudentId)
-                  .HasConstraintName("FK_D_PARCEL_RECORD_STUDENT");
-        });
-
         // ---- ViolationRecord 违规记录 ----
         modelBuilder.Entity<ViolationRecord>(entity =>
         {
@@ -606,7 +525,7 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.AppealId);
             entity.Property(e => e.AppealId).HasColumnName("APPEAL_ID");
             entity.Property(e => e.CreditLogId).HasColumnName("CREDIT_LOG_ID").IsRequired();
-            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20).IsRequired();
+            // 041：冗余 STUDENT_ID 列已删除（经 CREDIT_LOG_ID→D_Credit_Log.STUDENT_ID 联查）
             entity.Property(e => e.Reason).HasColumnName("REASON").HasMaxLength(200).IsRequired();
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired();
             entity.Property(e => e.ResultDesc).HasColumnName("RESULT_DESC").HasMaxLength(200);
@@ -614,7 +533,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ReviewTime).HasColumnName("REVIEW_TIME");
             entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
 
-            entity.HasIndex(e => new { e.StudentId, e.CreateTime, e.AppealId });
+            // 041：原 (StudentId, CreateTime, AppealId) 索引随 STUDENT_ID 列删除；
+            // 学生列表查询走 CREDIT_LOG_ID 唯一约束联查，不再声明冗余索引
         });
 
         // ---- Facility 公共设施 ----
@@ -746,7 +666,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.EnterTime).HasColumnName("ENTER_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
             entity.Property(e => e.ExitTime).HasColumnName("EXIT_TIME");
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).IsRequired();
-            entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
+            // 041：CREATE_TIME（与 ENTER_TIME 同为 SYSDATE 默认）冗余列已删除
 
             entity.HasIndex(e => e.QrToken).IsUnique();
         });
@@ -783,18 +703,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ItemCheck).HasColumnName("ITEM_CHECK").HasMaxLength(10);
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired().IsConcurrencyToken();
             entity.Property(e => e.RejectReason).HasColumnName("REJECT_REASON").HasMaxLength(500);
-        });
-
-        // ===== 三步校验只读数据源（不配置导航/外键，仅按列读写）=====
-        modelBuilder.Entity<ParcelRecord>(entity =>
-        {
-            entity.ToTable("D_PARCEL_RECORD");
-            entity.HasKey(e => e.ParcelId);
-            entity.Property(e => e.ParcelId).HasColumnName("PARCEL_ID");
-            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
-            entity.Property(e => e.ArriveTime).HasColumnName("ARRIVE_TIME");
-            entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
-            entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
         });
 
         // ===== PendingRepairTicketDto：DORM-26 列表投影（无键，仅供 SqlQueryRaw 查询）=====
@@ -885,11 +793,11 @@ public class AppDbContext : DbContext
             entity.Property(e => e.DetailId).HasColumnName("DETAIL_ID");
             entity.Property(e => e.FeeId).HasColumnName("FEE_ID");
             entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").IsRequired();
-            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
             entity.Property(e => e.WaterShare).HasColumnName("WATER_SHARE").HasPrecision(18, 2);
             entity.Property(e => e.PowerShare).HasColumnName("POWER_SHARE").HasPrecision(18, 2);
             entity.Property(e => e.StayDays).HasColumnName("STAY_DAYS");
-            entity.Property(e => e.TotalDays).HasColumnName("TOTAL_DAYS");
+            // 041：ROOM_ID / TOTAL_DAYS 传递依赖列已删除
+            //      房间归属唯一载体为 D_Utility_Fee.ROOM_ID；分摊分母经 FeeId 联查
             entity.Property(e => e.BillType).HasColumnName("BILL_TYPE").IsRequired();
             entity.Property(e => e.IsPaid).HasColumnName("IS_PAID").IsRequired();
             entity.Property(e => e.CreateTime).HasColumnName("CREATE_TIME").HasDefaultValueSql("SYSDATE").ValueGeneratedOnAdd();
@@ -898,11 +806,6 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.StudentId)
                   .HasConstraintName("FK_D_FEE_DETAIL_STUDENT");
-
-            entity.HasOne<Room>()
-                  .WithMany()
-                  .HasForeignKey(e => e.RoomId)
-                  .HasConstraintName("FK_D_FEE_DETAIL_ROOM");
 
             entity.HasOne<UtilityFee>()
                   .WithMany()

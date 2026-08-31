@@ -2,7 +2,7 @@ namespace TemplateDormApi.Models;
 
 /// <summary>
 /// 退宿清算记录（映射 D_Checkout_Log）
-/// 状态机：待清算 →（settle 三步校验失败）已拒绝 /（confirm）已通过 /（cancel）已取消。
+/// 状态机：待清算 →（settle 两步校验失败）已拒绝 /（confirm）已通过 /（cancel）已取消。
 /// UK_D_CHECKOUT_ACTIVE：同一分配最多一条「待清算」记录，防重复提交。
 /// 主键由序列 SEQ_D_CHECKOUT_LOG_ID + 触发器生成（迁移 023），EF 侧配置 ValueGeneratedOnAdd。
 /// </summary>
@@ -23,12 +23,12 @@ public class CheckoutLog
     /// <summary>水电费校验结果（FEE_CHECK）：通过 / 未通过；NULL=未执行</summary>
     public string? FeeCheck { get; set; }
 
-    /// <summary>物品校验结果（ITEM_CHECK，快递+共享物品合并）：通过 / 未通过；NULL=未执行</summary>
+    /// <summary>物品校验结果（ITEM_CHECK，共享物品）：通过 / 未通过；NULL=未执行</summary>
     public string? ItemCheck { get; set; }
 
     /// <summary>状态（STATUS）：待清算 / 已通过 / 已拒绝 / 已取消</summary>
     public string Status { get; set; } = "待清算";
 
-    /// <summary>拒绝原因（REJECT_REASON）：三步校验未通过项逐项列出</summary>
+    /// <summary>拒绝原因（REJECT_REASON）：两步校验未通过项逐项列出</summary>
     public string? RejectReason { get; set; }
 }

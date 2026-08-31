@@ -6,10 +6,9 @@ SET AUTOCOMMIT ON;
 
 -- ===== 1. 卫生记录 D_Hygiene_Record（3 个月 × 在住房间，生成）+ 评论 =====
 -- 手写 900101 7 月 1 条带评论；其余批量生成（900101 除外，避免重复月度记录）。
-INSERT INTO D_Hygiene_Record (Record_ID, Room_ID, Check_Date, Score, Inspector_ID)
-VALUES (9091001, 900101, DATE '2026-07-31', 95, 'IT_ADMIN_001');
-INSERT INTO D_Hygiene_Comment (Record_ID, "COMMENT")
-VALUES (9091001, '整体整洁，物品摆放有序，评分优秀');
+-- 041 起评语列 "COMMENT" 已并入 D_Hygiene_Record（原 D_Hygiene_Comment 卫星表删除）。
+INSERT INTO D_Hygiene_Record (Record_ID, Room_ID, Check_Date, Score, Inspector_ID, "COMMENT")
+VALUES (9091001, 900101, DATE '2026-07-31', 95, 'IT_ADMIN_001', '整体整洁，物品摆放有序，评分优秀');
 
 INSERT INTO D_Hygiene_Record (Record_ID, Room_ID, Check_Date, Score, Inspector_ID)
 SELECT 9091500 + ROWNUM, r.Room_ID,
@@ -95,26 +94,20 @@ VALUES (907008, 908028, '借用逾期提醒',   '您借用的共享自行车已�
 INSERT INTO D_Notification (Notification_ID, Recipient_Account_ID, Title, Content, Notification_Type, Read_Time, Create_Time)
 VALUES (907009, 908031, '新工单待派单',   '有新的报修工单等待派单处理。',                       '系统', NULL, DATE '2026-08-14');
 
--- ===== 5b. 公告 D_Notice + D_Notice_Display（S2-1 公告列表/置顶、C10 双路径） =====
-INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time)
-VALUES (906001, 'IT_ADMIN_001', '关于8月宿舍安全检查的通知', '8月18日将开展宿舍用电与消防安全检查，请同学们配合。', DATE '2026-08-10');
-INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time)
-VALUES (906002, 'IT_ADMIN_001', '暑期宿舍用电安全提醒', '严禁使用违规电器，离开房间请断电。', DATE '2026-08-05');
-INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time)
-VALUES (906003, 'IT_ADMIN_001', '公共设施暂停使用公告', '因维修施工，1号楼洗衣房暂停使用，恢复时间另行通知。', DATE '2026-08-14');
-INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time)
-VALUES (906004, 'IT_ADMIN_001', '毕业生退宿办理流程说明', '退宿需先完成水电、快递、借用物品三项核查。', DATE '2026-07-30');
-INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time)
-VALUES (906005, 'IT_SUPER_001', '学院-专业信息核对通知', '请各学院核对本学院专业目录，如有变更请及时反馈。', DATE '2026-08-12');
-INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time)
-VALUES (906006, 'IT_ADMIN_001', '共享物品借用规则更新', '共享物品借用期限默认7天，逾期将影响信用分。', DATE '2026-08-08');
-
-INSERT INTO D_Notice_Display (Notice_ID, Is_Pinned, Pin_Time) VALUES (906001, '是', DATE '2026-08-10');
-INSERT INTO D_Notice_Display (Notice_ID, Is_Pinned, Pin_Time) VALUES (906002, '否', NULL);
-INSERT INTO D_Notice_Display (Notice_ID, Is_Pinned, Pin_Time) VALUES (906003, '是', DATE '2026-08-14');
-INSERT INTO D_Notice_Display (Notice_ID, Is_Pinned, Pin_Time) VALUES (906004, '否', NULL);
-INSERT INTO D_Notice_Display (Notice_ID, Is_Pinned, Pin_Time) VALUES (906005, '否', NULL);
-INSERT INTO D_Notice_Display (Notice_ID, Is_Pinned, Pin_Time) VALUES (906006, '否', NULL);
+-- ===== 5b. 公告 D_Notice（S2-1 公告列表/置顶、C10 双路径） =====
+-- 041 起 Is_Pinned/Pin_Time 并入 D_Notice（原 D_Notice_Display 卫星表删除）。
+INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time, Is_Pinned, Pin_Time)
+VALUES (906001, 'IT_ADMIN_001', '关于8月宿舍安全检查的通知', '8月18日将开展宿舍用电与消防安全检查，请同学们配合。', DATE '2026-08-10', '是', DATE '2026-08-10');
+INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time, Is_Pinned, Pin_Time)
+VALUES (906002, 'IT_ADMIN_001', '暑期宿舍用电安全提醒', '严禁使用违规电器，离开房间请断电。', DATE '2026-08-05', '否', NULL);
+INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time, Is_Pinned, Pin_Time)
+VALUES (906003, 'IT_ADMIN_001', '公共设施暂停使用公告', '因维修施工，1号楼洗衣房暂停使用，恢复时间另行通知。', DATE '2026-08-14', '是', DATE '2026-08-14');
+INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time, Is_Pinned, Pin_Time)
+VALUES (906004, 'IT_ADMIN_001', '毕业生退宿办理流程说明', '退宿需先完成水电费用与共享物品归还两项核查。', DATE '2026-07-30', '否', NULL);
+INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time, Is_Pinned, Pin_Time)
+VALUES (906005, 'IT_SUPER_001', '学院-专业信息核对通知', '请各学院核对本学院专业目录，如有变更请及时反馈。', DATE '2026-08-12', '否', NULL);
+INSERT INTO D_Notice (Notice_ID, Admin_ID, Title, Content, Publish_Time, Is_Pinned, Pin_Time)
+VALUES (906006, 'IT_ADMIN_001', '共享物品借用规则更新', '共享物品借用期限默认7天，逾期将影响信用分。', DATE '2026-08-08', '否', NULL);
 
 -- ===== 6. 审计 D_Audit_Event（Event_Type 遵循 '{方法} {path}'） =====
 INSERT INTO D_Audit_Event (Audit_ID, Actor_Account_ID, Event_Type, Target_Type, Target_ID, Event_Time, DETAILS)
