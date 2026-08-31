@@ -9,9 +9,9 @@ using TemplateDormApi.Repository;
 namespace TemplateDormApi.Services;
 
 /// <summary>
-/// 退宿清算服务（DORM-11 登记 / DORM-35 查询 / DORM-36 三步校验 / DORM-37 确认 / DORM-38 取消）。
+/// 退宿清算服务（DORM-11 登记 / DORM-35 查询 / DORM-36 两步校验 / DORM-37 确认 / DORM-38 取消）。
 /// 状态机：待清算 →（校验失败）已拒绝 /（确认）已通过 /（取消）已取消。
-/// 三步校验数据源（难点⑥）：D_Fee_Detail（李昂）/ D_Parcel_Record（快递）/ D_Item_Loan（共享物品）
+/// 两步校验数据源（难点⑥，C-048 快递放弃后固定为两项）：D_Fee_Detail（李昂）/ D_Item_Loan（共享物品）
 /// 均为只读，不写他人表；结算金额唯一来源为 SP_Calc_Checkout_Fee（IFeeSharingService 调用）。
 /// </summary>
 public class CheckoutService : ICheckoutService
@@ -109,12 +109,12 @@ public class CheckoutService : ICheckoutService
 
         // 幂等：校验已通过过的清算单重复 settle 直接返回，不重复校验、不重复调 calc
         if (log.FeeCheck == "通过" && log.ItemCheck == "通过")
-            return new { checkoutId = log.LogId, status = log.Status, feeCheck = log.FeeCheck, itemCheck = log.ItemCheck, message = "三步校验已通过（重复清算幂等跳过），等待确认退宿" };
+            return new { checkoutId = log.LogId, status = log.Status, feeCheck = log.FeeCheck, itemCheck = log.ItemCheck, message = "两步校验已通过（重复清算幂等跳过），等待确认退宿" };
 
         if (string.IsNullOrWhiteSpace(alloc.StudentId))
             throw new BusinessException(400, "住宿分配缺少学号，无法清算");
 
-        // ===== 三步校验（难点⑥：任一步失败即拒绝；数据源只读，跨模块不写入）=====
+        // ===== 两步校验（难点⑥：任一步失败即拒绝；数据源只读，跨模块不写入）=====
         // Oracle 兼容（评审整改，8411155 同源）：顶层 AnyAsync 被翻译为
         // CASE WHEN EXISTS(...) THEN True ELSE False，Oracle 21c 无布尔字面量 → ORA-00904。
         // 一律用 CountAsync(...) > 0（翻译为 COUNT(*)）。
@@ -123,20 +123,15 @@ public class CheckoutService : ICheckoutService
         var feeOk = await _context.FeeDetails.CountAsync(f =>
             f.StudentId == alloc.StudentId && f.IsPaid == "否" && f.BillType != "退宿") == 0;
 
-        // ② 快递全取走（Pickup_Time 非空）
-        var parcelOk = await _context.ParcelRecords.CountAsync(p =>
-            p.StudentId == alloc.StudentId && p.PickupTime == null) == 0;
-
-        // ③ 共享物品全归还（Return_Time 非空）
+        // ② 共享物品全归还（Return_Time 非空）
         var itemOk = await _context.ItemLoans.CountAsync(l =>
             l.StudentId == alloc.StudentId && l.ReturnTime == null) == 0;
 
         log.FeeCheck = feeOk ? "通过" : "未通过";
-        log.ItemCheck = parcelOk && itemOk ? "通过" : "未通过";
+        log.ItemCheck = itemOk ? "通过" : "未通过";
 
         var failures = new List<string>();
         if (!feeOk) failures.Add("水电费未缴清");
-        if (!parcelOk) failures.Add("存在未取快递");
         if (!itemOk) failures.Add("存在未归还共享物品");
 
         if (failures.Count > 0)
@@ -190,7 +185,7 @@ public class CheckoutService : ICheckoutService
             status = log.Status,
             feeCheck = log.FeeCheck,
             itemCheck = log.ItemCheck,
-            message = "三步校验通过，退宿结算已生成，等待确认退宿"
+            message = "两步校验通过，退宿结算已生成，等待确认退宿"
         };
     }
 
@@ -212,7 +207,7 @@ public class CheckoutService : ICheckoutService
             throw new BusinessException(400, $"当前状态不可确认退宿（{log.Status}）");
 
         if (log.FeeCheck != "通过" || log.ItemCheck != "通过")
-            throw new BusinessException(400, "三步校验未通过或未执行，请先完成清算（settle）");
+            throw new BusinessException(400, "两步校验未通过或未执行，请先完成清算（settle）");
 
         if (!alloc.RoomId.HasValue)
             throw new BusinessException(400, "住宿分配缺少房间信息");

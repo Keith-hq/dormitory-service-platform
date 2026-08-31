@@ -26,11 +26,9 @@ public class AppDbContext : DbContext
     public DbSet<BedAllocation> BedAllocations => Set<BedAllocation>();
     public DbSet<RepairTicket> RepairTickets => Set<RepairTicket>();
     public DbSet<LateEntry> LateEntries => Set<LateEntry>();
-    public DbSet<VisitorLog> VisitorLogs => Set<VisitorLog>();
     public DbSet<UtilityFee> UtilityFees => Set<UtilityFee>();
     public DbSet<HygieneRecord> HygieneRecords => Set<HygieneRecord>();
     public DbSet<HygieneComment> HygieneComments => Set<HygieneComment>();
-    public DbSet<WaterOrder> WaterOrders => Set<WaterOrder>();
     public DbSet<RepairLog> RepairLogs => Set<RepairLog>();
     public DbSet<RepairAttachment> RepairAttachments => Set<RepairAttachment>();
     public DbSet<AccessLog> AccessLogs => Set<AccessLog>();
@@ -61,11 +59,10 @@ public class AppDbContext : DbContext
 
     // ===== 住宿全生命周期（刘润东）：离校报备 / 退宿清算 =====
     // 注：BedAllocation、ItemLoan 的 DbSet 由住宿/共享物品模块声明，此处不重复声明。
+    // 退宿两步校验只读数据源（D_Fee_Detail / D_Item_Loan）由对应模块声明；
+    // 快递只读源 ParcelRecords 已随 C-048 快递放弃与迁移 041 删除。
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
     public DbSet<CheckoutLog> CheckoutLogs => Set<CheckoutLog>();
-
-    // ===== 退宿三步校验只读数据源（写入方分别为快递/共享物品模块）=====
-    public DbSet<ParcelRecord> ParcelRecords => Set<ParcelRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -203,24 +200,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.PinTime).HasColumnName("PIN_TIME");
         });
 
-        // ---- VisitorLog 访客日志 ----
-        modelBuilder.Entity<VisitorLog>(entity =>
-        {
-            entity.ToTable("D_VISITOR_LOG");
-            entity.HasKey(e => e.VisitorId);
-            entity.Property(e => e.VisitorId).HasColumnName("VISITOR_ID");
-            entity.Property(e => e.BuildingId).HasColumnName("BUILDING_ID");
-            entity.Property(e => e.VisitorName).HasColumnName("VISITOR_NAME").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.VisitReason).HasColumnName("VISIT_REASON").HasMaxLength(200).IsRequired();
-            entity.Property(e => e.EntryTime).HasColumnName("ENTRY_TIME").IsRequired();
-            entity.Property(e => e.LeaveTime).HasColumnName("LEAVE_TIME");
-
-            entity.HasOne<Building>()
-                  .WithMany()
-                  .HasForeignKey(e => e.BuildingId)
-                  .HasConstraintName("FK_D_VISITOR_LOG_BUILDING");
-        });
-
         // ---- UtilityFee 水电费 ----
         modelBuilder.Entity<UtilityFee>(entity =>
         {
@@ -280,23 +259,6 @@ public class AppDbContext : DbContext
                   .WithOne(e => e.Comment)
                   .HasForeignKey<HygieneComment>(e => e.RecordId)
                   .HasConstraintName("FK_D_HYGIENE_COMMENT_RECORD");
-        });
-
-        // ---- WaterOrder 桶装水订单 ----
-        modelBuilder.Entity<WaterOrder>(entity =>
-        {
-            entity.ToTable("D_WATER_ORDER");
-            entity.HasKey(e => e.OrderId);
-            entity.Property(e => e.OrderId).HasColumnName("ORDER_ID");
-            entity.Property(e => e.RoomId).HasColumnName("ROOM_ID");
-            entity.Property(e => e.OrderTime).HasColumnName("ORDER_TIME").IsRequired();
-            entity.Property(e => e.Quantity).HasColumnName("QUANTITY").HasDefaultValue(1);
-            entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(20).HasDefaultValue("未送达");
-
-            entity.HasOne<Room>()
-                  .WithMany()
-                  .HasForeignKey(e => e.RoomId)
-                  .HasConstraintName("FK_D_WATER_ORDER_ROOM");
         });
 
         // ---- BedAllocation 床位分配 ----
@@ -474,23 +436,6 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.StudentId)
                   .HasConstraintName("FK_D_LEAVE_APPLICATION_STUDENT");
-        });
-
-        // ---- ParcelRecord 快递记录 ----
-        modelBuilder.Entity<ParcelRecord>(entity =>
-        {
-            entity.ToTable("D_PARCEL_RECORD");
-            entity.HasKey(e => e.ParcelId);
-            entity.Property(e => e.ParcelId).HasColumnName("PARCEL_ID");
-            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
-            entity.Property(e => e.ArriveTime).HasColumnName("ARRIVE_TIME").IsRequired();
-            entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
-            entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
-
-            entity.HasOne(e => e.Student)
-                  .WithMany()
-                  .HasForeignKey(e => e.StudentId)
-                  .HasConstraintName("FK_D_PARCEL_RECORD_STUDENT");
         });
 
         // ---- ViolationRecord 违规记录 ----
@@ -783,18 +728,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ItemCheck).HasColumnName("ITEM_CHECK").HasMaxLength(10);
             entity.Property(e => e.Status).HasColumnName("STATUS").HasMaxLength(10).IsRequired().IsConcurrencyToken();
             entity.Property(e => e.RejectReason).HasColumnName("REJECT_REASON").HasMaxLength(500);
-        });
-
-        // ===== 三步校验只读数据源（不配置导航/外键，仅按列读写）=====
-        modelBuilder.Entity<ParcelRecord>(entity =>
-        {
-            entity.ToTable("D_PARCEL_RECORD");
-            entity.HasKey(e => e.ParcelId);
-            entity.Property(e => e.ParcelId).HasColumnName("PARCEL_ID");
-            entity.Property(e => e.StudentId).HasColumnName("STUDENT_ID").HasMaxLength(20);
-            entity.Property(e => e.ArriveTime).HasColumnName("ARRIVE_TIME");
-            entity.Property(e => e.PickupTime).HasColumnName("PICKUP_TIME");
-            entity.Property(e => e.CourierCompany).HasColumnName("COURIER_COMPANY").HasMaxLength(50);
         });
 
         // ===== PendingRepairTicketDto：DORM-26 列表投影（无键，仅供 SqlQueryRaw 查询）=====

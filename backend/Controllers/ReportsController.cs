@@ -28,12 +28,13 @@ public class ReportsController : ControllerBase
     }
 
     // GET /reports/{type} - 统计报表（REPT-01）
-    // 支持 7 类报表：occupancy, utility, parcel, lateentry, repair, violation, leave
+    // 支持 6 类报表：occupancy, utility, lateReturn, repair, violation, leave
+    //（package 快递报表随快递业务放弃下线，契约残留条目按 C-049 记"不交付"。）
     [HttpGet("{type}")]
     public async Task<IActionResult> GetReport(string type, [FromQuery] ReportQueryDto query)
     {
         // 校验报表类型
-        var validTypes = new[] { "occupancy", "utility", "package", "lateReturn", "repair", "violation", "leave" };
+        var validTypes = new[] { "occupancy", "utility", "lateReturn", "repair", "violation", "leave" };
         if (!validTypes.Contains(type))
             return BadRequest(ApiResponse.Error(400, $"无效的报表类型，支持：{string.Join(", ", validTypes)}"));
 
@@ -51,7 +52,6 @@ public class ReportsController : ControllerBase
         {
             "occupancy" => await GetOccupancyReport(year, month),
             "utility" => await GetUtilityReport(year, month),
-            "package" => await GetPackageReport(year, month),
             "lateReturn" => await GetLateReturnReport(year, month),
             "repair" => await GetRepairReport(year, month),
             "violation" => await GetViolationReport(year, month),
@@ -104,6 +104,8 @@ public class ReportsController : ControllerBase
     }
 
     // 2. 水电收缴报表：按楼栋统计水电费总额、已缴额、收缴率
+    //    （041 起账单头不再有 Is_Paid，已缴额按明细级 D_Fee_Detail.Is_Paid 聚合，
+    //      与缴费状态唯一事实来源口径一致）
     private async Task<object> GetUtilityReport(int year, int month)
     {
         var yearMonth = $"{year}-{month:D2}";
@@ -113,6 +115,13 @@ public class ReportsController : ControllerBase
                 .ThenInclude(r => r.Building)
             .ToListAsync();
 
+        var feeIds = utilities.Select(u => u.FeeId).ToList();
+        var paidByFee = await _context.FeeDetails
+            .Where(d => feeIds.Contains(d.FeeId) && d.IsPaid == "是")
+            .GroupBy(d => d.FeeId)
+            .Select(g => new { FeeId = g.Key, Paid = g.Sum(d => d.WaterShare + d.PowerShare) })
+            .ToDictionaryAsync(x => x.FeeId, x => x.Paid);
+
         var buildingStats = utilities
             .GroupBy(u => new { u.Room!.BuildingId, BuildingName = u.Room!.Building!.BuildingName })
             .Select(g => new
@@ -120,7 +129,7 @@ public class ReportsController : ControllerBase
                 g.Key.BuildingId,
                 g.Key.BuildingName,
                 TotalFees = g.Sum(u => (u.WaterFee ?? 0) + (u.PowerFee ?? 0)),
-                PaidFees = g.Where(u => u.IsPaid == "是").Sum(u => (u.WaterFee ?? 0) + (u.PowerFee ?? 0))
+                PaidFees = g.Sum(u => paidByFee.TryGetValue(u.FeeId, out var paid) ? paid : 0m)
             })
             .Select(g => new
             {
@@ -137,32 +146,7 @@ public class ReportsController : ControllerBase
         return buildingStats;
     }
 
-    // 3. 快递报表：按楼栋统计快递总数、已取件数、取件率
-    private async Task<object> GetPackageReport(int year, int month)
-    {
-        var startDate = new DateTime(year, month, 1);
-        var endDate = startDate.AddMonths(1);
-
-        var parcels = await _context.ParcelRecords
-            .Where(p => p.ArriveTime >= startDate && p.ArriveTime < endDate)
-            .Include(p => p.Student)
-            .ToListAsync();
-
-        // 由于 ParcelRecord 没有 BuildingId，需关联 Student 或 BedAllocation 获取楼栋
-        // 简化：直接统计总数和取件数
-        var total = parcels.Count;
-        var pickedUp = parcels.Count(p => p.PickupTime != null);
-
-        return new
-        {
-            TotalParcels = total,
-            PickedUp = pickedUp,
-            PendingPickup = total - pickedUp,
-            PickupRate = total > 0 ? Math.Round((double)pickedUp / total * 100, 2) : 0
-        };
-    }
-
-    // 4. 晚归报表：按月份统计晚归记录数、涉及学生数
+    // 3. 晚归报表：按月份统计晚归记录数、涉及学生数
     private async Task<object> GetLateReturnReport(int year, int month)
     {
         var startDate = new DateTime(year, month, 1);
@@ -184,7 +168,7 @@ public class ReportsController : ControllerBase
         };
     }
 
-    // 5. 报修报表：统计各状态工单数
+    // 4. 报修报表：统计各状态工单数
     private async Task<object> GetRepairReport(int year, int month)
     {
         var startDate = new DateTime(year, month, 1);
@@ -204,7 +188,7 @@ public class ReportsController : ControllerBase
         };
     }
 
-    // 6. 违规报表：统计各类型违规数量
+    // 5. 违规报表：统计各类型违规数量
     private async Task<object> GetViolationReport(int year, int month)
     {
         var startDate = new DateTime(year, month, 1);
@@ -224,7 +208,7 @@ public class ReportsController : ControllerBase
         };
     }
 
-    // 7. 离校报表：统计各状态离校申请数
+    // 6. 离校报表：统计各状态离校申请数
     private async Task<object> GetLeaveReport(int year, int month)
     {
         var startDate = new DateTime(year, month, 1);
