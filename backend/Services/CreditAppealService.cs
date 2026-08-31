@@ -259,16 +259,20 @@ public class CreditAppealService : ICreditAppealService
         await _context.SaveChangesAsync(cancellationToken);
 
         // 041：申诉行不再携带学生号，收件人经 Credit_Log 反查（与通知/DTO 同源）
+        // fail-soft：被申诉流水缺失（如已清理）时跳过学生通知，不阻断复核结果落库
         var appealStudentId = await GetAppealStudentIdAsync(appeal, cancellationToken);
-        await _notificationService.CreateAsync(new NotificationCreateDto
+        if (appealStudentId is not null)
         {
-            StudentId = appealStudentId,
-            Title = pass ? "信用申诉已通过" : "信用申诉已驳回",
-            Content = pass
-                ? $"您对扣分明细 {appeal.CreditLogId} 的申诉已通过，信用分已恢复。"
-                : $"您对扣分明细 {appeal.CreditLogId} 的申诉已被驳回：{dto.Note ?? "未说明"}",
-            NotificationType = "信用"
-        });
+            await _notificationService.CreateAsync(new NotificationCreateDto
+            {
+                StudentId = appealStudentId,
+                Title = pass ? "信用申诉已通过" : "信用申诉已驳回",
+                Content = pass
+                    ? $"您对扣分明细 {appeal.CreditLogId} 的申诉已通过，信用分已恢复。"
+                    : $"您对扣分明细 {appeal.CreditLogId} 的申诉已被驳回：{dto.Note ?? "未说明"}",
+                NotificationType = "信用"
+            });
+        }
 
         await _auditService.LogEventAsync(
             pass ? "信用申诉通过" : "信用申诉驳回",
@@ -322,18 +326,21 @@ public class CreditAppealService : ICreditAppealService
             details: $"申诉 #{appeal.AppealId} 通过，违规记录 {violationId} 已标记已撤销");
     }
 
-    /// <summary>041：申诉行不再存学生号，经 Credit_Log 反查归属学生。</summary>
-    private async Task<string> GetAppealStudentIdAsync(CreditAppeal appeal, CancellationToken cancellationToken)
+    /// <summary>
+    /// 041：申诉行不再存学生号，经 Credit_Log 反查归属学生。
+    /// 流水缺失（如已清理）时返回 null——复核结果此时已落库，通知侧 fail-soft 跳过即可，
+    /// 不抛 400 造成"状态已落库但请求失败"的矛盾（驳回路径不预检流水）。
+    /// </summary>
+    private async Task<string?> GetAppealStudentIdAsync(CreditAppeal appeal, CancellationToken cancellationToken)
     {
         return await _context.CreditLogs.AsNoTracking()
             .Where(l => l.LogId == appeal.CreditLogId)
             .Select(l => l.StudentId)
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new BusinessException(400, "被申诉的扣分明细不存在");
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>申诉通过后通知所有超管（fail-soft，不阻断复核主流程）。</summary>
-    private async Task NotifySuperAdminsAsync(CreditAppeal appeal, string studentId, CancellationToken cancellationToken)
+    private async Task NotifySuperAdminsAsync(CreditAppeal appeal, string? studentId, CancellationToken cancellationToken)
     {
         try
         {

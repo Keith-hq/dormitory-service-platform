@@ -106,6 +106,10 @@ public class ReportsController : ControllerBase
     // 2. 水电收缴报表：按楼栋统计水电费总额、已缴额、收缴率
     //    （041 起账单头不再有 Is_Paid，已缴额按明细级 D_Fee_Detail.Is_Paid 聚合，
     //      与缴费状态唯一事实来源口径一致）
+    //    口径注记（REPT-01 utility，与 GetBills 展示口径不同，勿混用）：
+    //      - TotalFees = 账单头金额和（含未发布账单，应收口径按发布状态另算）；
+    //      - PaidFees = 已缴明细金额和（无明细的账单记 0，属收缴统计口径；
+    //        GetBills 列表按「无未缴明细即视为缴清」展示，两者不等价是有意的）。
     private async Task<object> GetUtilityReport(int year, int month)
     {
         var yearMonth = $"{year}-{month:D2}";

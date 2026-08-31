@@ -325,6 +325,35 @@ public class CreditAppealServiceTests
     }
 
     [Fact]
+    public async Task ReviewAsync_Reject_WhenDeductionLogMissing_StillPersistsAndSkipsNotification()
+    {
+        // 041 fail-soft：驳回路径不预检流水；被申诉流水缺失（如已清理）时
+        // 复核结果照常落库，仅跳过学生通知——避免"状态已落库但请求失败"。
+        await using var context = await SeedAdminContextAsync();
+        context.CreditAppeals.Add(new CreditAppeal
+        {
+            AppealId = 1,
+            CreditLogId = 999, // 不存在的流水
+            Reason = "误扣",
+            Status = "待复核",
+            CreateTime = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
+        var notifications = new FakeNotificationService();
+        var service = CreateService(context, new FakeCreditService(), notifications, new FakeAuditService());
+
+        var result = await service.ReviewAsync(
+            appealId: 1,
+            accountId: AdminAccountId,
+            new ReviewCreditAppealRequest { Result = "驳回", Note = "证据不足" },
+            CancellationToken.None);
+
+        Assert.Equal("已驳回", result.Status);
+        Assert.Equal(0, notifications.CreateCalls);
+    }
+
+    [Fact]
     public async Task ReviewAsync_AccountWithoutAdminId_Throws403()
     {
         await using var context = await SeedAdminContextAsync();
@@ -460,8 +489,13 @@ public class CreditAppealServiceTests
         public Task<UnreadCountDto> GetUnreadCountAsync(int recipientAccountId)
             => throw new NotSupportedException();
 
+        public int CreateCalls { get; private set; }
+
         public Task<NotificationItemDto> CreateAsync(NotificationCreateDto dto)
-            => Task.FromResult(new NotificationItemDto());
+        {
+            CreateCalls++;
+            return Task.FromResult(new NotificationItemDto());
+        }
     }
 
     private sealed class FakeAuditService : IAuditService
