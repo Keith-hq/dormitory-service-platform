@@ -306,8 +306,17 @@ BEGIN
             EXECUTE IMMEDIATE v_stmt;
         EXCEPTION
             WHEN OTHERS THEN
-                RAISE_APPLICATION_ERROR(-20041,
-                    '041 重编译失败: ' || r.object_type || ' ' || r.object_name);
+                -- 041 后 deploy/migrate 会恒重跑 sp/*.sql（CREATE OR REPLACE），
+                -- 旧版 SP_* 因引用被删列而失效属升级期预期，不应阻断 041；
+                -- 这里仅警告，留待 SP 重跑覆盖。非 SP_* 对象仍按硬错误处理。
+                IF r.object_type = 'PROCEDURE'
+                   AND r.object_name LIKE 'SP\_%' ESCAPE '\' THEN
+                    DBMS_OUTPUT.PUT_LINE('041 WARN: 等待 SP 重跑覆盖 ' ||
+                        r.object_type || ' ' || r.object_name);
+                ELSE
+                    RAISE_APPLICATION_ERROR(-20041,
+                        '041 重编译失败: ' || r.object_type || ' ' || r.object_name);
+                END IF;
         END;
     END LOOP;
 END;
