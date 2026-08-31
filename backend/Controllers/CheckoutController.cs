@@ -7,7 +7,7 @@ using TemplateDormApi.Services;
 namespace TemplateDormApi.Controllers;
 
 /// <summary>
-/// 退宿清算 — DORM-11 登记 / DORM-35 状态 / DORM-36 开始清算（三步校验）/ DORM-37 确认 / DORM-38 取消
+/// 退宿清算 — DORM-11 登记 / DORM-35 状态 / DORM-36 开始清算（两步校验）/ DORM-37 确认 / DORM-38 取消
 /// 状态机：待清算 → 已拒绝 / 已通过 / 已取消
 /// 鉴权：学生自助流程（IT-C2-001/002 学生 token），服务层按登录态做归属校验（非本人 403）；
 /// 宿管（admin/super_admin）显式放行可代办。
@@ -43,7 +43,7 @@ public class CheckoutController : ControllerBase
         return Ok(ApiResponse.Ok(summary));
     }
 
-    /// <summary>DORM-36 开始清算（三步校验） — 契约 POST /checkouts/{checkoutId}/settle</summary>
+    /// <summary>DORM-36 开始清算（两步校验） — 契约 POST /checkouts/{checkoutId}/settle</summary>
     [HttpPost("api/checkouts/{checkoutId}/settle")]
     public async Task<ActionResult<ApiResponse<object>>> Settle(int checkoutId)
     {

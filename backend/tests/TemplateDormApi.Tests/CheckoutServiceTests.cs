@@ -13,7 +13,7 @@ using TemplateDormApi.Services;
 namespace TemplateDormApi.Tests;
 
 /// <summary>
-/// 退宿清算模块：DORM-11/35/36/37/38 状态机与三步校验（IT-C2-001/003/004/005）
+/// 退宿清算模块：DORM-11/35/36/37/38 状态机与两步校验（IT-C2-001/003/004/005）
 /// + 归属校验（评审整改：学生仅本人/宿管放行）+ 通知失败不阻断。
 /// 唯一索引/并发令牌路径依赖 Oracle，由 8/14 集成测试覆盖。
 /// </summary>

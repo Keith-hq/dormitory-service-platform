@@ -10,13 +10,13 @@ namespace TemplateDormApi.Services;
 /// </summary>
 public static class CheckoutStatuses
 {
-    /// <summary>已登记，等待三步校验（DORM-11 创建）</summary>
+    /// <summary>已登记，等待两步校验（DORM-11 创建）</summary>
     public const string Pending = "待清算";
 
     /// <summary>确认退宿完成（DORM-37，释放床位）</summary>
     public const string Confirmed = "已通过";
 
-    /// <summary>三步校验未通过（DORM-36）</summary>
+    /// <summary>两步校验未通过（DORM-36）</summary>
     public const string Rejected = "已拒绝";
 
     /// <summary>取消清算（DORM-38）</summary>
@@ -35,7 +35,7 @@ public interface ICheckoutService
     Task<object> GetAsync(int checkoutId, int? accountId, bool isDormAdmin);
 
     /// <summary>
-    /// DORM-36 开始清算：三步校验（水电费缴清/快递取走/共享物品归还）。
+    /// DORM-36 开始清算：两步校验（水电费缴清/共享物品归还）。
     /// 任一未通过 → 已拒绝并逐项记录原因；全部通过 → 写 CheckOut_Date 再调 calc SP（同一事务）。
     /// </summary>
     Task<object> SettleAsync(int checkoutId, int? accountId, bool isDormAdmin);
