@@ -75,8 +75,7 @@ const quickLinks = [
     description: '入住、床位与调宿记录',
     to: '/admin/accommodation'
   },
-  { index: '03', title: '访客值守', description: '登记、核验与离场闭环', to: '/admin/duty' },
-  { index: '04', title: '维修调度', description: '工单认领与处理进度', to: '/admin/repair' }
+  { index: '03', title: '访客值守', description: '登记、核验与离场闭环', to: '/admin/duty' }
 ]
 
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
@@ -147,7 +146,7 @@ onMounted(load)
         <div>
           <span>OPERATIONS / CURRENT</span>
           <h2>{{ operationSummary }}</h2>
-          <p>空间档案、住宿调整、访客登记与维修调度在同一张运营首页里快速进入。</p>
+          <p>空间档案、住宿调整与访客登记在同一张运营首页里快速进入。</p>
         </div>
         <router-link to="/admin/duty">进入访客值守台 <b>↗</b></router-link>
       </section>
