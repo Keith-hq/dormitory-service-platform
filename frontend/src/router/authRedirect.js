@@ -18,7 +18,6 @@ const ALLOWED_REDIRECT_PATHS = new Set([
   '/admin/billing',
   '/admin/safety',
   '/admin/duty',
-  '/admin/repair',
   '/repairman',
   '/counselor',
   '/super-admin',

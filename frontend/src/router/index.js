@@ -113,12 +113,6 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '信用申诉' }
   },
   {
-    path: '/admin/repair',
-    name: 'AdminRepair',
-    component: () => import('@/views/admin/AdminRepairView.vue'),
-    meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
-  },
-  {
     path: '/repairman',
     name: 'RepairmanHome',
     component: () => import('@/views/admin/AdminRepairView.vue'),
