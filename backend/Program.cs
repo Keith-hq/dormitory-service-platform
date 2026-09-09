@@ -50,6 +50,8 @@ builder.Services.AddControllers(options =>
 {
     // 添加全局审计日志过滤器
     options.Filters.Add<AuditEventFilter>();
+    // 学生“在住”门槛：退宿后拦截宿舍行为写操作，需重新分配住宿恢复
+    options.Filters.Add<StudentResidenceGuardFilter>();
 })
 .AddJsonOptions(options =>
 {
