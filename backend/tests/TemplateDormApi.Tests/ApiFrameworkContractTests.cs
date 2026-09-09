@@ -42,6 +42,7 @@ public sealed class ApiFrameworkContractTests
         "GET /api/hygiene-rankings",
         "GET /api/access-logs",
         "GET /api/access-logs/density",
+        "GET /api/visitor-registry",
         "POST /api/visitor-registry",
         "POST /api/visitor-registry/{registryId}/verify",
         "POST /api/visitor-registry/{registryId}/exit",
@@ -51,13 +52,13 @@ public sealed class ApiFrameworkContractTests
     };
 
     [Fact]
-    public void Framework_exposes_all_26_claimed_routes()
+    public void Framework_exposes_all_27_claimed_routes()
     {
         var actualRoutes = FrameworkControllers
             .SelectMany(GetRoutes)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        Assert.Equal(26, actualRoutes.Count);
+        Assert.Equal(27, actualRoutes.Count);
         Assert.Empty(ExpectedRoutes.Except(actualRoutes, StringComparer.OrdinalIgnoreCase));
         Assert.Empty(actualRoutes.Except(ExpectedRoutes, StringComparer.OrdinalIgnoreCase));
     }

@@ -179,6 +179,28 @@ public class AuthController : ControllerBase
                 buildingName = adminBuilding.BuildingName;
             }
         }
+        else if (!string.IsNullOrEmpty(user.StudentId))
+        {
+            // 学生楼栋：按"当前在住分配 → 房间 → 楼栋"回填，
+            // 让个人中心/首页的"所属楼栋"不再因缺少来源而显示"待同步"。
+            var studentBuilding = await (
+                from allocation in _context.BedAllocations
+                from room in _context.Rooms
+                from building in _context.Buildings
+                where allocation.StudentId == user.StudentId
+                      && allocation.CheckOutDate == null
+                      && allocation.RoomId == (int?)room.RoomId
+                      && room.BuildingId == building.BuildingId
+                orderby allocation.CheckInDate descending, allocation.AllocationId descending
+                select new { building.BuildingId, building.BuildingName })
+                .FirstOrDefaultAsync();
+
+            if (studentBuilding is not null)
+            {
+                buildingId = studentBuilding.BuildingId.ToString();
+                buildingName = studentBuilding.BuildingName;
+            }
+        }
 
         return Ok(ApiResponse.Ok(new
         {

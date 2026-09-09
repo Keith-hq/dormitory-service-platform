@@ -16,13 +16,36 @@ const sharedItems = ref([])
 const loans = ref([])
 const bookings = ref([])
 const selectedResource = ref(null)
-const selectedDate = ref('明天')
+const localToday = () => {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+const selectedDate = ref(localToday())
 const selectedTime = ref('')
 const feedback = ref('')
 const actionLoading = ref('')
-const DATE_OPTIONS = ['今天', '明天', '周日']
 const TIME_SLOTS = ['08:00', '10:00', '14:00', '16:00', '19:00', '21:00']
-const isOccupiedSlot = (time) => ['10:00', '19:00'].includes(time)
+const availability = ref([]) // [{ facilityId, occupiedSlots }]，按所选日期从真实预约读取
+const occupiedFor = (facilityId) => {
+  const hit = availability.value.find((a) => Number(a.facilityId) === Number(facilityId))
+  return hit ? hit.occupiedSlots : []
+}
+const isSlotTaken = (facilityId, time) => occupiedFor(facilityId).includes(time)
+const loadAvailability = async () => {
+  if (!selectedDate.value) return
+  try {
+    const data = await studentApi.getFacilityAvailability(selectedDate.value)
+    availability.value = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
+  } catch {
+    availability.value = []
+  }
+}
+const onDateChange = () => {
+  selectedTime.value = ''
+  loadAvailability()
+}
 const studentId = computed(() => userStore.userInfo?.id || '')
 
 const loadResources = async () => {
@@ -76,12 +99,25 @@ const switchMode = (mode) => {
 }
 const submitBooking = async () => {
   if (!selectedResource.value?.facilityId) return
+  if (!selectedDate.value || !selectedTime.value) {
+    feedback.value = '请先选择日期和时段'
+    return
+  }
+  if (isSlotTaken(selectedResource.value.facilityId, selectedTime.value)) {
+    feedback.value = '该时段已被预约，请改选其它时段'
+    return
+  }
   actionLoading.value = 'booking'
   feedback.value = ''
   try {
-    await studentApi.createFacilityBooking(selectedResource.value.facilityId)
-    feedback.value = '预约成功，可在设施列表查看占用状态'
-    await loadResources()
+    await studentApi.createFacilityBooking({
+      facilityId: selectedResource.value.facilityId,
+      date: selectedDate.value,
+      timeSlot: selectedTime.value
+    })
+    feedback.value = '预约成功，该时段已被你占用'
+    selectedTime.value = ''
+    await Promise.all([loadResources(), loadAvailability()])
   } catch (requestError) {
     feedback.value = toUserMessage(requestError, '预约失败，请稍后重试')
   } finally {
@@ -149,7 +185,10 @@ const finishUse = async (booking) => {
 const bookingTone = (status) =>
   status === '已完成' ? 'success' : status === '已失效' ? 'neutral' : 'warning'
 const formatTime = (value) => (value ? new Date(value).toLocaleString() : '—')
-onMounted(loadResources)
+onMounted(() => {
+  loadResources()
+  loadAvailability()
+})
 </script>
 
 <template>
@@ -232,33 +271,39 @@ onMounted(loadResources)
         </header>
         <template v-if="activeMode === 'booking'"
           ><template v-if="selectedResource"
-            ><p class="schedule-note">
-              示例交互：当前预约按设施即时占位，日期/时段仅供展示，不随请求提交
-            </p>
-            <div class="date-line">
-              <button
-                v-for="day in DATE_OPTIONS"
-                :key="day"
-                :class="{ active: selectedDate === day }"
-                @click="selectedDate = day"
-              >
-                {{ day }}
-              </button>
+            ><div class="date-pick">
+              <input
+                v-model="selectedDate"
+                type="date"
+                :min="localToday()"
+                @change="onDateChange"
+              />
             </div>
             <div class="time-slots">
               <button
                 v-for="time in TIME_SLOTS"
                 :key="time"
-                :disabled="isOccupiedSlot(time)"
-                :class="{ active: selectedTime === time }"
+                :disabled="isSlotTaken(selectedResource.facilityId, time)"
+                :class="{
+                  active: selectedTime === time,
+                  taken: isSlotTaken(selectedResource.facilityId, time)
+                }"
                 @click="selectedTime = time"
               >
-                {{ time }}<small>{{ isOccupiedSlot(time) ? '已占用' : '可预约' }}</small>
+                {{ time
+                }}<small>{{
+                  isSlotTaken(selectedResource.facilityId, time) ? '已占用' : '可预约'
+                }}</small>
               </button>
             </div>
             <button
               class="btn btn-primary schedule-action"
-              :disabled="actionLoading === 'booking' || Boolean(activeBookingFor(selectedResource))"
+              :disabled="
+                actionLoading === 'booking' ||
+                !selectedTime ||
+                isSlotTaken(selectedResource.facilityId, selectedTime) ||
+                Boolean(activeBookingFor(selectedResource))
+              "
               @click="submitBooking"
             >
               {{
@@ -266,7 +311,11 @@ onMounted(loadResources)
                   ? '预约中…'
                   : activeBookingFor(selectedResource)
                     ? '已有活跃预约'
-                    : '确认预约'
+                    : !selectedTime
+                      ? '请先选择时段'
+                      : isSlotTaken(selectedResource.facilityId, selectedTime)
+                        ? '该时段已被约'
+                        : '确认预约'
               }}
             </button></template
           ><InlineState v-else empty empty-text="从左侧选择设施或物品" />
@@ -648,5 +697,29 @@ onMounted(loadResources)
   .resource-grid {
     grid-template-columns: 1fr;
   }
+}
+.date-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px 0 12px;
+  color: var(--color-text-muted, #5a6b85);
+  font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+}
+.date-pick input[type='date'] {
+  padding: 6px 10px;
+  border: 1px solid var(--color-line-strong, #d5e0ef);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-ink, #12233f);
+  font: 600 14px inherit;
+}
+.time-slots button.taken {
+  background: var(--color-danger-soft, #fbece9);
+  color: var(--color-danger, #c0392b);
+  cursor: not-allowed;
+  opacity: 0.92;
 }
 </style>

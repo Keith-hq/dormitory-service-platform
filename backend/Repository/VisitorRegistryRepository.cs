@@ -84,6 +84,15 @@ public sealed class VisitorRegistryRepository : FrameworkRepositoryBase
         return registry;
     }
 
+    /// <summary>在场(尚未离场)访客登记列表，供门岗逐个办理离场。</summary>
+    public Task<List<VisitorRegistry>> GetActiveAsync(CancellationToken cancellationToken)
+        => DbContext.Set<VisitorRegistry>()
+            .AsNoTracking()
+            .Where(r => r.Status != "已离开")
+            .OrderByDescending(r => r.EnterTime)
+            .Take(200)
+            .ToListAsync(cancellationToken);
+
     /// <summary>VST-03 记录访客离开。</summary>
     public async Task<VisitorRegistry> RecordExitAsync(
         long registryId,

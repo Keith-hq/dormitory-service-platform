@@ -28,6 +28,15 @@ public sealed class VisitorRegistryController : ControllerBase
         return Ok(ApiResponse.Ok(result, "访客登记成功"));
     }
 
+    /// <summary>在场(尚未离场)访客列表，供门岗逐个办理离场登记。</summary>
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<VisitorRegistryDto>>>> GetActive(
+        CancellationToken cancellationToken)
+    {
+        var result = await _service.GetActiveAsync(cancellationToken);
+        return Ok(ApiResponse.Ok(result));
+    }
+
     /// <summary>VST-02 扫码核验。</summary>
     [HttpPost("{registryId:long}/verify")]
     public async Task<ActionResult<ApiResponse<VisitorRegistryDto>>> Verify(

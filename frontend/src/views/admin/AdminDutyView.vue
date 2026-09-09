@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { adminApi } from '@/api/admin'
 import { MetricStrip, WorkspaceHeader } from '@/components'
 import { toUserMessage } from '@/utils/errorMessage'
@@ -9,6 +9,7 @@ const registry = ref({ registryId: '', qrToken: '' })
 const latestRecord = ref(null)
 const feedback = ref('')
 const working = ref('')
+const inHouse = ref([])
 
 const metrics = computed(() => [
   { label: '登记编号', value: registry.value.registryId || '—', hint: '本次值守' },
@@ -32,6 +33,15 @@ const run = async (key, action, success) => {
   }
 }
 
+const loadActive = async () => {
+  try {
+    const data = await adminApi.listVisitors()
+    inHouse.value = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+  } catch {
+    inHouse.value = []
+  }
+}
+
 const submitVisitor = async () => {
   await run(
     'register',
@@ -47,21 +57,24 @@ const submitVisitor = async () => {
         : '访客登记已提交，登记编号已带入核验区；请扫描访客二维码获取通行码'
   )
   if (latestRecord.value) visitor.value = { visitorName: '', phone: '', studentId: '' }
+  await loadActive()
 }
 
-const verifyVisitor = () =>
-  run(
+const verifyVisitor = async () => {
+  await run(
     'verify',
     () => adminApi.verifyVisitor(registry.value.registryId, { qrToken: registry.value.qrToken }),
     '访客通行码核验成功'
   )
+  await loadActive()
+}
 
-const recordExit = () =>
-  run(
-    'exit',
-    () => adminApi.recordVisitorExit(registry.value.registryId),
-    '访客离场时间已登记，本次来访闭环完成'
-  )
+const recordExitFor = async (registryId) => {
+  await run('exit', () => adminApi.recordVisitorExit(registryId), '该访客离场时间已登记')
+  await loadActive()
+}
+
+onMounted(loadActive)
 </script>
 
 <template>
@@ -134,21 +147,35 @@ const recordExit = () =>
           </button>
         </form>
       </article>
+    </section>
 
-      <article class="exit-card">
-        <div>
-          <span>03 / EXIT LOG</span>
-          <h2>离场登记</h2>
-          <p>访客离开时记录离场时间，关闭本次来访。</p>
-        </div>
-        <button
-          class="btn"
-          :disabled="!registry.registryId || working === 'exit'"
-          @click="recordExit"
-        >
-          {{ working === 'exit' ? '记录中…' : '确认访客离场' }}
-        </button>
-      </article>
+    <section class="inhouse-card">
+      <header>
+        <span>03 / EXIT LOG</span>
+        <h2>离场登记</h2>
+        <p>在场(尚未离场)访客在此列出，逐位点击「记录离场」各自闭环。</p>
+      </header>
+      <ul v-if="inHouse.length" class="inhouse-list">
+        <li v-for="row in inHouse" :key="row.registryId">
+          <div>
+            <strong>{{ row.visitorName }}</strong>
+            <small
+              >#{{ row.registryId }} · 被访 {{ row.studentId || '—' }} ·
+              {{ (row.enterTime || '').slice?.(0, 16) || '—' }}</small
+            >
+          </div>
+          <b>{{ row.status }}</b>
+          <button
+            type="button"
+            class="btn btn-sm"
+            :disabled="working === 'exit'"
+            @click="recordExitFor(row.registryId)"
+          >
+            记录离场
+          </button>
+        </li>
+      </ul>
+      <p v-else class="inhouse-empty">当前没有在场访客。</p>
     </section>
   </main>
 </template>
@@ -308,5 +335,60 @@ const recordExit = () =>
   .duty-flow form button {
     grid-column: auto;
   }
+}
+.inhouse-card {
+  margin-top: 22px;
+  padding: 24px 28px;
+  border: 1px solid var(--color-line, #e2e9f3);
+  border-radius: var(--radius-lg, 12px);
+  background: #fff;
+}
+.inhouse-card > header span {
+  color: var(--color-brand, #1f6feb);
+  font-size: 14px;
+  font-weight: 850;
+}
+.inhouse-card h2 {
+  margin: 6px 0 4px;
+  color: var(--color-ink, #12233f);
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+}
+.inhouse-card p {
+  margin: 0 0 8px;
+  color: var(--color-text-muted, #5a6b85);
+  font-size: 13px;
+}
+.inhouse-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.inhouse-list li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-line, #eef2f8);
+}
+.inhouse-list li > div {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.inhouse-list strong {
+  color: var(--color-ink, #12233f);
+}
+.inhouse-list small {
+  color: var(--color-text-muted, #5a6b85);
+  font-size: 12px;
+}
+.inhouse-list b {
+  color: var(--color-brand, #1f6feb);
+  font-size: 13px;
+}
+.inhouse-empty {
+  color: var(--color-text-muted, #5a6b85);
+  font-size: 14px;
 }
 </style>

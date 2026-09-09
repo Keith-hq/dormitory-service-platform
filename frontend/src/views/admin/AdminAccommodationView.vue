@@ -192,7 +192,7 @@ const transitionCheckout = async (action) => {
         <header>
           <span>02 / TRANSFER</span>
           <h2>调寝办理</h2>
-          <b>原子切换床位</b>
+          <b>切换床位</b>
         </header>
         <form @submit.prevent="transferAllocation">
           <label

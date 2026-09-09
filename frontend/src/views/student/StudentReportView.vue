@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { studentApi } from '@/api/student'
 import { InlineState, MetricStrip, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
@@ -10,10 +10,21 @@ const loading = ref(true)
 const error = ref('')
 const monthlyFee = ref(null)
 const facilityUsage = ref(null)
+const lastSync = ref('')
 const studentId = computed(() => userStore.userInfo?.id || '')
-const period = computed(
-  () => monthlyFee.value?.yearMonth || facilityUsage.value?.yearMonth || '当前账期'
+
+const currentMonth = (() => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+})()
+const selectedMonth = ref(currentMonth)
+// 请求序号：丢弃被“选月 / 轮询”顶掉的旧响应，避免旧月份数据盖掉新月份
+const requestSeq = ref(0)
+
+const pageTitle = computed(() =>
+  selectedMonth.value === currentMonth ? '本月生活统计' : `${selectedMonth.value} 生活统计`
 )
+
 const outstanding = computed(() =>
   Math.max(
     Number(monthlyFee.value?.utilityTotal || 0) - Number(monthlyFee.value?.paidTotal || 0),
@@ -24,7 +35,7 @@ const metrics = computed(() => [
   {
     label: '本期水电',
     value: `¥${Number(monthlyFee.value?.utilityTotal || 0).toFixed(2)}`,
-    hint: period.value
+    hint: selectedMonth.value
   },
   {
     label: '已缴金额',
@@ -39,40 +50,95 @@ const metrics = computed(() => [
   {
     label: '设施使用',
     value: String(facilityUsage.value?.usageCount || 0),
-    hint: `${period.value} 次数`
+    hint: `${selectedMonth.value} 次数`
   }
 ])
 
-const loadReport = async () => {
-  loading.value = true
-  error.value = ''
+// silent=true 走静默刷新：不闪加载态、失败不清空已有数据，供自动轮询与切回页面使用
+async function fetchReport({ silent = false } = {}) {
+  const seq = ++requestSeq.value
+  const params = { yearMonth: selectedMonth.value }
+  if (!silent) {
+    loading.value = true
+    error.value = ''
+  }
+
   const [feeResult, usageResult] = await Promise.allSettled([
-    studentApi.getMonthlyFeeReport(studentId.value),
-    studentApi.getFacilityUsageReport(studentId.value)
+    studentApi.getMonthlyFeeReport(studentId.value, params),
+    studentApi.getFacilityUsageReport(studentId.value, params)
   ])
+
+  if (seq !== requestSeq.value) return // 已有更新的请求，本次结果作废
 
   monthlyFee.value = feeResult.status === 'fulfilled' ? feeResult.value : null
   facilityUsage.value = usageResult.status === 'fulfilled' ? usageResult.value : null
 
   if (feeResult.status === 'rejected' && usageResult.status === 'rejected') {
-    error.value = toUserMessage(feeResult.reason, '生活统计暂时无法同步')
+    if (!silent) error.value = toUserMessage(feeResult.reason, '生活统计暂时无法同步')
+    loading.value = false
+    return
   }
+
+  if (!silent) error.value = ''
   loading.value = false
+  lastSync.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
 }
 
-onMounted(loadReport)
+function onMonthChange(event) {
+  const value = event.target.value
+  if (!value) return
+  selectedMonth.value = value
+  fetchReport()
+}
+
+function onWindowActive() {
+  if (document.visibilityState === 'visible') fetchReport({ silent: true })
+}
+
+let syncTimer = null
+onMounted(() => {
+  fetchReport()
+  // 实时同步：页面停留时每 30s 按所选月份静默重查，缴费/预约后数字自动跟上
+  syncTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') fetchReport({ silent: true })
+  }, 30000)
+  document.addEventListener('visibilitychange', onWindowActive)
+  window.addEventListener('focus', onWindowActive)
+})
+
+onBeforeUnmount(() => {
+  if (syncTimer) clearInterval(syncTimer)
+  document.removeEventListener('visibilitychange', onWindowActive)
+  window.removeEventListener('focus', onWindowActive)
+})
 </script>
 
 <template>
   <main class="snapshot-page">
     <WorkspaceHeader
       eyebrow="STUDENT / MONTHLY SNAPSHOT"
-      title="本月生活统计"
-      description="只保留已经接入真实数据的费用与设施使用指标，帮助你快速确认本期状态。"
+      :title="pageTitle"
+      description="只保留已经接入真实数据的费用与设施使用指标，选择月份即可回看对应账期。"
     >
-      <button class="btn btn-sm" type="button" :disabled="loading" @click="loadReport">
-        重新同步
-      </button>
+      <div class="report-tools">
+        <label class="report-month">
+          <span>统计月份</span>
+          <input
+            type="month"
+            :value="selectedMonth"
+            :max="currentMonth"
+            aria-label="选择统计月份"
+            @change="onMonthChange"
+          />
+        </label>
+        <button class="btn btn-sm" type="button" :disabled="loading" @click="fetchReport()">
+          重新同步
+        </button>
+        <small class="sync-hint" :class="{ 'sync-hint--off': !lastSync }">
+          <template v-if="lastSync">每 30 秒自动同步 · 上次 {{ lastSync }}</template>
+          <template v-else>等待首次同步…</template>
+        </small>
+      </div>
     </WorkspaceHeader>
 
     <InlineState :loading="loading" :error="error" />
@@ -84,7 +150,7 @@ onMounted(loadReport)
         <article class="finance-card">
           <header>
             <span>01 / UTILITY STATUS</span>
-            <small>{{ period }}</small>
+            <small>{{ selectedMonth }}</small>
           </header>
           <div class="amount-row">
             <div>
@@ -114,7 +180,8 @@ onMounted(loadReport)
       <footer class="scope-note">
         <span>DATA SCOPE</span>
         <p>
-          当前仅展示已完成真实联调的月度费用与设施使用数据；年度聚合报告属于暂缓业务，不纳入本轮交付。
+          数据按所选“账单账期”实时查询（未发布当月账单时本月可能为 0）。缴费 / 设施使用发生变化后，
+          本页每 30 秒自动同步，或切回本页面时立即刷新。
         </p>
       </footer>
     </template>
@@ -126,6 +193,36 @@ onMounted(loadReport)
   width: min(100% - 48px, var(--content-max));
   margin: 0 auto;
   padding-bottom: 72px;
+}
+.report-tools {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+.report-month {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.report-month input[type='month'] {
+  padding: 6px 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-ink);
+  font: 600 14px var(--font-body);
+}
+.sync-hint {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sync-hint--off {
+  color: var(--color-line-strong);
 }
 .snapshot-grid {
   display: grid;
@@ -259,6 +356,10 @@ onMounted(loadReport)
   .scope-note {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+  .report-tools {
+    justify-items: start;
+    width: 100%;
   }
 }
 </style>

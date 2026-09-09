@@ -214,6 +214,8 @@ SCRIPTS=(
     "ddl/extensions/039_violation_status.sql"
     "ddl/extensions/040_repair_claim_time.sql"
     "ddl/extensions/041_database_consolidation.sql"
+    "ddl/extensions/042_rebuild_bed_alloc_active_index.sql"
+    "ddl/extensions/043_facility_booking_slot_index.sql"
     # 存储过程
     "sp/sp_fee_sharing.sql"
     "sp/sp_billing.sql"

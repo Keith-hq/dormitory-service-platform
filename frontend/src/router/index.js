@@ -149,6 +149,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin', 'super_admin'] }
   },
   {
+    path: '/building/:buildingId/rooms',
+    name: 'BuildingRooms',
+    component: () => import('@/views/BuildingRoomsView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'super_admin'], title: '房间入住详情' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/'
   }

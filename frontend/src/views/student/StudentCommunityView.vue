@@ -217,6 +217,37 @@ const revokeVisitor = async (item) => {
   }
 }
 
+// —— C8 访客授权：查看并复制通行码(token 串) ——
+const copyingId = ref(null)
+const copyVisitorCode = async (item) => {
+  const authId = item.authorizationId ?? item.authId
+  if (!authId || copyingId.value) return
+  copyingId.value = authId
+  feedback.value = ''
+  try {
+    const detail = await studentApi.getVisitorAuthorization(authId)
+    const token = detail?.authorizationToken || ''
+    if (!token) throw new Error('未找到通行码')
+    let copied = false
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(token)
+      copied = true
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = token
+      document.body.appendChild(textarea)
+      textarea.select()
+      copied = document.execCommand('copy')
+      textarea.remove()
+    }
+    feedback.value = copied ? `通行码已复制：${token}` : `通行码：${token}（请手动复制）`
+  } catch (requestError) {
+    feedback.value = toUserMessage(requestError, '通行码获取失败')
+  } finally {
+    copyingId.value = null
+  }
+}
+
 const loadCommunity = async () => {
   loading.value = true
   failures.value = []
@@ -657,6 +688,15 @@ onMounted(loadCommunity)
               @click="revokeVisitor(item)"
             >
               {{ revokingId === (item.authorizationId ?? item.authId) ? '撤销中…' : '撤销' }}
+            </button>
+            <button
+              v-if="activeSection === 'visitor' && item.status === '有效'"
+              type="button"
+              class="revoke-btn"
+              :disabled="copyingId === (item.authorizationId ?? item.authId)"
+              @click="copyVisitorCode(item)"
+            >
+              {{ copyingId === (item.authorizationId ?? item.authId) ? '获取中…' : '复制通行码' }}
             </button>
             <dl v-if="expandedId === itemKey(item)" class="record-detail">
               <template v-for="(value, field) in item" :key="field">
