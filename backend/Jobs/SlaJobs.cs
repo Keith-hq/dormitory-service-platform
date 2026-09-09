@@ -27,7 +27,8 @@ public class TicketAssignJob : IJob
         // 标量投影（输出列别名为 "Value"），避免实体映射被 EF 二次组合（ORA-00904）
         var unassigned = await _context.Database
             .SqlQueryRaw<int>(@"SELECT Ticket_ID AS ""Value"" FROM D_Repair_Ticket
-                                WHERE Assigned_To IS NULL")
+                                WHERE Assigned_To IS NULL
+                                  AND NOT (Issue_Desc LIKE '[保洁-%')")
             .ToListAsync();
 
         foreach (var ticketId in unassigned)

@@ -158,6 +158,7 @@ builder.Services.AddScoped<IInventoryTxnService, InventoryTxnService>();
 builder.Services.AddScoped<IAssetService, AssetService>();
 builder.Services.AddScoped<ISharedItemService, SharedItemService>();
 builder.Services.AddScoped<ICleaningTaskService, CleaningTaskService>();
+builder.Services.AddScoped<ICleaningRequestService, CleaningRequestService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IImportService, ImportService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
@@ -174,6 +175,14 @@ builder.Services.AddQuartz(q =>
         .ForJob(feeJobKey)
         .WithIdentity("FeeSharingTrigger")
         .WithCronSchedule("0 0 0 1 * ?"));
+
+    // --- 保洁-楼栋整体：每周一 06:00，按楼长负责楼栋生成 ---
+    var buildingCleaningKey = new JobKey("WeeklyBuildingCleaningJob");
+    q.AddJob<WeeklyBuildingCleaningJob>(opts => opts.WithIdentity(buildingCleaningKey));
+    q.AddTrigger(opts => opts
+        .ForJob(buildingCleaningKey)
+        .WithIdentity("WeeklyBuildingCleaningTrigger")
+        .WithCronSchedule("0 0 6 ? * MON", s => s.InTimeZone(GetBusinessTimeZone())));
 
     // --- 信用分月度重置：每月1日 00:10 北京时间错峰触发 ---
     var creditResetJobKey = new JobKey("CreditResetJob");

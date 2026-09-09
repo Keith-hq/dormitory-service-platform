@@ -3,6 +3,7 @@ using TemplateDormApi.Data;
 using TemplateDormApi.DTO;
 using TemplateDormApi.Models;
 using TemplateDormApi.Exceptions;
+using TemplateDormApi.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace TemplateDormApi.Repository;
@@ -79,7 +80,7 @@ public sealed class RepairRepository : FrameworkRepositoryBase
     {
         var ticketQuery = DbContext.RepairTickets
             .AsNoTracking()
-            .Where(item => item.StudentId == studentId);
+            .Where(item => item.StudentId == studentId && !CleaningTags.IsCleaning(item.IssueDescription));
 
         var total = await ticketQuery.CountAsync(cancellationToken);
         var tickets = await ticketQuery
