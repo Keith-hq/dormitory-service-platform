@@ -794,14 +794,13 @@ onMounted(loadOperations)
   flex-direction: row;
   align-items: stretch;
   overflow-x: auto;
-  padding: 14px 10px 10px;
+  padding: 14px 16px 10px;
   margin: 0;
   gap: 14px;
   scroll-snap-type: x proximity;
 }
 .cleaning-rail article {
   flex: 0 0 300px;
-  padding-left: 34px;
   scroll-snap-align: start;
 }
 .cleaning-rail > p {
