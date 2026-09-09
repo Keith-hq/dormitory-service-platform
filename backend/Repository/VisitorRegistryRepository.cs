@@ -109,6 +109,21 @@ public sealed class VisitorRegistryRepository : FrameworkRepositoryBase
 
         registry.Status = "已离开";
         registry.ExitTime = DateTime.Now;
+
+        // 闭环：访客确认离开后，把本次核验所用的学生授权码置为“已过期”，
+        // 学生端对应访客预约随即失效(与“撤销/到期后通行码失效”语义一致)。
+        if (!string.IsNullOrWhiteSpace(registry.QrToken))
+        {
+            var authorization = await DbContext.Set<VisitorAuthorization>()
+                .FirstOrDefaultAsync(
+                    a => a.AuthorizationToken == registry.QrToken && a.Status == "有效",
+                    cancellationToken);
+            if (authorization is not null)
+            {
+                authorization.Status = "已过期";
+            }
+        }
+
         await DbContext.SaveChangesAsync(cancellationToken);
         return registry;
     }
