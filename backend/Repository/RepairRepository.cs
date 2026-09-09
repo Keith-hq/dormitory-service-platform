@@ -80,7 +80,7 @@ public sealed class RepairRepository : FrameworkRepositoryBase
     {
         var ticketQuery = DbContext.RepairTickets
             .AsNoTracking()
-            .Where(item => item.StudentId == studentId && !CleaningTags.IsCleaning(item.IssueDescription));
+            .Where(item => item.StudentId == studentId && !item.IssueDescription.StartsWith(CleaningTags.SearchPrefix));
 
         var total = await ticketQuery.CountAsync(cancellationToken);
         var tickets = await ticketQuery

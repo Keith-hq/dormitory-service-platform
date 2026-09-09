@@ -170,7 +170,7 @@ public class AdminsController : ControllerBase
         {
             var hasPending = await _context.RepairTickets
                 .CountAsync(t => t.AssignedTo == id && t.Status != "已完成" && t.Status != "已取消"
-                    && !TemplateDormApi.Services.CleaningTags.IsCleaning(t.IssueDescription)) > 0;
+                    && !t.IssueDescription.StartsWith(TemplateDormApi.Services.CleaningTags.SearchPrefix)) > 0;
             if (hasPending)
             {
                 // 返回提示需要先移交（契约要求）

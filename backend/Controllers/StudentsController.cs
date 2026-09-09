@@ -296,7 +296,7 @@ public class StudentsController : ControllerBase
         // 检查是否有未完成的报修
         var hasPendingRepair = await _context.RepairTickets
             .CountAsync(r => r.StudentId == studentId && r.Status != "已完成" && r.Status != "已取消"
-                && !TemplateDormApi.Services.CleaningTags.IsCleaning(r.IssueDescription)) > 0;
+                && !r.IssueDescription.StartsWith(TemplateDormApi.Services.CleaningTags.SearchPrefix)) > 0;
         if (hasPendingRepair)
             return BadRequest(ApiResponse.Error(400, "该学生有未完成的报修，无法删除，请先处理报修"));
 

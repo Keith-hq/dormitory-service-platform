@@ -103,7 +103,7 @@ public sealed class CleaningRequestService : ICleaningRequestService
         int page, int pageSize, CancellationToken ct)
     {
         var query = BuildCleanProjection()
-            .Where(t => CleaningTags.IsCleaning(t.IssueDescription));
+            .Where(t => t.IssueDescription.StartsWith(CleaningTags.SearchPrefix));
 
         var total = await query.CountAsync(ct);
         var pageTickets = await query
