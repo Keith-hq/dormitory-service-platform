@@ -72,8 +72,13 @@ onMounted(() => {
       <ul v-if="records.length" class="record-list">
         <li v-for="item in records" :key="item.taskId">
           <div>
-            <strong>{{ item.roomNumber ? `房间 ${item.roomNumber}` : `房间 ${item.roomId || '—'}` }}</strong>
-            <small>{{ item.description }} · 提交 {{ (item.createTime || '').slice?.(0, 16) || '—' }}</small>
+            <strong>{{
+              item.roomNumber ? `房间 ${item.roomNumber}` : `房间 ${item.roomId || '—'}`
+            }}</strong>
+            <small
+              >{{ item.description }} · 提交
+              {{ (item.createTime || '').slice?.(0, 16) || '—' }}</small
+            >
           </div>
           <b>{{ item.status }}</b>
         </li>
