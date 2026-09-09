@@ -22,6 +22,8 @@ END;
 CREATE OR REPLACE PROCEDURE SP_Book_Facility(
     p_Facility_ID  IN  NUMBER,
     p_Student_ID   IN  VARCHAR2,
+    p_Start_Time   IN  DATE DEFAULT NULL,
+    p_End_Time     IN  DATE DEFAULT NULL,
     p_Result_Code  OUT NUMBER,
     p_Booking_ID   OUT NUMBER
 ) AS
@@ -61,9 +63,10 @@ BEGIN
     -- 4. 插入预约（设施维度由 UK_D_FACILITY_BOOK_ACTIVE 兜底）
     BEGIN
         INSERT INTO D_Facility_Booking (
-            Booking_ID, Facility_ID, Student_ID, Create_Time, Status
+            Booking_ID, Facility_ID, Student_ID, Create_Time, Start_Time, End_Time, Status
         ) VALUES (
-            SEQ_FACILITY_BOOKING.NEXTVAL, p_Facility_ID, p_Student_ID, SYSDATE, '已预约'
+            SEQ_FACILITY_BOOKING.NEXTVAL, p_Facility_ID, p_Student_ID, SYSDATE,
+            p_Start_Time, p_End_Time, '已预约'
         ) RETURNING Booking_ID INTO p_Booking_ID;
     EXCEPTION
         WHEN DUP_VAL_ON_INDEX THEN p_Result_Code := 4; RETURN;
@@ -142,10 +145,20 @@ END SP_Finish_Use;
 -- ============================================================
 CREATE OR REPLACE PROCEDURE SP_Expire_Booking AS
 BEGIN
+    -- 时段预约：到点(End_Time 已过)仍没开始使用 → 失效，释放该时段
     UPDATE D_Facility_Booking
     SET Status = '已失效'
     WHERE Status = '已预约'
+      AND End_Time IS NOT NULL
+      AND SYSDATE > End_Time;
+
+    -- 即时预约(无时段，Start/End 为空)：预约后 15 分钟没开始使用 → 失效
+    UPDATE D_Facility_Booking
+    SET Status = '已失效'
+    WHERE Status = '已预约'
+      AND Start_Time IS NULL
       AND (SYSDATE - Create_Time) * 24 * 60 > 15;
+
     COMMIT;
 END SP_Expire_Booking;
 /
