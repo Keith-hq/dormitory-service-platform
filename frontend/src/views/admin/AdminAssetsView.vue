@@ -427,7 +427,7 @@ onMounted(loadOperations)
         <span>01 / CLEANING REQUESTS</span>
         <h2>保洁请求（学生申请 / 每周楼栋整体）</h2>
       </header>
-      <div class="cleaning-board">
+      <div class="cleaning-board cleaning-rail">
         <template v-if="cleaningRequests.length">
           <article v-for="req in cleaningRequests" :key="req.taskId">
             <span>#{{ req.taskId }}</span>
@@ -788,5 +788,22 @@ onMounted(loadOperations)
   .desk-tabs {
     overflow-x: auto;
   }
+}
+.cleaning-rail {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  gap: 14px;
+  scroll-snap-type: x proximity;
+}
+.cleaning-rail article {
+  flex: 0 0 300px;
+  scroll-snap-align: start;
+}
+.cleaning-rail > p {
+  flex: none;
+  width: 100%;
 }
 </style>
