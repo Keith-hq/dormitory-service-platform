@@ -22,10 +22,7 @@ const capacityLabel = (room) => `每间限 ${room.capacity ?? 4} 人`
 const summary = computed(() => {
   const total = rooms.value.length
   const used = rooms.value.reduce((sum, room) => sum + Number(room.occupancy || 0), 0)
-  const capacity = rooms.value.reduce(
-    (sum, room) => sum + Number(room.capacity ?? 4),
-    0
-  )
+  const capacity = rooms.value.reduce((sum, room) => sum + Number(room.capacity ?? 4), 0)
   return { total, used, free: capacity - used }
 })
 
@@ -117,10 +114,20 @@ onMounted(loadRooms)
           <span class="room-no">房间号 {{ room.roomNumber || '—' }}</span>
           <StatusTag
             :label="fullState(room)"
-            :tone="Number(room.occupancy || 0) === 0 ? 'neutral' : Number(room.occupancy || 0) >= Number(room.capacity ?? 4) ? 'danger' : 'success'"
+            :tone="
+              Number(room.occupancy || 0) === 0
+                ? 'neutral'
+                : Number(room.occupancy || 0) >= Number(room.capacity ?? 4)
+                  ? 'danger'
+                  : 'success'
+            "
           />
-          <span class="room-capacity">{{ capacityLabel(room) }} · 已住 {{ room.occupancy || 0 }}</span>
-          <span class="room-chevron">{{ expandedRoomId === room.roomId ? '收起 ▲' : '查看住户 ▼' }}</span>
+          <span class="room-capacity"
+            >{{ capacityLabel(room) }} · 已住 {{ room.occupancy || 0 }}</span
+          >
+          <span class="room-chevron">{{
+            expandedRoomId === room.roomId ? '收起 ▲' : '查看住户 ▼'
+          }}</span>
         </button>
 
         <div v-if="expandedRoomId === room.roomId" class="room-detail">
@@ -131,7 +138,10 @@ onMounted(loadRooms)
               <li v-for="item in occupants" :key="`${item.studentId}-${item.bedNo}`">
                 <b>{{ item.bedNo }} 号床</b>
                 <strong>{{ item.studentName || item.studentId }}</strong>
-                <small>{{ item.studentId }} · {{ (item.checkInDate || '').slice?.(0, 10) || '入住日期未知' }}</small>
+                <small
+                  >{{ item.studentId }} ·
+                  {{ (item.checkInDate || '').slice?.(0, 10) || '入住日期未知' }}</small
+                >
               </li>
             </ul>
             <p v-else class="state-line">当前无人入住（空房）。</p>
@@ -169,7 +179,9 @@ onMounted(loadRooms)
   font-size: 14px;
   font-weight: 800;
   text-decoration: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .back-link:hover {
   background: var(--color-brand-soft, #eaf2ff);

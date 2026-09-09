@@ -70,11 +70,7 @@ const verifyVisitor = async () => {
 }
 
 const recordExitFor = async (registryId) => {
-  await run(
-    'exit',
-    () => adminApi.recordVisitorExit(registryId),
-    '该访客离场时间已登记'
-  )
+  await run('exit', () => adminApi.recordVisitorExit(registryId), '该访客离场时间已登记')
   await loadActive()
 }
 
@@ -151,7 +147,6 @@ onMounted(loadActive)
           </button>
         </form>
       </article>
-
     </section>
 
     <section class="inhouse-card">

@@ -290,7 +290,8 @@ onMounted(() => {
                 }"
                 @click="selectedTime = time"
               >
-                {{ time }}<small>{{
+                {{ time
+                }}<small>{{
                   isSlotTaken(selectedResource.facilityId, time) ? '已占用' : '可预约'
                 }}</small>
               </button>
