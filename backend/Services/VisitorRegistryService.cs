@@ -9,6 +9,7 @@ public interface IVisitorRegistryService
     Task<VisitorRegistryDto> CreateAsync(CreateVisitorRegistryRequest request, CancellationToken cancellationToken);
     Task<VisitorRegistryDto> VerifyAsync(long registryId, VerifyVisitorRegistryRequest request, CancellationToken cancellationToken);
     Task<VisitorRegistryDto> RecordExitAsync(long registryId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VisitorRegistryDto>> GetActiveAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -46,6 +47,13 @@ public sealed class VisitorRegistryService : IVisitorRegistryService
     {
         var entity = await _repository.RecordExitAsync(registryId, cancellationToken);
         return ToDto(entity);
+    }
+
+    public async Task<IReadOnlyList<VisitorRegistryDto>> GetActiveAsync(
+        CancellationToken cancellationToken)
+    {
+        var items = await _repository.GetActiveAsync(cancellationToken);
+        return items.Select(ToDto).ToList();
     }
 
     private static VisitorRegistryDto ToDto(VisitorRegistry registry) => new()

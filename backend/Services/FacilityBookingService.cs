@@ -40,11 +40,23 @@ public class FacilityBookingService : IFacilityBookingService
         return (code, bookingId);
     }
 
-    public async Task<(int resultCode, int bookingId)> BookFacility(int facilityId, string studentId)
+    public async Task<(int resultCode, int bookingId)> BookFacility(
+        int facilityId,
+        string studentId,
+        DateTime? slotStart = null,
+        DateTime? slotEnd = null)
     {
         return await CallBook("SP_Book_Facility",
             new OracleParameter("p_Facility_ID", facilityId),
-            new OracleParameter("p_Student_ID", studentId));
+            new OracleParameter("p_Student_ID", studentId),
+            new OracleParameter("p_Start_Time", OracleDbType.Date)
+            {
+                Value = slotStart.HasValue ? slotStart.Value : (object)DBNull.Value
+            },
+            new OracleParameter("p_End_Time", OracleDbType.Date)
+            {
+                Value = slotEnd.HasValue ? slotEnd.Value : (object)DBNull.Value
+            });
     }
 
     public async Task<int> StartUse(int bookingId, string studentId)
