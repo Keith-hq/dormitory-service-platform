@@ -90,6 +90,7 @@ public sealed class VisitorRegistryRepository : FrameworkRepositoryBase
             .AsNoTracking()
             .Where(r => r.Status != "已离开")
             .OrderByDescending(r => r.EnterTime)
+            .Take(200)
             .ToListAsync(cancellationToken);
 
     /// <summary>VST-03 记录访客离开。</summary>

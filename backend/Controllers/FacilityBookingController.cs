@@ -22,6 +22,8 @@ public class FacilityBookingController : ControllerBase
     private readonly AppDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly ILogger<FacilityBookingController> _logger;
+    private static readonly string[] AllowedTimeSlots = new[]
+        { "08:00", "10:00", "14:00", "16:00", "19:00", "21:00" };
 
     public FacilityBookingController(
         IFacilityBookingService service,
@@ -70,6 +72,14 @@ public class FacilityBookingController : ControllerBase
                     out var parsed))
             {
                 return Ok(ApiResponse.Error(400, "日期或时段格式不正确（应为 2026-09-11 与 10:00）"));
+            }
+            if (parsed.Date < DateTime.Today)
+            {
+                return Ok(ApiResponse.Error(400, "不能预约过去的日期"));
+            }
+            if (!AllowedTimeSlots.Contains(req.TimeSlot!))
+            {
+                return Ok(ApiResponse.Error(400, "时段不合法，可选 08:00/10:00/14:00/16:00/19:00/21:00"));
             }
             slotStart = parsed;
             slotEnd = parsed.AddHours(2);

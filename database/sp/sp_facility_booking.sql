@@ -88,10 +88,13 @@ CREATE OR REPLACE PROCEDURE SP_Start_Use(
 BEGIN
     p_Result_Code := 0;
 
+    -- 有时段预约(Start_Time 已写)：保留预约时段起止，不覆写(避免缩水时长/改变 043 索引时间键)；
+    -- 即时预约(Start_Time 为空)：才以当前时间开始并给 60 分钟。
     UPDATE D_Facility_Booking
     SET Status = '使用中',
-        Start_Time = SYSDATE,
-        End_Time = SYSDATE + INTERVAL '60' MINUTE
+        Start_Time = CASE WHEN Start_Time IS NULL THEN SYSDATE ELSE Start_Time END,
+        End_Time   = CASE WHEN End_Time   IS NULL THEN SYSDATE + INTERVAL '60' MINUTE
+                          ELSE End_Time END
     WHERE Booking_ID = p_Booking_ID
       AND Student_ID = p_Student_ID
       AND Status = '已预约';
