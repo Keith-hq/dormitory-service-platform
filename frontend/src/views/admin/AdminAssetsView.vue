@@ -13,12 +13,10 @@ const feedback = ref('')
 const roomId = ref('')
 const assets = ref([])
 const warnings = ref([])
-const cleaningTasks = ref([])
+const cleaningRequests = ref([])
 const sharedItems = ref([])
 const warningPage = ref(1)
 const warningTotal = ref(0)
-const cleaningPage = ref(1)
-const cleaningTotal = ref(0)
 const PAGE_SIZE = 20
 const selectedAsset = ref(null)
 const selectedItem = ref(null)
@@ -29,11 +27,10 @@ const sharedForm = ref({ name: '', quantity: 1, buildingId: '', description: '' 
 const sharedEdit = ref({ quantity: 1, status: '正常', description: '' })
 
 const pendingCleaning = computed(
-  () => cleaningTasks.value.filter((item) => item.status !== '已完成').length
+  () => cleaningRequests.value.filter((item) => item.status !== '已完成').length
 )
 const activeWarnings = computed(() => warnings.value.filter((item) => item.handled !== '是').length)
 const warningTotalPages = computed(() => Math.max(1, Math.ceil(warningTotal.value / PAGE_SIZE)))
-const cleaningTotalPages = computed(() => Math.max(1, Math.ceil(cleaningTotal.value / PAGE_SIZE)))
 const metrics = computed(() => [
   {
     label: '当前房间资产',
@@ -41,7 +38,7 @@ const metrics = computed(() => [
     hint: roomId.value ? `房间 ${roomId.value}` : '待查询'
   },
   { label: '待处理预警', value: activeWarnings.value, hint: '损耗与缺失' },
-  { label: '待办保洁', value: pendingCleaning.value, hint: '设施触发' },
+  { label: '待办保洁', value: pendingCleaning.value, hint: '宿舍/楼栋' },
   { label: '共享物品', value: sharedItems.value.length, hint: '当前可借条目' }
 ])
 
@@ -81,7 +78,7 @@ const loadOperations = async () => {
   error.value = ''
   const results = await Promise.allSettled([
     assetApi.getWarnings({ page: warningPage.value, pageSize: PAGE_SIZE }),
-    assetApi.getCleaningTasks({ page: cleaningPage.value, pageSize: PAGE_SIZE }),
+    assetApi.getCleaningRequests({ page: 1, pageSize: 50 }),
     assetApi.getSharedItems()
   ])
   if (results[0].status === 'fulfilled') {
@@ -90,9 +87,7 @@ const loadOperations = async () => {
     warningTotal.value = normalized.total
   }
   if (results[1].status === 'fulfilled') {
-    const normalized = normalizeCollection(results[1].value)
-    cleaningTasks.value = normalized.items
-    cleaningTotal.value = normalized.total
+    cleaningRequests.value = normalizeCollection(results[1].value).items
   }
   if (results[2].status === 'fulfilled') {
     sharedItems.value = normalizeCollection(results[2].value).items
@@ -117,11 +112,22 @@ const loadOperations = async () => {
   loading.value = false
 }
 
+const completeCleaningRequest = async (ticketId) => {
+  working.value = `creq-${ticketId}`
+  try {
+    await assetApi.completeCleaningRequest(ticketId)
+    await loadOperations()
+  } catch {
+    /* 保留旧状态，交由整体同步提示 */
+  } finally {
+    working.value = ''
+  }
+}
+
 const goOperationPage = async (kind, nextPage) => {
-  const currentPage = kind === 'warnings' ? warningPage : cleaningPage
-  const totalPages = kind === 'warnings' ? warningTotalPages : cleaningTotalPages
-  if (nextPage < 1 || nextPage > totalPages.value || nextPage === currentPage.value) return
-  currentPage.value = nextPage
+  if (kind !== 'warnings') return
+  if (nextPage < 1 || nextPage > warningTotalPages.value || nextPage === warningPage.value) return
+  warningPage.value = nextPage
   await loadOperations()
 }
 
@@ -202,14 +208,6 @@ const handleWarning = (item, action) =>
     `warning-${item.assetId}`,
     () => assetApi.handleWarning(item.assetId, { action, note: null }),
     `预警已${action}`,
-    loadOperations
-  )
-
-const completeCleaning = (item) =>
-  run(
-    `cleaning-${item.taskId}`,
-    () => assetApi.completeCleaningTask(item.taskId),
-    '保洁任务已完成',
     loadOperations
   )
 
@@ -426,46 +424,39 @@ onMounted(loadOperations)
 
     <section v-else-if="activeDesk === 'cleaning'" class="panel single-desk">
       <header>
-        <span>01 / CLEANING QUEUE</span>
-        <h2>保洁任务队列</h2>
+        <span>01 / CLEANING REQUESTS</span>
+        <h2>保洁队列</h2>
       </header>
-      <div class="cleaning-board">
-        <article v-for="item in cleaningTasks" :key="item.taskId">
-          <span>#{{ item.taskId }}</span>
-          <h3>{{ item.facilityCode || `设施 ${item.facilityId}` }}</h3>
-          <p>累计触发 {{ item.triggerCount }} 次 · {{ item.status }}</p>
-          <button
-            v-if="item.status !== '已完成'"
-            class="btn btn-primary"
-            :disabled="working === `cleaning-${item.taskId}`"
-            @click="completeCleaning(item)"
-          >
-            标记完成
-          </button>
-          <small v-else
-            >完成于
-            {{ item.completeTime ? new Date(item.completeTime).toLocaleString() : '已归档' }}</small
-          >
-        </article>
-        <p v-if="!cleaningTasks.length">当前没有保洁任务。</p>
+      <div class="cleaning-board cleaning-rail">
+        <template v-if="cleaningRequests.length">
+          <article v-for="req in cleaningRequests" :key="req.taskId">
+            <span>#{{ req.taskId }}</span>
+            <h3>
+              {{
+                req.sourceType === '宿舍申请'
+                  ? `房间 ${req.roomNumber || req.roomId} 保洁申请`
+                  : req.sourceType === '楼栋整体'
+                    ? `${req.buildingName || '楼栋'} 整体保洁`
+                    : '保洁请求'
+              }}
+            </h3>
+            <p>
+              {{ req.description }} · 申请人
+              {{ req.requesterName || req.requesterStudentId || '系统' }} · {{ req.status }}
+            </p>
+            <button
+              v-if="req.status !== '已完成'"
+              class="btn btn-primary"
+              :disabled="working === `creq-${req.taskId}`"
+              @click="completeCleaningRequest(req.taskId)"
+            >
+              标记完成
+            </button>
+            <small v-else>已完成</small>
+          </article>
+        </template>
+        <p v-else>暂无保洁请求（学生申请后会显示在这里，楼栋整体保洁每周一生成）。</p>
       </div>
-      <nav class="pager" aria-label="保洁任务分页">
-        <button
-          class="btn btn-sm"
-          :disabled="cleaningPage <= 1"
-          @click="goOperationPage('cleaning', cleaningPage - 1)"
-        >
-          上一页
-        </button>
-        <span>第 {{ cleaningPage }} / {{ cleaningTotalPages }} 页 · 共 {{ cleaningTotal }} 条</span>
-        <button
-          class="btn btn-sm"
-          :disabled="cleaningPage >= cleaningTotalPages"
-          @click="goOperationPage('cleaning', cleaningPage + 1)"
-        >
-          下一页
-        </button>
-      </nav>
     </section>
 
     <section v-else class="work-grid shared-desk">
@@ -797,5 +788,23 @@ onMounted(loadOperations)
   .desk-tabs {
     overflow-x: auto;
   }
+}
+.cleaning-rail {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow-x: auto;
+  padding: 14px 8px 10px;
+  margin: 0;
+  gap: 14px;
+  scroll-snap-type: x proximity;
+}
+.cleaning-rail article {
+  flex: 0 0 300px;
+  scroll-snap-align: start;
+}
+.cleaning-rail > p {
+  flex: none;
+  width: 100%;
 }
 </style>

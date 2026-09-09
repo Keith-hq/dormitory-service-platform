@@ -169,7 +169,8 @@ public class AdminsController : ControllerBase
         if (admin.RoleLevel == "楼长")
         {
             var hasPending = await _context.RepairTickets
-                .CountAsync(t => t.AssignedTo == id && t.Status != "已完成" && t.Status != "已取消") > 0;
+                .CountAsync(t => t.AssignedTo == id && t.Status != "已完成" && t.Status != "已取消"
+                    && !t.IssueDescription.StartsWith(TemplateDormApi.Services.CleaningTags.SearchPrefix)) > 0;
             if (hasPending)
             {
                 // 返回提示需要先移交（契约要求）

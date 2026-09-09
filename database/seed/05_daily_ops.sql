@@ -20,15 +20,7 @@ CROSS JOIN (SELECT LEVEL m FROM DUAL CONNECT BY LEVEL <= 3) mm
 WHERE (r.Room_ID BETWEEN 900101 AND 900124 OR r.Room_ID BETWEEN 900201 AND 900224)
   AND r.Room_ID <> 900101;
 
--- ===== 2. 保洁任务 D_Cleaning_Task（待处理 / 已完成 各 2） =====
-INSERT INTO D_Cleaning_Task (Task_ID, Facility_ID, Trigger_Count, Status, Create_Time, Complete_Time)
-VALUES (901401, 901203, 1, '待处理', DATE '2026-08-16', NULL);
-INSERT INTO D_Cleaning_Task (Task_ID, Facility_ID, Trigger_Count, Status, Create_Time, Complete_Time)
-VALUES (901402, 901201, 2, '已完成', DATE '2026-08-12', DATE '2026-08-13');
-INSERT INTO D_Cleaning_Task (Task_ID, Facility_ID, Trigger_Count, Status, Create_Time, Complete_Time)
-VALUES (901403, 901205, 1, '已完成', DATE '2026-08-10', DATE '2026-08-10');
-INSERT INTO D_Cleaning_Task (Task_ID, Facility_ID, Trigger_Count, Status, Create_Time, Complete_Time)
-VALUES (901404, 901204, 1, '待处理', DATE '2026-08-17', NULL);
+-- ===== 2.（移除：原 D_Cleaning_Task 演示保洁无业务由来，改为 学生申请/每周楼栋保洁 经报修表承载） =====
 
 -- ===== 3. 信用分 D_Credit_Account（30 学生，与 D_Credit_Log 对齐） =====
 INSERT INTO D_Credit_Account (Student_ID, Current_Score, Updated_Time) VALUES ('IT_STU_001', 100, DATE '2026-02-01');
