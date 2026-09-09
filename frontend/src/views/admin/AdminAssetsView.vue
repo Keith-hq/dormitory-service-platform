@@ -14,6 +14,7 @@ const roomId = ref('')
 const assets = ref([])
 const warnings = ref([])
 const cleaningTasks = ref([])
+const cleaningRequests = ref([])
 const sharedItems = ref([])
 const warningPage = ref(1)
 const warningTotal = ref(0)
@@ -82,6 +83,7 @@ const loadOperations = async () => {
   const results = await Promise.allSettled([
     assetApi.getWarnings({ page: warningPage.value, pageSize: PAGE_SIZE }),
     assetApi.getCleaningTasks({ page: cleaningPage.value, pageSize: PAGE_SIZE }),
+    assetApi.getCleaningRequests({ page: 1, pageSize: 50 }),
     assetApi.getSharedItems()
   ])
   if (results[0].status === 'fulfilled') {
@@ -95,7 +97,10 @@ const loadOperations = async () => {
     cleaningTotal.value = normalized.total
   }
   if (results[2].status === 'fulfilled') {
-    sharedItems.value = normalizeCollection(results[2].value).items
+    cleaningRequests.value = normalizeCollection(results[2].value).items
+  }
+  if (results[3].status === 'fulfilled') {
+    sharedItems.value = normalizeCollection(results[3].value).items
     if (selectedItem.value) {
       const current = sharedItems.value.find((item) => item.itemId === selectedItem.value.itemId)
       selectedItem.value = current ?? null
@@ -115,6 +120,18 @@ const loadOperations = async () => {
     error.value = `已有 ${results.length - failedCount}/${results.length} 组运营数据同步成功，其余接口暂时不可用。`
   }
   loading.value = false
+}
+
+const completeCleaningRequest = async (ticketId) => {
+  working.value = `creq-${ticketId}`
+  try {
+    await assetApi.completeCleaningRequest(ticketId)
+    await loadOperations()
+  } catch {
+    /* 保留旧状态，交由整体同步提示 */
+  } finally {
+    working.value = ''
+  }
 }
 
 const goOperationPage = async (kind, nextPage) => {
@@ -466,6 +483,41 @@ onMounted(loadOperations)
           下一页
         </button>
       </nav>
+
+      <div class="cleaning-board" style="margin-top: 24px">
+        <header>
+          <span>02 / CLEANING REQUESTS</span>
+          <h2>保洁请求（宿舍申请 / 楼栋整体）</h2>
+        </header>
+        <template v-if="cleaningRequests.length">
+          <article v-for="req in cleaningRequests" :key="req.taskId">
+            <span>#{{ req.taskId }}</span>
+            <h3>
+              {{
+                req.sourceType === '宿舍申请'
+                  ? `房间 ${req.roomNumber || req.roomId} 保洁申请`
+                  : req.sourceType === '楼栋整体'
+                    ? `${req.buildingName || '楼栋'} 整体保洁`
+                    : '保洁请求'
+              }}
+            </h3>
+            <p>
+              {{ req.description }} · 申请人
+              {{ req.requesterName || req.requesterStudentId || '系统' }} · {{ req.status }}
+            </p>
+            <button
+              v-if="req.status !== '已完成'"
+              class="btn btn-primary"
+              :disabled="working === `creq-${req.taskId}`"
+              @click="completeCleaningRequest(req.taskId)"
+            >
+              标记完成
+            </button>
+            <small v-else>已完成</small>
+          </article>
+        </template>
+        <p v-else>暂无宿舍/楼栋保洁请求。</p>
+      </div>
     </section>
 
     <section v-else class="work-grid shared-desk">
