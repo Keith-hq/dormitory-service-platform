@@ -96,12 +96,6 @@ onMounted(loadRooms)
   <main class="building-rooms-page">
     <header class="rooms-header">
       <router-link class="back-link" to="/building">← 返回楼栋档案</router-link>
-      <span class="rooms-kicker">SPACE / ROOM OCCUPANCY</span>
-      <h1>楼栋 {{ buildingName }} · 房间入住</h1>
-      <p class="rooms-description">
-        查看负责楼栋的所有房间及其住户与床位。每间宿舍限 4 人（按房间容量显示），
-        床位号在入住分配时不允许重复（后端已校验）。
-      </p>
       <div v-if="!loading && !error && summary.total" class="rooms-stat">
         <span>{{ summary.total }} 个房间</span>
         <span>已住 {{ summary.used }} 人 / 空位 {{ summary.free }}</span>
@@ -163,12 +157,23 @@ onMounted(loadRooms)
   padding-bottom: 72px;
 }
 .back-link {
-  display: inline-block;
-  margin-bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 4px 0 18px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-line-strong, #d5e0ef);
+  border-radius: 999px;
+  background: #fff;
   color: var(--color-brand);
   font-size: 14px;
   font-weight: 800;
   text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.back-link:hover {
+  background: var(--color-brand-soft, #eaf2ff);
+  color: var(--color-brand);
 }
 .rooms-kicker {
   display: block;

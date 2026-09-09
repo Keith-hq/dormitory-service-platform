@@ -32,8 +32,10 @@ export const studentApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
   getFacilities: (params) => request.get('/facilities', { params }),
+  getFacilityAvailability: (date) =>
+    request.get('/facility-bookings/availability', { params: { date } }),
   // STU-20 契约无 Idempotency-Key 要求：预约按 facilityId 即可（幂等由后端活跃预约唯一兜底）
-  createFacilityBooking: (facilityId) => request.post('/facility-bookings', { facilityId }),
+  createFacilityBooking: (data) => request.post('/facility-bookings', data),
   getMyBookings: () => request.get('/facility-bookings/my'),
   startFacilityUse: (bookingId) => request.post(`/facility-bookings/${bookingId}/start`),
   finishFacilityUse: (bookingId) => request.post(`/facility-bookings/${bookingId}/finish`),
@@ -56,6 +58,7 @@ export const studentApi = {
   getRoomVoteStats: (voteId) => request.get(`/room-votes/${voteId}`),
   getVisitorAuthorizations: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/visitor-authorizations`, { params }),
+  getVisitorAuthorization: (authId) => request.get(`/visitor-authorizations/${authId}`),
   createVisitorAuthorization: (data) => request.post('/visitor-authorizations', data),
   revokeVisitorAuthorization: (authId) => request.post(`/visitor-authorizations/${authId}/revoke`),
   getCredit: (studentId) => request.get(`/students/${encodeURIComponent(studentId)}/credit`),

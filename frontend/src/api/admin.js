@@ -7,6 +7,7 @@ export const adminApi = {
   registerVisitor: (data) => request.post('/visitor-registry', data),
   verifyVisitor: (registryId, data) => request.post(`/visitor-registry/${registryId}/verify`, data),
   recordVisitorExit: (registryId) => request.post(`/visitor-registry/${registryId}/exit`),
+  listVisitors: () => request.get('/visitor-registry'),
   getNotices: (params) => request.get('/notices', { params }),
   createNotice: (data) => request.post('/notices', data),
   getHygieneRankings: (params) => request.get('/hygiene-rankings', { params }),
