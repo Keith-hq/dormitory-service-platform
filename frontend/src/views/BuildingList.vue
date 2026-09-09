@@ -46,6 +46,14 @@
         <template #cell-buildingType="{ value }">
           <StatusTag :label="value" :tone="buildingTypeTones[value] || 'neutral'" />
         </template>
+        <template #cell-roomView="{ row }">
+          <router-link
+            class="btn btn-sm"
+            :to="{ path: `/building/${row.buildingId}/rooms`, query: { name: row.buildingName } }"
+          >
+            查看详情
+          </router-link>
+        </template>
       </CrudTable>
     </div>
 
@@ -130,7 +138,8 @@ const columns = [
   { prop: 'buildingName', label: '楼栋名称', width: '180px' },
   { prop: 'buildingType', label: '类型', width: '120px' },
   { prop: 'floorCount', label: '楼层数', width: '100px' },
-  { prop: 'createTime', label: '创建时间', width: '180px' }
+  { prop: 'createTime', label: '创建时间', width: '180px' },
+  { prop: 'roomView', label: '房间入住', width: '140px' }
 ]
 
 const buildingTypeTones = {
