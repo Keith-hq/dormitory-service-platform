@@ -21,6 +21,9 @@ const unpaidTotal = computed(() =>
 )
 const residence = computed(() => {
   if (!accommodation.value) return userStore.userInfo?.buildingName || '住宿信息待同步'
+  if (accommodation.value.checkOutDate) {
+    return `已退宿 · 曾住 房间 ${accommodation.value.roomId} · ${accommodation.value.bedNo} 号床`
+  }
   return `${userStore.userInfo?.buildingName || '宿舍楼'} · 房间 ${accommodation.value.roomId} · ${accommodation.value.bedNo} 号床`
 })
 const metrics = computed(() => [
