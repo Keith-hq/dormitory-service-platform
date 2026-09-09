@@ -125,6 +125,10 @@ onMounted(() => {
             <dt>房间信息</dt>
             <dd>{{ userStore.userInfo?.roomName || accommodation?.roomId || '待同步' }}</dd>
           </div>
+          <div>
+            <dt>住宿分配 ID</dt>
+            <dd>{{ accommodation?.allocationId ?? '—' }}</dd>
+          </div>
         </dl>
       </section>
 
