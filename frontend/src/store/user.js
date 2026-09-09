@@ -108,6 +108,13 @@ export const useUserStore = defineStore('user', {
       safeSetItem(USER_INFO_KEY, JSON.stringify(this.userInfo))
     },
 
+    // 用 /auth/me 的最新字段(如楼栋)合并进当前会话，随改随存，无需重新登录
+    syncServerUserInfo(fields) {
+      if (!this.userInfo || !fields || typeof fields !== 'object') return
+      this.userInfo = { ...this.userInfo, ...fields }
+      safeSetItem(USER_INFO_KEY, JSON.stringify(this.userInfo))
+    },
+
     logout() {
       this.token = ''
       this.userInfo = null
