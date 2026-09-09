@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { authApi } from '@/api/auth'
 import { studentApi } from '@/api/student'
 import { InlineState, StatusTag, WorkspaceHeader } from '@/components'
 import { useUserStore } from '@/store/user'
@@ -65,7 +66,25 @@ const saveProfile = async () => {
   }
 }
 
-onMounted(loadProfile)
+// 楼栋以 /auth/me 实时为准：合并进 userInfo 并持久化，旧会话无需重新登录也能更新
+const refreshServerBuilding = async () => {
+  try {
+    const me = await authApi.me()
+    if (me && (me.buildingId != null || me.buildingName)) {
+      userStore.syncServerUserInfo({
+        buildingId: me.buildingId,
+        buildingName: me.buildingName
+      })
+    }
+  } catch {
+    // 静默失败：沿用会话内已有值，不打扰页面
+  }
+}
+
+onMounted(() => {
+  loadProfile()
+  refreshServerBuilding()
+})
 </script>
 
 <template>

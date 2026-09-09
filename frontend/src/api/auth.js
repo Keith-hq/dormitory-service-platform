@@ -18,5 +18,6 @@ export const authApi = {
     })
     return normalizeAuthSession(loginResult, currentUser)
   },
-  changePassword: (data) => request.put('/auth/password', data)
+  changePassword: (data) => request.put('/auth/password', data),
+  me: () => request.get('/auth/me')
 }
