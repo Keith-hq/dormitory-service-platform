@@ -794,7 +794,8 @@ onMounted(loadOperations)
   flex-direction: row;
   align-items: stretch;
   overflow-x: auto;
-  padding: 4px 2px 10px;
+  padding: 4px 0 10px;
+  margin: 0;
   gap: 14px;
   scroll-snap-type: x proximity;
 }
