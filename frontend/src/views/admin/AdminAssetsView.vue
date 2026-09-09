@@ -801,6 +801,7 @@ onMounted(loadOperations)
 }
 .cleaning-rail article {
   flex: 0 0 300px;
+  padding-left: 34px;
   scroll-snap-align: start;
 }
 .cleaning-rail > p {
