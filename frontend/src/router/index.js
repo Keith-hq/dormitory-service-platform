@@ -67,6 +67,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['student'], title: '月度生活统计' }
   },
   {
+    path: '/student/cleaning',
+    name: 'StudentCleaningApply',
+    component: () => import('@/views/student/StudentCleaningApplyView.vue'),
+    meta: { requiresAuth: true, roles: ['student'], title: '申请保洁' }
+  },
+  {
     path: '/admin',
     name: 'AdminHome',
     component: () => import('@/views/admin/AdminHomeView.vue'),

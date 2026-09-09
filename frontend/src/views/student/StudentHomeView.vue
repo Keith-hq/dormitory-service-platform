@@ -58,6 +58,12 @@ const quickLinks = [
     title: '安全社区',
     description: '晚归、离校、访客与信用',
     to: '/student/community'
+  },
+  {
+    index: '05',
+    title: '申请保洁',
+    description: '为当前宿舍申请保洁',
+    to: '/student/cleaning'
   }
 ]
 

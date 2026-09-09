@@ -70,5 +70,7 @@ export const studentApi = {
   getFacilityUsageReport: (studentId, params) =>
     request.get(`/students/${encodeURIComponent(studentId)}/reports/facility-usage`, { params }),
   getHygieneRankings: (params) => request.get('/hygiene-rankings', { params }),
-  getRoomHygieneRecords: (roomId) => request.get(`/rooms/${roomId}/hygiene`)
+  getRoomHygieneRecords: (roomId) => request.get(`/rooms/${roomId}/hygiene`),
+  applyCleaning: (data) => request.post('/cleaning-requests', data),
+  getMyCleaningRequests: () => request.get('/cleaning-requests/my')
 }
