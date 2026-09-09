@@ -425,7 +425,7 @@ onMounted(loadOperations)
     <section v-else-if="activeDesk === 'cleaning'" class="panel single-desk">
       <header>
         <span>01 / CLEANING REQUESTS</span>
-        <h2>保洁请求（学生申请 / 每周楼栋整体）</h2>
+        <h2>保洁队列</h2>
       </header>
       <div class="cleaning-board cleaning-rail">
         <template v-if="cleaningRequests.length">
