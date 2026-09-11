@@ -138,6 +138,93 @@ public sealed class StudentSafetyImplementationTests
         Assert.Equal(StatusCodes.Status409Conflict, expiredError.HttpStatus);
     }
 
+    /// <summary>
+    /// 学生补充晚归说明后通知其所住楼栋的楼长核对。
+    /// 宿管端没有晚归记录列表接口，这条通知是学生说明的唯一送达通道。
+    /// </summary>
+    [Fact]
+    public async Task LateEntryReasonUpdate_NotifiesOnlyOwnBuildingDormAdmin()
+    {
+        await using var context = TestDbContextFactory.Create();
+        AddStudentAccount(context, 101, "20260001");
+        context.BedAllocations.Add(new BedAllocation
+        {
+            AllocationId = 1,
+            StudentId = "20260001",
+            RoomId = 101,
+            BedNo = 1,
+            CheckInDate = new DateTime(2025, 9, 1)
+        });
+        context.Rooms.Add(new Room { RoomId = 101, RoomNumber = "101", BuildingId = 7 });
+        context.Admins.AddRange(
+            new Admin { AdminId = "A001", AdminName = "一楼楼长", RoleLevel = "楼长", BuildingId = 7 },
+            new Admin { AdminId = "A002", AdminName = "一楼维修员", RoleLevel = "维修员", BuildingId = 7 },
+            new Admin { AdminId = "A003", AdminName = "二楼楼长", RoleLevel = "楼长", BuildingId = 8 });
+        context.LateEntries.Add(new LateEntry
+        {
+            RecordId = 1,
+            StudentId = "20260001",
+            ReturnTime = DateTime.Now.AddHours(-2)
+        });
+        await context.SaveChangesAsync();
+
+        var notifications = new RecordingNotificationService();
+        var service = new LateEntryService(
+            new LateEntryRepository(context),
+            CreateIdentityService(context),
+            notifications,
+            NullLogger<LateEntryService>.Instance);
+
+        var updated = await service.UpdateReasonAsync(
+            1,
+            101,
+            new UpdateLateEntryReasonRequest { Reason = "公交末班车延误" },
+            CancellationToken.None);
+
+        Assert.Equal("公交末班车延误", updated.Reason);
+
+        // 只投本楼楼长：不投同楼维修员，也不投别楼的楼长
+        var notice = Assert.Single(notifications.Created);
+        Assert.Equal("A001", notice.AdminId);
+        Assert.Null(notice.StudentId);
+        Assert.Contains("公交末班车延误", notice.Content);
+        Assert.Contains("20260001", notice.Content);
+    }
+
+    /// <summary>
+    /// 学生无在住床位 / 房间未关联楼栋 / 该楼未配楼长时收件人为空：
+    /// 补说明本身仍须成功（fail-soft），不能因为通知投不出去就让学生白填。
+    /// </summary>
+    [Fact]
+    public async Task LateEntryReasonUpdate_WithoutReachableDormAdmin_StillSucceeds()
+    {
+        await using var context = TestDbContextFactory.Create();
+        AddStudentAccount(context, 101, "20260001");
+        context.LateEntries.Add(new LateEntry
+        {
+            RecordId = 1,
+            StudentId = "20260001",
+            ReturnTime = DateTime.Now.AddHours(-2)
+        });
+        await context.SaveChangesAsync();
+
+        var notifications = new RecordingNotificationService();
+        var service = new LateEntryService(
+            new LateEntryRepository(context),
+            CreateIdentityService(context),
+            notifications,
+            NullLogger<LateEntryService>.Instance);
+
+        var updated = await service.UpdateReasonAsync(
+            1,
+            101,
+            new UpdateLateEntryReasonRequest { Reason = "公交末班车延误" },
+            CancellationToken.None);
+
+        Assert.Equal("公交末班车延误", updated.Reason);
+        Assert.Empty(notifications.Created);
+    }
+
     [Fact]
     public async Task HygieneQueriesAndUpdate_ReadCommentAndEnforceTwentyFourHours()
     {
@@ -318,6 +405,31 @@ public sealed class StudentSafetyImplementationTests
 
         public Task<FileDeleteResultDto> DeleteAsync(string storageRef, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>记录全部投递的通知，供断言收件人与内容。</summary>
+    private sealed class RecordingNotificationService : INotificationService
+    {
+        public List<NotificationCreateDto> Created { get; } = new();
+
+        public Task<PagedResult<NotificationItemDto>> GetPagedAsync(
+            int recipientAccountId, int page, int pageSize, string? isRead)
+            => throw new NotSupportedException();
+
+        public Task MarkReadAsync(int notificationId, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task MarkBatchReadAsync(IReadOnlyCollection<int> notificationIds, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<UnreadCountDto> GetUnreadCountAsync(int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<NotificationItemDto> CreateAsync(NotificationCreateDto dto)
+        {
+            Created.Add(dto);
+            return Task.FromResult(new NotificationItemDto());
+        }
     }
 
     private sealed class FakeNotificationService : INotificationService

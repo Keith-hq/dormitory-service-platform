@@ -186,7 +186,7 @@ public sealed class StudentSafetyApprovedImplementationTests
             new StudentIdentityService(new UserAccountRepository(context)),
             new FakeNotificationService(),
             NullLogger<LateEntryService>.Instance);
-        var lateTime = DateTime.Today.AddDays(-1).AddHours(23).AddMinutes(45);
+        var lateTime = MostRecentLateNight();
 
         var created = await service.CreateAsync(
             201,
@@ -211,6 +211,68 @@ public sealed class StudentSafetyApprovedImplementationTests
         Assert.Null(created.Reason);
         Assert.Equal(StatusCodes.Status400BadRequest, tooEarly.HttpStatus);
         Assert.Equal(StatusCodes.Status403Forbidden, studentError.HttpStatus);
+    }
+
+    /// <summary>
+    /// D_Late_Entry.Reason 专属于「学生补充说明」：登记时不得写入宿管的现场说明
+    /// （该列只有一列，写进去会被学生的 PUT 整体覆盖且不可回溯）；
+    /// 现场说明改随登记通知投递给该生留档。
+    /// </summary>
+    [Fact]
+    public async Task LateEntryCreate_KeepsSceneNoteOutOfReasonAndShipsItByNotification()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Students.Add(new Student { StudentId = "20260001", Name = "测试学生" });
+        AddStudentAccount(context, 101, "20260001");
+        AddAdminAccount(context, 201, "A001");
+        await context.SaveChangesAsync();
+        var notifications = new RecordingNotificationService();
+        var service = CreateLateEntryService(context, notifications);
+
+        var created = await service.CreateAsync(
+            201,
+            new CreateLateEntryRequest
+            {
+                StudentId = "20260001",
+                RecordTime = MostRecentLateNight(),
+                Reason = "  凌晨 01:20 返回，身上有酒气  "
+            },
+            CancellationToken.None);
+
+        Assert.Null(created.Reason);
+        Assert.Null(context.LateEntries.Single().Reason);
+
+        var notice = Assert.Single(notifications.Created);
+        Assert.Equal("20260001", notice.StudentId);
+        Assert.Null(notice.AdminId);
+        Assert.Contains("凌晨 01:20 返回，身上有酒气", notice.Content);
+    }
+
+    /// <summary>
+    /// 登记超过 24 小时的记录，学生已无法补充说明（UpdateReasonAsync 会 409），
+    /// 且登记通知承诺的「24 小时内补充」当场失效——登记侧直接拒绝。
+    /// </summary>
+    [Fact]
+    public async Task LateEntryCreate_RejectsRecordsOlderThanTwentyFourHours()
+    {
+        await using var context = TestDbContextFactory.Create();
+        context.Students.Add(new Student { StudentId = "20260001", Name = "测试学生" });
+        AddStudentAccount(context, 101, "20260001");
+        AddAdminAccount(context, 201, "A001");
+        await context.SaveChangesAsync();
+        var service = CreateLateEntryService(context, new RecordingNotificationService());
+
+        // 两天前的 23:45：TimeOfDay 合法（>= 23:30），只有 24 小时下界拦得住它
+        var stale = DateTime.Today.AddDays(-2).AddHours(23).AddMinutes(45);
+
+        var staleError = await Assert.ThrowsAsync<BusinessException>(() =>
+            service.CreateAsync(
+                201,
+                new CreateLateEntryRequest { StudentId = "20260001", RecordTime = stale },
+                CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, staleError.HttpStatus);
+        Assert.Equal("晚归时间不能早于 24 小时前", staleError.Message);
     }
 
     [Fact]
@@ -420,6 +482,60 @@ public sealed class StudentSafetyApprovedImplementationTests
 
         public Task<FileDeleteResultDto> DeleteAsync(string storageRef, CancellationToken cancellationToken)
             => Task.FromResult(new FileDeleteResultDto { StorageRef = storageRef, Deleted = true });
+    }
+
+    private static LateEntryService CreateLateEntryService(
+        AppDbContext context,
+        INotificationService notificationService)
+        => new(
+            new LateEntryRepository(context),
+            new StudentIdentityService(new UserAccountRepository(context)),
+            notificationService,
+            NullLogger<LateEntryService>.Instance);
+
+    private static void AddAdminAccount(AppDbContext context, int accountId, string adminId)
+        => context.UserAccounts.Add(new UserAccount
+        {
+            AccountId = accountId,
+            LoginName = $"admin-{adminId}",
+            PasswordHash = "test-only",
+            AccountStatus = "正常",
+            AdminId = adminId
+        });
+
+    /// <summary>
+    /// 最近一个已经过去的 23:45，且保证距当前不足 24 小时。
+    /// 固定写「昨天 23:45」会在 23:45–24:00 这个窗口里越过登记侧的 24 小时下界而随机失败。
+    /// </summary>
+    private static DateTime MostRecentLateNight()
+    {
+        var candidate = DateTime.Today.AddHours(23).AddMinutes(45);
+        return candidate > DateTime.Now ? candidate.AddDays(-1) : candidate;
+    }
+
+    /// <summary>记录全部投递的通知，供断言收件人与内容。</summary>
+    private sealed class RecordingNotificationService : INotificationService
+    {
+        public List<NotificationCreateDto> Created { get; } = new();
+
+        public Task<PagedResult<NotificationItemDto>> GetPagedAsync(
+            int recipientAccountId, int page, int pageSize, string? isRead)
+            => throw new NotSupportedException();
+
+        public Task MarkReadAsync(int notificationId, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task MarkBatchReadAsync(IReadOnlyCollection<int> notificationIds, int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<UnreadCountDto> GetUnreadCountAsync(int recipientAccountId)
+            => throw new NotSupportedException();
+
+        public Task<NotificationItemDto> CreateAsync(NotificationCreateDto dto)
+        {
+            Created.Add(dto);
+            return Task.FromResult(new NotificationItemDto());
+        }
     }
 
     private sealed class FakeNotificationService : INotificationService

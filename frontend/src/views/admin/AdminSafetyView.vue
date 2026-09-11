@@ -250,7 +250,7 @@ onMounted(async () => {
               >现场说明<textarea
                 v-model.trim="lateEntry.reason"
                 rows="3"
-                placeholder="可选；学生后续可补充原因"
+                placeholder="可选；将随登记通知发送给学生留档"
               ></textarea>
             </label>
             <button class="btn" :disabled="working === 'late'">登记晚归</button>
