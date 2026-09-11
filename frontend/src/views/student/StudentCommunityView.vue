@@ -66,6 +66,13 @@ const formTitle = computed(
     })[activeForm.value] || ''
 )
 const lateTarget = ref(null) // 正在补充说明的晚归记录
+// 晚归说明须在记录时间后 24 小时内补充，与后端 PUT /late-entries/{id}/reason 同口径。
+// 超出时限的记录不渲染按钮，避免学生填完才拿到 409。
+const LATE_SUPPLEMENT_WINDOW_MS = 24 * 60 * 60 * 1000
+const canSupplementLate = (item) => {
+  const recordedAt = item?.recordTime ? new Date(item.recordTime).getTime() : NaN
+  return Number.isFinite(recordedAt) && Date.now() <= recordedAt + LATE_SUPPLEMENT_WINDOW_MS
+}
 const openForm = (key) => {
   feedback.value = ''
   form.value = {
@@ -88,7 +95,9 @@ const openLateForm = (target) => {
 }
 const openHeaderForm = () => {
   if (activeSection.value === 'late') {
-    openLateForm(data.value.late.find((item) => !item.reason) ?? data.value.late[0] ?? null)
+    // 只在可补充的记录里选，且不再回退到 late[0]：reason 已归属学生自己的说明，
+    // 回退会让学生对着一条超期/无关的记录提交，把说明写错地方。
+    openLateForm(data.value.late.find(canSupplementLate) ?? null)
     return
   }
   openForm(activeSection.value === 'credit' ? 'appeals' : activeSection.value)
@@ -110,7 +119,7 @@ const submitForm = async () => {
   feedback.value = ''
   try {
     if (key === 'late') {
-      const record = lateTarget.value ?? data.value.late[0]
+      const record = lateTarget.value
       if (!record?.recordId) throw new Error('暂无可补充说明的晚归记录')
       await studentApi.updateLateEntryReason(record.recordId, form.value.reason)
       feedback.value = '晚归说明已补充'
@@ -673,12 +682,12 @@ onMounted(loadCommunity)
               查看详情 ↗
             </button>
             <button
-              v-if="activeSection === 'late' && !item.reason"
+              v-if="activeSection === 'late' && canSupplementLate(item)"
               type="button"
               class="late-btn"
               @click="openLateForm(item)"
             >
-              补充说明
+              {{ item.reason ? '修改说明' : '补充说明' }}
             </button>
             <button
               v-if="activeSection === 'visitor' && item.status === '有效'"
