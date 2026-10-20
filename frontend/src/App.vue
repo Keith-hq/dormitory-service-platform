@@ -11,7 +11,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const showAppShell = computed(() => !['auth', 'prototype'].includes(route.meta.layout))
+const showAppShell = computed(() => route.meta.layout !== 'auth')
 const userInitial = computed(() => userStore.userName?.trim().slice(0, 1) || '用')
 const userRole = computed(() => userStore.userInfo?.role || '')
 const roleHome = computed(() => getRoleHome(userRole.value))

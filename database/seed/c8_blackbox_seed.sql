@@ -14,7 +14,7 @@
 --   studentId IT_STU_001/002/003，roomId 900101/900102。
 -- ============================================================
 
-ALTER SESSION SET CONTAINER = DORMDB;
+ALTER SESSION SET CONTAINER = DORMPDB;
 ALTER SESSION SET CURRENT_SCHEMA = SYSTEM;
 
 -- ---------- 幂等清理（子表 -> 父表） ----------

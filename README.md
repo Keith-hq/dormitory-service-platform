@@ -1,129 +1,95 @@
-# dormitory-service-platform
+# 🏫 dormitory-service-platform
 
-高校宿舍后勤与共享生活服务平台｜数据库课程设计项目
+高校宿舍后勤与共享生活服务平台，覆盖住宿、资产、账单、维修、共享物品、访客和宿舍治理等业务。项目采用前后端分离架构，配套 Oracle 数据库脚本、Docker Compose 编排和可复现的服务器部署脚本。
 
-**技术栈：** Vue3 + Vite + Pinia + ASP.NET Core .NET8 C# + Oracle + EF Core + Docker Compose + Nginx
+[![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Vue 3](https://img.shields.io/badge/Vue-3-42B883?logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Oracle XE](https://img.shields.io/badge/Oracle-XE%2021-F80000?logo=oracle&logoColor=white)](https://www.oracle.com/database/technologies/appdev/xe.html)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 
-**功能覆盖：** 宿舍资产、住宿管理、水电分摊、共享借用、访客二维码、维修 SLA 派单、退宿清算等高并发业务；内置标准化前后端项目、Oracle 容器一键环境、CI/CD 自动部署、Apifox 统一接口契约。
+> ⚠️ **线上状态**：原云服务器已到期，旧网站目前不可访问。本仓库保留完整源码和部署资产；重新上线需要准备一台新服务器，并按下方步骤配置环境。README 不提供失效的线上地址或在线状态徽章。
 
-后端、前端业务代码与数据库脚本分别维护在 `backend/`、`frontend/`、`database/`；最初 M1 模板快照留档在 `template/` 仅作历史参考；开发流程规范统一维护在 `docs/development/`。
+## ✨ 功能范围
 
----
+| 模块 | 能力 |
+| --- | --- |
+| 🛏️ 住宿管理 | 楼栋、房间、床位分配、入住与退宿清算 |
+| 💳 费用与钱包 | 水电分摊、账单发布、缴费、充值、断电与恢复 |
+| 🧰 资产与维修 | 资产台账、报修、附件、维修派单与 SLA 升级 |
+| 🤝 共享生活 | 共享物品借用归还、设施预约、保洁申请 |
+| 🛡️ 宿舍治理 | 访客二维码、门岗登记、晚归、卫生、违规与投票 |
+| 🔔 平台服务 | JWT 鉴权、通知、审计、定时任务、文件存储与健康检查 |
 
-## 根目录结构
+## 🧱 技术栈
 
-| 路径 | 内容与职责 |
-|---|---|
-| `.github/workflows/build-deploy.yml` | CI/CD 工作流：编译 → 构建镜像 → 推送 GHCR → SSH 部署（含增量数据库迁移） |
-| `backend/` | 后端 ASP.NET Core .NET 8 项目（TemplateDormApi），含业务代码与测试（`backend/tests/`） |
-| `frontend/` | 前端 Vue 3 + Vite + Pinia 项目，业务页面与通用组件 |
-| `database/` | 数据库脚本目录：DDL、迁移、存储过程和结构校验 |
-| `deploy/` | 部署与本地运行环境文件，目前包含 Oracle XE 容器配置 |
-| `docs/` | 项目总纲、任务看板、开发规范、运维说明和课程交付材料 |
-| `template/` | 最初 M1 模板快照留档（`template/backend/`、`template/frontend/`），仅作历史参考，不参与开发与 CI |
-| `.gitignore` | 忽略本地环境文件、依赖、构建产物和敏感配置 |
-| `README.md` | 仓库结构、使用入口、分支和提交约定 |
+- **前端**：Vue 3、Vite、Pinia、Vue Router、Axios、Nginx
+- **后端**：ASP.NET Core .NET 8、Entity Framework Core、Quartz.NET、Swagger
+- **数据库**：Oracle XE 21、编号迁移脚本、存储过程和结构校验
+- **交付**：Docker Compose、GHCR 镜像、GitHub Actions
 
-## 项目代码
+## 📁 仓库结构
 
-### `backend/`
+```
+backend/                         ASP.NET Core Web API 与 xUnit 测试
+frontend/                        Vue 3 前端、Mock 适配器与前端测试
+database/                        DDL、增量迁移、存储过程、种子与校验脚本
+deploy/oracle/                   本地 Oracle XE 容器
+deploy/docker/                   生产 Compose、Dockerfile 与环境模板
+deploy/nginx/                    宿主机 Nginx 配置与证书目录
+deploy/scripts/                  初始化、迁移、部署、备份和证书脚本
+docs/                            项目、开发规范和交付材料
+.github/workflows/               构建与 GHCR 镜像发布流水线
+```
 
-后端项目按以下职责组织：
+历史模板和未引用的脚手架资源已从仓库移除；日常开发只在 `backend/`、`frontend/` 和 `database/` 中进行。
 
-- `Controllers/`：HTTP 接口入口。
-- `Services/`：业务服务和业务规则。
-- `Repository/`：数据访问封装。
-- `Models/`：Oracle 实体模型。
-- `DTO/`：接口入参和出参模型。
-- `Data/`：EF Core `DbContext`。
-- `Program.cs`：依赖注入和应用启动配置。
+## 🧰 本地开发
 
-调用方向遵循 `Controller -> Service -> Repository -> Database`。连接字符串只使用 .NET User Secrets 或本机环境变量，不提交密码。
+### 环境要求
 
-### `frontend/`
+- Docker Engine 和 Compose v2
+- .NET SDK 8.0
+- Node.js `20.19.0`（以 `frontend/.nvmrc` 为准）和 npm 10+
+- 至少 5 GB 可用内存（Oracle XE 建议为 Docker 分配更多内存）
 
-前端项目包含：
-
-- `src/api/`：接口调用封装。
-- `src/components/`：通用展示和交互组件。
-- `src/views/`：页面视图。
-- `src/router/`：路由。
-- `src/store/`：跨页面状态。
-- `src/utils/request.js`：统一 HTTP 请求处理。
-- `package.json`、`package-lock.json`：依赖和锁定版本。
-
-### `docs/development/`（开发规范）
-
-- `00-项目规范总则.md`（仓库目录结构、工程红线、契约权威与变更流程、完成定义）
-- `01-后端开发规范.md`
-- `02-前端开发规范.md`
-- `03-Apifox接口联调规范.md`
-- `04-本地完整联调步骤.md`
-- `05-前端构建与发布规范.md`
-
-规范统一以根目录的 `backend/`、`frontend/` 和 `deploy/oracle/` 为示例路径。
-
-### `template/`（留档）
-
-最初 M1 模板快照（`template/backend/`、`template/frontend/`），与业务代码无关联，仅作历史参考；需要起步参考时可对照，但开发一律在 `backend/`、`frontend/` 中进行。
-
-## 文档目录
-
-| 路径 | 内容 |
-|---|---|
-| `docs/project/` | `数据库课程设计项目总纲.md`、`任务看板.md`、难点代码文档 |
-| `docs/development/` | 项目规范总则（00）、后端/前端开发规范、Apifox 接口联调规范、本地联调步骤、前端构建与发布规范 |
-| `docs/operations/` | `环境排错手册.md`、`组员接入指南.md` |
-| `docs/deliverables/` | 课程验收和环境交付材料，包括两份 `.docx` 文件 |
-| `docs/README.md` | 文档目录说明 |
-
-个人工作记录、未确认方案和职责清单保存在仓库外的 `.agent/` 工作区，不进入公共仓库。
-
-## 本地 Oracle 环境
-
-运维文件位于 `deploy/oracle/`：
-
-- `.env.example`：本地配置模板；复制为 `.env` 后填写 `ORACLE_PASSWORD`，`.env` 不得提交。
-- `docker-compose.yml`：Oracle XE 21 容器配置。
-- `README-环境启动.md`：启动、连接和常用命令说明。
-
-从仓库根目录启动：
+### 1. 启动 Oracle
 
 ```bash
 cd deploy/oracle
-copy .env.example .env
-# 编辑 .env，填写本机 ORACLE_PASSWORD
+cp .env.example .env
+# 编辑 .env，设置强密码
 docker compose up -d
+docker logs -f dorm-oracle-db
 ```
 
-看到 `Pluggable database DORMPDB opened read write` 后，再启动后端和前端：
+看到 `Pluggable database DORMPDB opened read write` 后，容器会提供 `DORMPDB` 和 `DORM_OPER` 账号。首次创建业务表，从仓库根目录执行：
 
-> 🔐 **启动后端前必须配置 User Secrets**
->
-> 本项目使用 .NET User Secrets 管理敏感信息（数据库连接串、JWT Key），**请勿**将凭据写入 `appsettings.json`。
->
-> 在 Visual Studio 中右键点击 `backend` 项目 → “管理用户机密”，将以下内容粘贴到 `secrets.json` 中（根据实际环境修改 `Data Source` 和 `Password`）：
->
-> ```json
-> {
->   "ConnectionStrings": {
->     "OracleConnection": "User Id=DORM_OPER;Password=你的密码;Data Source=localhost:1521/DORMPDB;"
->   },
->   "Jwt": {
->     "Key": "至少32位的随机字符串（如：YourSuperLongSecretKeyAtLeast32CharactersLong!）",
->     "Issuer": "DormitoryPlatform",
->     "Audience": "DormitoryClient"
->   }
-> }
-> ```
->
-> 保存后，再执行 `dotnet run` 启动后端。若未配置，项目启动时会抛出异常提示。
+```bash
+cp deploy/docker/.env.example deploy/docker/.env
+# 让 deploy/docker/.env 的 ORACLE_PASSWORD 与 deploy/oracle/.env 一致
+bash deploy/scripts/init-db.sh
+```
+
+> Windows PowerShell 可用 `Copy-Item .env.example .env`。数据库脚本的完整顺序见 [database/README.md](database/README.md)。
+
+### 2. 配置后端密钥
+
+不要把密码或密钥写入 `appsettings.json`。使用 .NET User Secrets：
 
 ```bash
 cd backend
-dotnet restore
+dotnet user-secrets init
+dotnet user-secrets set 'ConnectionStrings:OracleConnection' 'User Id=DORM_OPER;Password=你的密码;Data Source=localhost:1521/DORMPDB;'
+dotnet user-secrets set 'Jwt:Key' '至少32位的随机字符串'
+dotnet user-secrets set 'Jwt:Issuer' 'DormitoryPlatform'
+dotnet user-secrets set 'Jwt:Audience' 'DormitoryClient'
 dotnet run
 ```
+
+后端 Swagger：`http://localhost:5000/swagger`，健康检查：`http://localhost:5000/health`。
+
+### 3. 启动前端
 
 ```bash
 cd frontend
@@ -131,155 +97,122 @@ npm ci
 npm run dev
 ```
 
-默认入口：后端 Swagger 为 `http://localhost:5000/swagger`，前端为 `http://localhost:3000`。
+前端默认地址：`http://localhost:3000`。本地 Vite 会将 `/api` 代理到 `http://localhost:5000`。需要离线演示时，在未提交的 `.env.local` 中设置 `VITE_USE_MOCK=true`；Mock 只在开发服务器生效，生产构建会强制关闭。
 
-## 分支命名规范
-
-> **统一前缀 + 描述，小写英文，横线分隔。**
-
-标准分支命名格式：`{前缀}/{模块名}-{功能简述}`
-
-### 受保护分支
-
-| 分支 | 说明 |
-|---|---|
-| `master` | 生产分支，只接受 PR 合并，需 Review + CI 通过 |
-| `develop` | 开发主分支，项目代码在此维护 |
-
-### 1. 功能开发分支 `feature/`
-
-- **前缀：** `feature/`
-- **格式：** `feature/{模块名}-{功能简述}`
-- **适用：** 新业务功能、页面、接口、难点业务逻辑开发
-- **示例：**
-
-| 分支名 | 说明 |
-|---|---|
-| `feature/building-room-assets` | 楼栋房间资产模块 |
-| `feature/shared-goods-borrow` | 共享物品借用归还 |
-| `feature/utility-bill-calc` | 水电费分摊难点功能 |
-| `feature/checkout-settle` | 退宿清算核心逻辑 |
-| `feature/visitor-qrcode` | 访客二维码模块 |
-
-### 2. Bug 修复分支 `fix/`
-
-- **前缀：** `fix/`
-- **格式：** `fix/{模块名}-{问题简述}`
-- **适用：** 联调、集成测试发现的逻辑报错、页面 bug、SQL 异常
-- **示例：**
-
-| 分支名 | 说明 |
-|---|---|
-| `fix/login-jwt-auth` | 登录鉴权失效修复 |
-| `fix/oracle-conn-timeout` | Oracle 数据库连接超时修复 |
-| `fix/credit-score-deduct` | 信用分扣减事务 bug |
-| `fix/room-status-sync` | 房间状态同步异常修复 |
-
-### 3. 运维 / 环境部署分支 `ops/`
-
-- **前缀：** `ops/`
-- **格式：** `ops/{操作类型}-{目标}`
-- **适用：** Docker 配置、Nginx、CI/CD、云端部署、环境脚本调整
-- **示例：**
-
-| 分支名 | 说明 |
-|---|---|
-| `ops/local-oracle-compose` | Oracle 容器环境配置 |
-| `ops/nginx-reverse-proxy` | 云端 Nginx 反向代理配置 |
-| `ops/cicd-auto-deploy` | 自动化部署流水线脚本 |
-| `ops/backup-restore` | 数据库备份恢复脚本 |
-
-### 4. 文档分支 `docs/`
-
-- **前缀：** `docs/`
-- **格式：** `docs/{文档类型}-{内容}`
-- **适用：** 需求文档、数据库设计、开发规范、部署报告、PPT 素材
-- **示例：**
-
-| 分支名 | 说明 |
-|---|---|
-| `docs/dev-guide` | 开发规范文档 |
-| `docs/deploy-check-report` | 云端部署验证报告 |
-| `docs/m1-acceptance-file` | M1 里程碑验收材料 |
-| `docs/api-contract-spec` | 接口契约规范文档 |
-
-### 5. 重构 / 优化分支 `refactor/`
-
-- **前缀：** `refactor/`
-- **格式：** `refactor/{优化对象}-{优化点}`
-- **适用：** 代码结构重构、SQL 索引优化、公共服务改造、规范统一
-- **示例：**
-
-| 分支名 | 说明 |
-|---|---|
-| `refactor/common-notice-service` | 通知中心公共服务重构 |
-| `refactor/oracle-sql-index` | Oracle 慢 SQL 索引优化 |
-| `refactor/api-response-unify` | 接口返回格式统一改造 |
-
----
-
-## 分支操作规范
+常用检查：
 
 ```bash
-# 从 develop 拉取最新代码
-git checkout develop
-git pull origin develop
-
-# 创建功能分支
-git checkout -b feature/模块名-功能描述
-
-# 开发完成后提交
-git add .
-git commit -m "feat(模块名): 变更描述"
-
-# 推送到远程
-git push -u origin feature/模块名-功能描述
-
-# 在 GitHub 创建 PR → 目标分支 develop
-# PR 标题格式：feat(模块名): 变更描述
+npm run check       # lint + format:check + production build
+node --test tests/*.test.js
 ```
 
-### 禁止事项
+## 🚀 新服务器部署
 
-- ❌ 直接在 `master` 或 `develop` 分支上开发
-- ❌ 分支名使用中文或空格
-- ❌ 一个分支混合多种类型变更（如 feature + fix）
-- ❌ 提交包含硬编码密码、密钥
+原服务器已过期，以下流程用于在新的 Ubuntu 22.04/24.04 amd64 服务器上重新上线。建议内存至少 5 GB，开放 SSH `22`、HTTP `80` 和 HTTPS `443`，并为 Docker 配置足够的磁盘空间。生产 Compose 会把 Oracle `1521` 和 API `5000` 绑定到服务器本机，避免绕过 UFW 暴露到公网。
 
----
+### 1. 初始化服务器
 
-## 连接参数速查
+在服务器上获取仓库后执行：
 
-| 服务 | 地址 | 账号 / 密码 |
-|---|---|---|
-| Oracle PDB | `localhost:1521/DORMPDB` | `DORM_OPER`，密码以本地 User Secrets / 初始化脚本说明为准 |
-| 后端 Swagger | `http://localhost:5000/swagger` | — |
-| 前端页面 | `http://localhost:3000` | — |
-| DBeaver 连接 | Service Name: `DORMPDB` | `system`，密码以本地 `.env` 的 `ORACLE_PASSWORD` 为准 |
-
----
-
-## CI / CD 自动部署
-
-`.github/workflows/build-deploy.yml` 两种触发：
-
-- **PR → `master` / `develop`**：仅构建验证（后端 `dotnet restore/build/publish`，前端 `npm ci` + `npm run check`，可镜像化验证），不推送、不部署。
-- **push `develop`（PR 合入）**：全链路自动上线——编译 → 构建镜像 → 推送 GHCR → SSH 服务器执行 `scripts/deploy.sh --pull-images`：
-
-```
-[1/6] .env 校验 → [2/6] 拉镜像 → [3/6] 首次部署路径（--init-db 才走）
-→ [4/6] 拉起 oracle-db + scripts/migrate-db.sh 增量迁移   ← 每次部署恒执行
-→ [5/6] compose up -d（应用容器滚动更新）→ [6/6] 健康检查 + 旧镜像清理
+```bash
+git clone --branch develop https://github.com/Keith-hq/dormitory-service-platform.git /tmp/dormitory-service-platform
+cd /tmp/dormitory-service-platform
+sudo bash deploy/scripts/setup-server.sh
 ```
 
-关键语义：**迁移失败 = 部署中止 = CI 红**。步骤 [4/6] 失败时不执行 [5/6]，旧容器继续服务；连续合入 PR 由 `concurrency` 串行排队，不会互相抢推镜像。
+脚本会安装 Docker/Compose、配置 2 GB swap 和 UFW，并创建 `/opt/dorm-platform` 目录。把生产部署所需文件复制到该目录：
 
-### 数据库迁移纪律（新增表/字段/序列/触发器必读）
+```bash
+sudo cp -a deploy/docker deploy/nginx deploy/scripts database /opt/dorm-platform/
+cd /opt/dorm-platform
+```
 
-增量迁移由 `deploy/scripts/migrate-db.sh` 管理，记录表 `D_APP_MIGRATION`（DORM_OPER 下）是唯一真相——**只跑不在记录表里的新编号脚本**，绝不整体重放。
+### 2. 写入生产配置
 
-1. **新迁移 = `database/ddl/extensions/` 下新三位数编号文件**（如 `035_xxx.sql`），按编号升序自动应用；首次在既有环境运行时会把已发现的迁移全部标记为已应用（backfill），之后只跑新增。
-2. **PL/SQL 块必须带 `/` 结束符**（`DECLARE ... END;` 后独立一行 `/`）。缺 `/` 的 DBeaver 风格脚本会被 sqlplus 静默吞掉，部署脚本检测到会 WARN 并自动补齐临时副本执行，但请勿依赖兜底，提交前自查。
-3. **不得修改 / 删除 / 改名已应用的迁移文件**。旧脚本重跑非幂等语句（CREATE TABLE / ALTER TABLE 等）必然 ORA 报错 → 部署红。新需求一律新增编号文件，历史文件视为冻结。
-4. **存储过程改动直接改 `database/sp/sp_*.sql`**（`CREATE OR REPLACE`，每次部署恒重跑，无需编号）。
-5. **新增迁移同时补 `deploy/scripts/init-db.sh` 的 SCRIPTS 清单**（全新环境首次部署路径仍需全量清单）；本地联调可先跑 `bash deploy/scripts/migrate-db.sh` 验证幂等。
+```bash
+cp docker/.env.example docker/.env
+chmod 600 docker/.env
+```
+
+至少填写以下变量，并使用全新的随机值：
+
+| 变量 | 说明 |
+| --- | --- |
+| `ORACLE_PASSWORD` | Oracle 管理员和 `DORM_OPER` 密码 |
+| `JWT_KEY` | 至少 32 位的 JWT 签名密钥 |
+| `SERVICE_KEY` | 内部服务调用密钥 |
+| `DOCKER_REGISTRY` | 默认 `ghcr.io/keith-hq`，可替换为自己的镜像仓库 |
+| `API_TAG` / `WEB_TAG` | 镜像标签，默认 `latest` |
+
+`.env` 只保存在服务器，禁止提交到 Git 或打印到 CI 日志。
+
+### 3. 配置 HTTPS
+
+临时验证可使用项目脚本生成有效期 365 天的自签名证书：
+
+```bash
+bash scripts/ssl-gen.sh <服务器公网IP>
+```
+
+浏览器会提示证书不受信。正式域名上线时，应替换为受信任 CA 签发的 `nginx/certs/dorm.crt` 和 `nginx/certs/dorm.key`，并确认域名 DNS 已指向新服务器。
+
+### 4. 首次启动与后续更新
+
+首次部署会启动 Oracle、执行全量建库和增量迁移，再启动应用容器：
+
+```bash
+bash scripts/deploy.sh --pull-images --init-db
+```
+
+后续发布只需拉取新镜像并执行尚未应用的迁移：
+
+```bash
+bash scripts/deploy.sh --pull-images
+```
+
+如果使用自建镜像而不是 GHCR，请在包含完整 `backend/`、`frontend/` 源码的仓库 checkout 根目录执行 `bash deploy/scripts/build-images.sh`，推送镜像后再将服务器 `docker/.env` 中的镜像仓库和标签改为对应值。生产服务器只需保留部署文件和镜像，不需要复制源码。
+
+### 5. 验证、日志与备份
+
+```bash
+docker compose --env-file docker/.env -f docker/docker-compose.yml ps
+docker compose --env-file docker/.env -f docker/docker-compose.yml logs -f dorm-api
+curl http://127.0.0.1:5000/health
+curl -k https://<服务器公网IP>/
+bash scripts/backup.sh
+```
+
+确认 API、前端首页和 Oracle healthcheck 均正常后再切换 DNS。建议每天 03:00 使用 cron 执行 `scripts/backup.sh`，并将备份复制到独立存储。生产 Swagger 默认可访问 `/swagger/`，正式公网环境应在 Nginx 或网络层限制访问。
+
+### 数据库迁移纪律
+
+- 新表、字段、索引、序列或触发器必须新增 `database/ddl/extensions/NNN_*.sql`，不能修改或删除已应用的迁移。
+- 存储过程统一放在 `database/sp/`，使用 `CREATE OR REPLACE`。
+- 迁移失败时 `deploy.sh` 会停止在迁移阶段，避免替换仍可用的应用容器。
+
+## 🤖 CI / CD
+
+`.github/workflows/build-deploy.yml` 当前做三件事：
+
+- PR 到 `master` 或 `develop`：还原并编译 .NET、执行前端 lint/格式检查和生产构建、构建 Docker 镜像验证，不推送镜像。
+- push 到 `develop`：在上述检查通过后，将 `dorm-api` 和 `dorm-web` 镜像推送到 GHCR。
+- **不会自动 SSH 上线**：原服务器已过期，生产上线请在新服务器完成配置后，按本 README 的 `scripts/deploy.sh` 步骤手工执行。
+
+## 🌿 分支与提交
+
+日常开发建议从 `develop` 创建 `feature/`、`fix/`、`ops/`、`docs/` 或 `refactor/` 分支，经 PR 合并。提交信息遵循 Conventional Commits，例如：
+
+```text
+docs(readme): 补充新服务器部署流程
+refactor(repo): 清理历史模板与脚手架资源
+```
+
+当前项目维护分支：`develop`；生产分支：`master`。
+
+## 📚 进一步阅读
+
+- [frontend/README.md](frontend/README.md)：前端环境变量、Mock 和构建说明
+- [database/README.md](database/README.md)：DDL、迁移、存储过程和种子数据顺序
+- [deploy/oracle/README-环境启动.md](deploy/oracle/README-环境启动.md)：本地 Oracle 操作
+- [docs/development/04-本地完整联调步骤.md](docs/development/04-本地完整联调步骤.md)：本地全链路联调
+- [docs/development/05-前端构建与发布规范.md](docs/development/05-前端构建与发布规范.md)：前端构建和发布约定

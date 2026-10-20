@@ -38,7 +38,6 @@
 | `backend/**` | ASP.NET Core 后端项目（TemplateDormApi）——修改时须确保与 `frontend/` 接口契约一致 |
 | `frontend/**` | Vue 3 + Vite 前端项目——修改时须确保与 `backend/` 接口契约一致 |
 | `docs/development/**` | 开发流程规范——项目代码变更后须同步更新相关规范 |
-| `template/**` | 最初 M1 模板快照留档，**只读**，不参与开发与 CI，禁止修改 |
 
 **前后端一致性规则：**
 
@@ -47,7 +46,7 @@
 3. **API 响应格式统一：** 后端统一返回 `{ code, message, data }` 结构，前端 `src/utils/request.js` 统一解析该结构——两端不得单方面偏离此约定
 4. **Apifox 契约优先：** 接口变更应先更新 Apifox 文档，再同步修改前后端代码（契约权威见 3.2 红线 7）
 
-> **新业务模块开发：** 直接在 `backend/`、`frontend/` 对应子目录中开发，不复制目录；`template/` 留档仅作历史参考。
+> **新业务模块开发：** 直接在 `backend/`、`frontend/` 对应子目录中开发，不复制目录。
 
 ### 2.3 CI/CD 与部署配置
 
@@ -77,8 +76,7 @@
 | `frontend/` | 前端 Vue 3 + Vite 项目，唯一前端开发位置 | 同上 |
 | `database/` | DDL（foundation / extension）、迁移脚本、存储过程、结构校验 | 结构变化用编号迁移脚本，不回写 foundation 基线 |
 | `deploy/` | Oracle 容器与环境模板 | 变更需团队确认 |
-| `docs/` | 正式文档（project / development / operations / deliverables） | 公共文档修改需评审 |
-| `template/` | 最初 M1 模板快照留档 | **只读**，禁止修改、禁止复制使用 |
+| `docs/` | 正式文档（project / development / deliverables） | 公共文档修改需评审 |
 | `.github/workflows/` | CI 流水线 | 修改需团队确认 |
 
 ### 3.2 工程红线（不可违反）
@@ -169,7 +167,7 @@ Agent 在任何情况下都**不得**执行以下操作：
 
 以下操作 Agent 在用户提出时可以执行，但执行前**必须明确告知影响范围**并获得确认：
 
-- 修改 `docs/` 下任何公共文档（project / development / operations / deliverables）
+- 修改 `docs/` 下任何公共文档（project / development / deliverables）
 - `git rebase`、`git reset --hard` 等改写历史的操作
 - 删除远程分支
 - 修改 `package.json`、`package-lock.json` 或其他锁定文件
@@ -188,7 +186,6 @@ Agent 在任何情况下都**不得**执行以下操作：
 ### 8.2 新模块开发位置
 
 1. 业务代码一律写在 `backend/`、`frontend/` 现有工程内，不复制目录、不新建平行工程
-2. `template/` 留档仅供历史参考，不得从其中复制代码参与开发
 
 ---
 

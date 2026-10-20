@@ -6,6 +6,19 @@
 set -e
 CONTAINER=dorm-oracle-db
 DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="${DB_ENV_FILE:-$DIR/../../deploy/docker/.env}"
+if [ ! -f "$ENV_FILE" ] && [ -f "$DIR/../../deploy/oracle/.env" ]; then
+    ENV_FILE="$DIR/../../deploy/oracle/.env"
+fi
+if [ ! -f "$ENV_FILE" ]; then
+    echo "❌ $ENV_FILE 不存在，请先复制 deploy/docker/.env.example 并填写 ORACLE_PASSWORD"
+    exit 1
+fi
+DB_PASSWORD=$(grep -E '^ORACLE_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '\r')
+if [ -z "$DB_PASSWORD" ]; then
+    echo "❌ deploy/docker/.env 中未找到 ORACLE_PASSWORD"
+    exit 1
+fi
 
 # 1. 拷贝脚本进容器
 for f in race_setup race_borrow race_consume race_verify; do
@@ -13,10 +26,10 @@ for f in race_setup race_borrow race_consume race_verify; do
 done
 
 run_sql() {
-    docker exec "$CONTAINER" bash -c "sqlplus -S /nolog <<SQLEOF
-CONNECT \"DORM_OPER\"/\"Dorm@2026\"@\"//localhost:1521/DORMDB\"
-@$1
-SQLEOF"
+    {
+        printf 'CONNECT "DORM_OPER"/"%s"@"//localhost:1521/DORMPDB"\n' "$DB_PASSWORD"
+        printf '@%s\n' "$1"
+    } | docker exec -i "$CONTAINER" bash -c 'sqlplus -S /nolog'
 }
 
 # 2. 基线准备（必须在并发会话启动前完成）

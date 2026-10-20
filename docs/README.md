@@ -6,9 +6,9 @@
 |---|---|
 | `project/` | 项目总纲、任务看板和难点代码文档 |
 | `development/` | 后端/前端开发规范、Apifox 接口联调规范、本地联调步骤、前端构建与发布规范 |
-| `operations/` | 环境排错手册和组员接入指南 |
+| 根目录 `../deploy/` | 本地 Oracle、生产 Docker Compose、Nginx 和服务器脚本 |
 | `deliverables/` | 课程验收、环境交付材料及其说明 |
 
-开发流程规范统一维护在 `development/`，随 `backend/`、`frontend/` 代码变更同步更新。最初 M1 模板快照留档在根目录 `template/`，仅作历史参考，不维护教程。
+开发流程规范统一维护在 `development/`，随 `backend/`、`frontend/` 代码变更同步更新。
 
 个人工作记录、临时决策草稿和未确认方案继续保留在仓库外的 `.agent/` 工作区，不进入公共仓库。

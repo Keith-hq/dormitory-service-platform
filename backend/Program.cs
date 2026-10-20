@@ -78,7 +78,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "TemplateDormApi - 样板间接口", Version = "v1" });
+    c.SwaggerDoc("v1", new() { Title = "Dormitory Service Platform API", Version = "v1" });
     c.MapType<IFormFile>(() => new OpenApiSchema { Type = "string", Format = "binary" });
     c.OperationFilter<FormFileOperationFilter>();
 });

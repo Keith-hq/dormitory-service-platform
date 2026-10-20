@@ -24,7 +24,7 @@ services:
     image: gvenzl/oracle-xe:21-slim
     container_name: dorm-oracle-db
     ports:
-      - "1521:1521"   # Oracle 监听（生产环境建议仅暴露给内网）
+      - "127.0.0.1:1521:1521"   # Oracle 监听（仅服务器本机）
     environment:
       ORACLE_DATABASE: DORMPDB
       ORACLE_PASSWORD: ${ORACLE_PASSWORD:?Set ORACLE_PASSWORD in .env}
@@ -63,7 +63,7 @@ services:
     image: ${DOCKER_REGISTRY:-ghcr.io/keith-hq}/dorm-api:${API_TAG:-latest}
     container_name: dorm-api
     ports:
-      - "5000:5000"    # Kestrel 端口（仅本地，Nginx 反代用）
+      - "127.0.0.1:5000:5000"    # Kestrel 端口（仅服务器本机）
     environment:
       TZ: Asia/Shanghai
       ASPNETCORE_ENVIRONMENT: Production

@@ -14,13 +14,13 @@ foundation 原有 20 张表；迁移 041（表整理，ADR-002）删除 `D_Visit
 
 ## 执行顺序
 
-1. 启动 `deploy/oracle/` 中说明的 Oracle XE 环境。
+1. 启动 `deploy/oracle/` 中说明的本地 Oracle XE 环境，或使用 `deploy/docker/` 的生产编排。
 2. 使用 DBeaver 连接项目专用用户。
 3. 在干净的 schema 中执行 `ddl/foundation/001_create_tables.sql`。
 4. 执行 `verify/foundation_schema_checks.sql` 并保留结果。
 5. 重建干净 schema 或容器，再重复执行这两个脚本。
 
-foundation 脚本是可复现的正式来源。DBeaver 只用于执行和检查脚本。本次数据库变更不要修改 `deploy/oracle/`。
+foundation 脚本是可复现的正式来源。DBeaver 只用于执行和检查脚本。数据库脚本变更应保持本地和生产 Oracle 编排的服务名一致（`DORMPDB`）。
 
 基础基线完成评审后，扩展必须使用独立且有编号的脚本添加。不要通过重写 foundation 脚本来增加业务表或改变既有字段语义。
 
